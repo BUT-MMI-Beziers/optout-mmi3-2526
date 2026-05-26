@@ -1,0 +1,10 @@
+localhost {
+    handle /api/* {
+        uri strip_prefix /api
+        reverse_proxy {env.API_HOST}:{env.API_PORT_INTERNAL}
+    }
+
+    handle {
+        reverse_proxy {env.FRONT_HOST}:{env.FRONT_PORT_INTERNAL}
+    }
+}
