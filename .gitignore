@@ -1,4 +1,4 @@
 .env
 node_modules/
 drizzle/
-.DS_Store
+.DS_Storefront/.vite/
