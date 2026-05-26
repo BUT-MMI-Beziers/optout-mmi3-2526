@@ -23,9 +23,6 @@ import {
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const ITEMS_PER_PAGE = 12
-
-// Ordre d'affichage des catégories (le "Tous" est géré séparément)
 const CATEGORY_ORDER: BrokerCategory[] = [
   "people-search",
   "marketing",
@@ -33,7 +30,6 @@ const CATEGORY_ORDER: BrokerCategory[] = [
   "recruitment",
 ]
 
-// Icônes pour les méthodes d'opt-out
 const methodIcons: Record<string, string> = {
   email: "📧",
   form: "📋",
@@ -52,9 +48,10 @@ export default function Brokers() {
   const [regionFilter, setRegionFilter] = useState<BrokerRegion | "tous">("tous")
   const [difficultyFilter, setDifficultyFilter] = useState<Difficulty | "tous">("tous")
   const [page, setPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(12)
   const [excluded, setExcluded] = useState<string[]>([])
 
-  // Filtrage (mémoïsé pour la perf)
+  // Filtrage
   const filtered = useMemo(() => {
     return mockBrokers.filter((b) => {
       const matchSearch = b.name.toLowerCase().includes(search.toLowerCase())
@@ -66,11 +63,11 @@ export default function Brokers() {
   }, [search, activeCategory, regionFilter, difficultyFilter])
 
   // Pagination
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage))
   const safePage = Math.min(page, totalPages)
   const paginated = filtered.slice(
-    (safePage - 1) * ITEMS_PER_PAGE,
-    safePage * ITEMS_PER_PAGE
+    (safePage - 1) * itemsPerPage,
+    safePage * itemsPerPage
   )
 
   // Compteurs par catégorie
@@ -82,7 +79,7 @@ export default function Brokers() {
     }))
   }, [])
 
-  // Y a-t-il des filtres actifs ?
+  // Filtres actifs ?
   const hasActiveFilters =
     search !== "" ||
     activeCategory !== "tous" ||
@@ -213,14 +210,9 @@ export default function Brokers() {
             </button>
           )
         })}
-
-        {/* Pagination par page (à droite) */}
-        <div className="ml-auto flex items-center gap-1 text-sm text-muted-foreground border border-border rounded-lg px-3 py-2 bg-white">
-          12 par page <span className="ml-1">▾</span>
-        </div>
       </div>
 
-      {/* ─── Filtres avancés (région, difficulté) ───────────── */}
+      {/* ─── Filtres avancés (région, difficulté, par page) ─── */}
       <div className="flex items-center gap-3 flex-wrap">
         <span className="text-sm font-medium text-muted-foreground">Filtres :</span>
 
@@ -272,6 +264,26 @@ export default function Brokers() {
             Réinitialiser les filtres
           </button>
         )}
+
+        {/* Sélecteur "par page" (à droite) */}
+        <div className="ml-auto">
+          <Select
+            value={String(itemsPerPage)}
+            onValueChange={(v) => {
+              setItemsPerPage(Number(v))
+              setPage(1)
+            }}
+          >
+            <SelectTrigger className="w-[140px] bg-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="12">12 par page</SelectItem>
+              <SelectItem value="24">24 par page</SelectItem>
+              <SelectItem value="48">48 par page</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* ─── Grille des brokers ─────────────────────────────── */}
