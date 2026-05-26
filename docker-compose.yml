@@ -21,7 +21,8 @@ services:
       - ./front:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost/api
+      - VITE_API_URL=http://localhost:5173/api
+      - CHOKIDAR_USEPOLLING=true
 
   redis:
     image: redis:7-alpine
