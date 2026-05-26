@@ -8,6 +8,8 @@ services:
       - /app/node_modules
     env_file:
       - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-float}:${POSTGRES_PASSWORD:-float}@db:5432/${POSTGRES_DB:-float}
     depends_on:
       - redis
       - mailpit
