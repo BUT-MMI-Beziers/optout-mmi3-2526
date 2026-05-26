@@ -1,19 +1,38 @@
-import { useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route } from "react-router-dom"
+import MainLayout from "@/layouts/MainLayout"
+import Landing from "@/pages/Landing"
+import Login from "@/pages/Login"
+import Register from "@/pages/Register"
+import Dashboard from "@/pages/Dashboard"
+import Profile from "@/pages/Profile"
+import Brokers from "@/pages/Brokers"
+import BrokerDetail from "@/pages/BrokerDetail"
+import RequestDetail from "@/pages/RequestDetail"
+import NewRequest from "@/pages/NewRequest"
+import AdminBrokers from "@/pages/AdminBrokers"
+import Notifications from "@/pages/Notifications"
+import Settings from "@/pages/Settings"
 
 function App() {
-  const [message, setMessage] = useState('')
-
-  useEffect(() => {
-    fetch('/api/')
-      .then(res => res.json())
-      .then(data => setMessage(data.message))
-  }, [])
-
   return (
-    <div>
-      <h1>Float</h1>
-      <p>{message}</p>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<MainLayout />}>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/brokers" element={<Brokers />} />
+          <Route path="/brokers/:slug" element={<BrokerDetail />} />
+          <Route path="/requests/new" element={<NewRequest />} />
+          <Route path="/requests/:id" element={<RequestDetail />} />
+          <Route path="/admin/brokers" element={<AdminBrokers />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/settings" element={<Settings />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
 
