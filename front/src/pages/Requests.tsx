@@ -1,5 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { motion, type Variants } from 'framer-motion'
+
+const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } }
+const rowVariant: Variants = { hidden: { opacity: 0, x: -12 }, show: { opacity: 1, x: 0, transition: { duration: 0.22 } } }
 import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -160,11 +164,12 @@ export default function Requests() {
             Aucune demande trouvée.
           </div>
         ) : (
-          requests.map((req) => {
+          <motion.div key={`${page}-${activeStatus}-${search}`} variants={stagger} initial="hidden" animate="show">
+          {requests.map((req) => {
             const cfg = statusConfig[req.status]
             return (
+              <motion.div key={req.id} variants={rowVariant}>
               <Link
-                key={req.id}
                 to={`/requests/${req.id}`}
                 className="grid grid-cols-[2fr_1.2fr_1.3fr_1fr] px-5 py-4 border-b border-border last:border-0 hover:bg-accent/50 transition-colors items-center"
               >
@@ -192,8 +197,10 @@ export default function Requests() {
                   <span className={`text-base font-medium ${cfg.color}`}>{cfg.label}</span>
                 </div>
               </Link>
+              </motion.div>
             )
-          })
+          })}
+          </motion.div>
         )}
       </div>
 

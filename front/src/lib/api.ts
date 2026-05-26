@@ -54,6 +54,9 @@ export interface Paginated<T> {
   lastPage: number
 }
 
+export type PaginatedBrokers = Paginated<Broker>
+export type PaginatedRequests = Paginated<RemovalRequest>
+
 // ─── Utilisateur ──────────────────────────────────────────────────────────────
 
 export async function getMe(): Promise<User> {

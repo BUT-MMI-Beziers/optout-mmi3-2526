@@ -1,5 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { motion, AnimatePresence, type Variants } from 'framer-motion'
+
+const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } }
+const rowVariant: Variants = { hidden: { opacity: 0, x: -10 }, show: { opacity: 1, x: 0, transition: { duration: 0.2 } } }
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -154,47 +158,42 @@ export default function NewRequest() {
             Aucun broker trouvé.
           </div>
         ) : (
-          brokers.map((broker: Broker) => {
-            const isSelected = selected.has(broker.id)
-            return (
-              <label
-                key={broker.id}
-                className={`grid grid-cols-[2.5rem_2fr_0.8fr_1.2fr_0.9fr_0.9fr] px-4 py-3.5 border-b border-border last:border-0 items-center cursor-pointer transition-colors ${
-                  isSelected ? 'bg-[#FC7E34]/5' : 'hover:bg-accent/40'
-                }`}
-              >
-                <Checkbox
-                  checked={isSelected}
-                  onCheckedChange={() => toggle(broker)}
-                  className="data-[state=checked]:bg-[#FC7E34] data-[state=checked]:border-[#FC7E34]"
-                />
-                <div className="flex items-center gap-2.5">
-                  <img
-                    src={`https://www.google.com/s2/favicons?domain=${broker.website}&sz=32`}
-                    alt={broker.name}
-                    className="w-6 h-6 object-contain"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+          <motion.div key={`${page}-${activeCategory}-${search}`} variants={stagger} initial="hidden" animate="show">
+            {brokers.map((broker: Broker) => {
+              const isSelected = selected.has(broker.id)
+              return (
+                <motion.label
+                  key={broker.id}
+                  variants={rowVariant}
+                  className={`grid grid-cols-[2.5rem_2fr_0.8fr_1.2fr_0.9fr_0.9fr] px-4 py-3.5 border-b border-border last:border-0 items-center cursor-pointer transition-colors ${
+                    isSelected ? 'bg-[#FC7E34]/5' : 'hover:bg-accent/40'
+                  }`}
+                >
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => toggle(broker)}
+                    className="data-[state=checked]:bg-[#FC7E34] data-[state=checked]:border-[#FC7E34]"
                   />
-                  <span className="text-base font-medium">{broker.name}</span>
-                  {!broker.isVerified && (
-                    <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Non vérifié</span>
-                  )}
-                </div>
-                <span className="text-base text-muted-foreground font-medium">
-                  {regionLabels[broker.region]}
-                </span>
-                <span className="text-base text-muted-foreground">
-                  {categoryLabels[broker.category]}
-                </span>
-                <span className="text-base text-muted-foreground">
-                  {difficultyLabels[broker.difficulty]}
-                </span>
-                <span className="text-base text-muted-foreground">
-                  {methodLabels[broker.optOutMethod]}
-                </span>
-              </label>
-            )
-          })
+                  <div className="flex items-center gap-2.5">
+                    <img
+                      src={`https://www.google.com/s2/favicons?domain=${broker.website}&sz=32`}
+                      alt={broker.name}
+                      className="w-6 h-6 object-contain"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                    />
+                    <span className="text-base font-medium">{broker.name}</span>
+                    {!broker.isVerified && (
+                      <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Non vérifié</span>
+                    )}
+                  </div>
+                  <span className="text-base text-muted-foreground font-medium">{regionLabels[broker.region]}</span>
+                  <span className="text-base text-muted-foreground">{categoryLabels[broker.category]}</span>
+                  <span className="text-base text-muted-foreground">{difficultyLabels[broker.difficulty]}</span>
+                  <span className="text-base text-muted-foreground">{methodLabels[broker.optOutMethod]}</span>
+                </motion.label>
+              )
+            })}
+          </motion.div>
         )}
       </div>
 
@@ -232,20 +231,28 @@ export default function NewRequest() {
       </div>
 
       {/* CTA fixe */}
-      {selectedBrokers.length > 0 && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-[#000401] text-white px-6 py-3.5 rounded-full shadow-2xl">
-          <span className="text-sm">
-            <strong>{selectedBrokers.length}</strong> broker{selectedBrokers.length > 1 ? 's' : ''} sélectionné{selectedBrokers.length > 1 ? 's' : ''}
-          </span>
-          <Button
-            size="sm"
-            className="bg-[#FC7E34] hover:bg-[#e06e28] text-white h-8 gap-1.5"
-            onClick={() => setModalOpen(true)}
+      <AnimatePresence>
+        {selectedBrokers.length > 0 && (
+          <motion.div
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-[#000401] text-white px-6 py-3.5 rounded-full shadow-2xl"
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
           >
-            Préparer l'envoi →
-          </Button>
-        </div>
-      )}
+            <span className="text-sm">
+              <strong>{selectedBrokers.length}</strong> broker{selectedBrokers.length > 1 ? 's' : ''} sélectionné{selectedBrokers.length > 1 ? 's' : ''}
+            </span>
+            <Button
+              size="sm"
+              className="bg-[#FC7E34] hover:bg-[#e06e28] text-white h-8 gap-1.5"
+              onClick={() => setModalOpen(true)}
+            >
+              Préparer l'envoi →
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modal */}
       <SendRequestModal
