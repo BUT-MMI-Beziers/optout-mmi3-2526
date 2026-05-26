@@ -1,6 +1,10 @@
 {
   "dependencies": {
-    "bullmq": "^5.77.3",
-    "ioredis": "^5.10.1"
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^0.31.10"
   }
 }
