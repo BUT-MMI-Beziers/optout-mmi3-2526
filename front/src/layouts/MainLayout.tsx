@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import {
   LayoutDashboard,
   FileText,
@@ -123,11 +123,19 @@ export default function MainLayout() {
         </header>
 
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-7xl mx-auto w-full">
+          <PageWrapper pathname={location.pathname}>
             <Outlet />
-          </div>
+          </PageWrapper>
         </main>
       </div>
+    </div>
+  )
+}
+
+function PageWrapper({ pathname, children }: { pathname: string; children: ReactNode }) {
+  return (
+    <div key={pathname} className="max-w-7xl mx-auto w-full page-transition">
+      {children}
     </div>
   )
 }

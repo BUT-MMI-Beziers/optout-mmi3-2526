@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
+import { motion, AnimatePresence, type Variants } from 'framer-motion'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
+
+const chipStagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } }
+const chipItem: Variants = { hidden: { opacity: 0, scale: 0.9 }, show: { opacity: 1, scale: 1, transition: { duration: 0.18 } } }
+const successVariant: Variants = { hidden: { opacity: 0, scale: 0.85 }, show: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 350, damping: 22 } } }
 import { Button } from '@/components/ui/button'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -105,28 +110,35 @@ export default function SendRequestModal({ open, onClose, selectedBrokers, onSuc
           </DialogDescription>
         </DialogHeader>
 
+        <AnimatePresence mode="wait">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
+          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
+          </motion.div>
         ) : sent ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
+          <motion.div
+            key="sent"
+            className="flex flex-col items-center justify-center py-12 gap-3"
+            variants={successVariant}
+            initial="hidden"
+            animate="show"
+          >
             <CheckCircle2 className="w-12 h-12 text-green-500" />
             <p className="text-base font-semibold text-green-600">
               {selectedBrokers.length} demande{selectedBrokers.length > 1 ? 's' : ''} envoyée{selectedBrokers.length > 1 ? 's' : ''} avec succès
             </p>
             <p className="text-sm text-muted-foreground">Redirection en cours…</p>
-          </div>
+          </motion.div>
         ) : (
-          <div className="space-y-5">
+          <motion.div key="content" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="space-y-5">
             {/* Brokers sélectionnés */}
             <div>
               <p className="text-sm font-medium mb-2">
                 Brokers ciblés ({selectedBrokers.length})
               </p>
-              <div className="flex flex-wrap gap-2">
+              <motion.div className="flex flex-wrap gap-2" variants={chipStagger} initial="hidden" animate="show">
                 {selectedBrokers.map((b) => (
-                  <div key={b.id} className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg text-sm">
+                  <motion.div key={b.id} variants={chipItem} className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg text-sm">
                     <img
                       src={`https://www.google.com/s2/favicons?domain=${b.website}&sz=16`}
                       alt={b.name}
@@ -140,9 +152,9 @@ export default function SendRequestModal({ open, onClose, selectedBrokers, onSuc
                     <Badge variant="outline" className="text-xs px-2 py-0.5">
                       {difficultyLabels[b.difficulty]}
                     </Badge>
-                  </div>
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             </div>
 
             <Separator />
@@ -254,8 +266,9 @@ export default function SendRequestModal({ open, onClose, selectedBrokers, onSuc
                 </Button>
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </DialogContent>
     </Dialog>
   )
