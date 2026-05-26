@@ -1,10 +1,65 @@
 services:
+  api:
+    build: ./api
+    ports:
+      - "${API_PORT:-3000}:3000"
+    volumes:
+      - ./api:/app
+      - /app/node_modules
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - mailpit
+      - db
+
   front:
     build: ./front
     ports:
-      - "5173:5173"
+      - "${FRONT_PORT:-5173}:5173"
     volumes:
       - ./front:/app
       - /app/node_modules
     environment:
+      - VITE_API_URL=http://localhost:5173/api
       - CHOKIDAR_USEPOLLING=true
+
+  redis:
+    image: redis:7-alpine
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-float}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-float}
+      - POSTGRES_DB=${POSTGRES_DB:-float}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    env_file:
+      - .env
+    depends_on:
+      - api
+      - front
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

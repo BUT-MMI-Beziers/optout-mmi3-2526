@@ -7,6 +7,7 @@ import Dashboard from "@/pages/Dashboard"
 import Profile from "@/pages/Profile"
 import Brokers from "@/pages/Brokers"
 import BrokerDetail from "@/pages/BrokerDetail"
+import Requests from "@/pages/Requests"
 import RequestDetail from "@/pages/RequestDetail"
 import NewRequest from "@/pages/NewRequest"
 import AdminBrokers from "@/pages/AdminBrokers"
@@ -25,6 +26,7 @@ function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/brokers" element={<Brokers />} />
           <Route path="/brokers/:slug" element={<BrokerDetail />} />
+          <Route path="/requests" element={<Requests />} />
           <Route path="/requests/new" element={<NewRequest />} />
           <Route path="/requests/:id" element={<RequestDetail />} />
           <Route path="/admin/brokers" element={<AdminBrokers />} />
