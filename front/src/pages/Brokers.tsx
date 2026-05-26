@@ -1,202 +1,102 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useNavigate } from "react-router-dom"
+import {
+  mockBrokers,
+  categoryLabels,
+  regionLabels,
+  difficultyLabels,
+  methodLabels,
+  type BrokerCategory,
+  type BrokerRegion,
+  type Difficulty,
+} from "@/lib/mock-data"
 
-const MOCK_BROKERS = [
-  {
-    id: "1",
-    name: "Spokeo",
-    slug: "spokeo",
-    website: "spokeo.com",
-    category: "aggregateurs",
-    region: "us",
-    legal_basis: "ccpa",
-    difficulty: "easy",
-    is_verified: true,
-    email_contact: "privacy@spokeo.com",
-    description: "Agrégateur américain de données personnelles. Compile annuaires, réseaux sociaux et registres publics.",
-  },
-  {
-    id: "2",
-    name: "Pages Blanches",
-    slug: "pages-blanches",
-    website: "pagesblanches.fr",
-    category: "annuaires",
-    region: "eu",
-    legal_basis: "gdpr_art17",
-    difficulty: "medium",
-    is_verified: true,
-    email_contact: "dpo@pagesblanches.fr",
-    description: "Annuaire en ligne français référençant adresses et numéros de téléphone des particuliers.",
-  },
-  {
-    id: "3",
-    name: "Acxiom",
-    slug: "acxiom",
-    website: "acxiom.com",
-    category: "marketing",
-    region: "global",
-    legal_basis: "ccpa",
-    difficulty: "hard",
-    is_verified: false,
-    email_contact: "privacy@acxiom.com",
-    description: "Géant du marketing data. Collecte et revend des profils comportementaux à grande échelle.",
-  },
-  {
-    id: "4",
-    name: "Intelius",
-    slug: "intelius",
-    website: "intelius.com",
-    category: "aggregateurs",
-    region: "us",
-    legal_basis: "ccpa",
-    difficulty: "medium",
-    is_verified: true,
-    email_contact: "privacy@intelius.com",
-    description: "Agrégateur américain de données personnelles. Compile annuaires, réseaux sociaux et registres publics.",
-  },
-  {
-    id: "5",
-    name: "BeenVerified",
-    slug: "beenverified",
-    website: "beenverified.com",
-    category: "aggregateurs",
-    region: "us",
-    legal_basis: "ccpa",
-    difficulty: "easy",
-    is_verified: true,
-    email_contact: "privacy@beenverified.com",
-    description: "Agrégateur américain de données personnelles. Compile annuaires, réseaux sociaux et registres publics.",
-  },
-  {
-    id: "6",
-    name: "Whitepages",
-    slug: "whitepages",
-    website: "whitepages.com",
-    category: "annuaires",
-    region: "us",
-    legal_basis: "ccpa",
-    difficulty: "easy",
-    is_verified: false,
-    email_contact: "privacy@whitepages.com",
-    description: "Annuaire en ligne américain référençant adresses et numéros de téléphone des particuliers.",
-  },
-  {
-    id: "7",
-    name: "Epsilon",
-    slug: "epsilon",
-    website: "epsilon.com",
-    category: "marketing",
-    region: "global",
-    legal_basis: "gdpr_art17",
-    difficulty: "hard",
-    is_verified: true,
-    email_contact: "privacy@epsilon.com",
-    description: "Plateforme de marketing data mondiale. Vend des segments comportementaux aux annonceurs.",
-  },
-  {
-    id: "8",
-    name: "LexisNexis",
-    slug: "lexisnexis",
-    website: "lexisnexis.com",
-    category: "recherche",
-    region: "us",
-    legal_basis: "ccpa",
-    difficulty: "hard",
-    is_verified: false,
-    email_contact: "privacy@lexisnexis.com",
-    description: "Base de données juridique et d'investigation. Agrège des millions de dossiers publics.",
-  },
-  {
-    id: "9",
-    name: "PeopleFinder",
-    slug: "peoplefinder",
-    website: "peoplefinder.com",
-    category: "aggregateurs",
-    region: "us",
-    legal_basis: "ccpa",
-    difficulty: "medium",
-    is_verified: false,
-    email_contact: "privacy@peoplefinder.com",
-    description: "Agrégateur américain de données personnelles. Compile annuaires, réseaux sociaux et registres publics.",
-  },
-  {
-    id: "10",
-    name: "TruePeopleSearch",
-    slug: "truepeoplesearch",
-    website: "truepeoplesearch.com",
-    category: "recherche",
-    region: "us",
-    legal_basis: "ccpa",
-    difficulty: "easy",
-    is_verified: true,
-    email_contact: "privacy@truepeoplesearch.com",
-    description: "Moteur de recherche de personnes américain. Agrège des données publiques et semi-publiques.",
-  },
-  {
-    id: "11",
-    name: "DataBrokersList",
-    slug: "databrokerslist",
-    website: "databrokerslist.com",
-    category: "marketing",
-    region: "global",
-    legal_basis: "gdpr_art17",
-    difficulty: "medium",
-    is_verified: false,
-    email_contact: "privacy@databrokerslist.com",
-    description: "Plateforme de courtage de données marketing. Agrège et revend des profils consommateurs.",
-  },
-  {
-    id: "12",
-    name: "InfoTracer",
-    slug: "infotracer",
-    website: "infotracer.com",
-    category: "recherche",
-    region: "us",
-    legal_basis: "ccpa",
-    difficulty: "medium",
-    is_verified: true,
-    email_contact: "privacy@infotracer.com",
-    description: "Service de recherche d'informations personnelles. Agrège dossiers publics et données en ligne.",
-  },
-]
-
-const CATEGORIES = [
-  { key: "tous", label: "Tous" },
-  { key: "aggregateurs", label: "Agrégateurs" },
-  { key: "annuaires", label: "Annuaires" },
-  { key: "marketing", label: "Marketing" },
-  { key: "recherche", label: "Recherche" },
-]
+// ─── Configuration ────────────────────────────────────────────────────────────
 
 const ITEMS_PER_PAGE = 12
 
+// Ordre d'affichage des catégories (le "Tous" est géré séparément)
+const CATEGORY_ORDER: BrokerCategory[] = [
+  "people-search",
+  "marketing",
+  "risk-mitigation",
+  "recruitment",
+]
+
+// Icônes pour les méthodes d'opt-out
+const methodIcons: Record<string, string> = {
+  email: "📧",
+  form: "📋",
+  postal: "✉️",
+  mixed: "🔀",
+}
+
+// ─── Composant ────────────────────────────────────────────────────────────────
+
 export default function Brokers() {
   const navigate = useNavigate()
+
+  // États
   const [search, setSearch] = useState("")
-  const [activeCategory, setActiveCategory] = useState("tous")
+  const [activeCategory, setActiveCategory] = useState<BrokerCategory | "tous">("tous")
+  const [regionFilter, setRegionFilter] = useState<BrokerRegion | "tous">("tous")
+  const [difficultyFilter, setDifficultyFilter] = useState<Difficulty | "tous">("tous")
   const [page, setPage] = useState(1)
   const [excluded, setExcluded] = useState<string[]>([])
 
-  const filtered = MOCK_BROKERS.filter((b) => {
-    const matchSearch = b.name.toLowerCase().includes(search.toLowerCase())
-    const matchCat = activeCategory === "tous" || b.category === activeCategory
-    return matchSearch && matchCat
-  })
+  // Filtrage (mémoïsé pour la perf)
+  const filtered = useMemo(() => {
+    return mockBrokers.filter((b) => {
+      const matchSearch = b.name.toLowerCase().includes(search.toLowerCase())
+      const matchCategory = activeCategory === "tous" || b.category === activeCategory
+      const matchRegion = regionFilter === "tous" || b.region === regionFilter
+      const matchDifficulty = difficultyFilter === "tous" || b.difficulty === difficultyFilter
+      return matchSearch && matchCategory && matchRegion && matchDifficulty
+    })
+  }, [search, activeCategory, regionFilter, difficultyFilter])
 
+  // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
-  const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
+  const safePage = Math.min(page, totalPages)
+  const paginated = filtered.slice(
+    (safePage - 1) * ITEMS_PER_PAGE,
+    safePage * ITEMS_PER_PAGE
+  )
 
-  const categoryCounts = CATEGORIES.map((cat) => ({
-    ...cat,
-    count:
-      cat.key === "tous"
-        ? MOCK_BROKERS.length
-        : MOCK_BROKERS.filter((b) => b.category === cat.key).length,
-  }))
+  // Compteurs par catégorie
+  const categoryCounts = useMemo(() => {
+    return CATEGORY_ORDER.map((cat) => ({
+      key: cat,
+      label: categoryLabels[cat],
+      count: mockBrokers.filter((b) => b.category === cat).length,
+    }))
+  }, [])
+
+  // Y a-t-il des filtres actifs ?
+  const hasActiveFilters =
+    search !== "" ||
+    activeCategory !== "tous" ||
+    regionFilter !== "tous" ||
+    difficultyFilter !== "tous"
+
+  // Helpers
+  const resetFilters = () => {
+    setSearch("")
+    setActiveCategory("tous")
+    setRegionFilter("tous")
+    setDifficultyFilter("tous")
+    setPage(1)
+  }
 
   const toggleExclude = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -205,10 +105,25 @@ export default function Brokers() {
     )
   }
 
+  // Pagination intelligente (1 ... 4 5 6 ... 12)
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1)
+    }
+    const pages: (number | "...")[] = [1]
+    if (safePage > 3) pages.push("...")
+    for (let i = Math.max(2, safePage - 1); i <= Math.min(totalPages - 1, safePage + 1); i++) {
+      pages.push(i)
+    }
+    if (safePage < totalPages - 2) pages.push("...")
+    pages.push(totalPages)
+    return pages
+  }, [safePage, totalPages])
+
   return (
     <div className="p-8 space-y-6">
 
-      {/* Header */}
+      {/* ─── Header ─────────────────────────────────────────── */}
       <div className="flex items-start justify-between">
         <div>
           <h1
@@ -221,16 +136,9 @@ export default function Brokers() {
             Tous les data brokers connus, leurs catégories et l'état de vos demandes de suppression.
           </p>
         </div>
-        <Button
-          className="flex items-center gap-2 font-semibold text-white shrink-0"
-          style={{ backgroundColor: "#FC7E34", borderColor: "#FC7E34" }}
-          onClick={() => navigate("/admin/brokers")}
-        >
-          <span>⚑</span> Signaler un broker
-        </Button>
       </div>
 
-      {/* Barre de recherche */}
+      {/* ─── Barre de recherche ─────────────────────────────── */}
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
           🔍
@@ -246,8 +154,35 @@ export default function Brokers() {
         />
       </div>
 
-      {/* Filtres catégories */}
+      {/* ─── Filtres catégories ─────────────────────────────── */}
       <div className="flex items-center gap-2 flex-wrap">
+        {/* Bouton "Tous" */}
+        <button
+          onClick={() => {
+            setActiveCategory("tous")
+            setPage(1)
+          }}
+          className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border"
+          style={
+            activeCategory === "tous"
+              ? { backgroundColor: "#253550", color: "#F9F7F6", borderColor: "#253550" }
+              : { backgroundColor: "white", color: "#000401", borderColor: "#e5e3e1" }
+          }
+        >
+          Tous
+          <span
+            className="text-xs px-1.5 py-0.5 rounded font-bold"
+            style={
+              activeCategory === "tous"
+                ? { backgroundColor: "rgba(255,255,255,0.2)", color: "white" }
+                : { backgroundColor: "#f0efee", color: "#6b7280" }
+            }
+          >
+            {mockBrokers.length}
+          </span>
+        </button>
+
+        {/* Boutons catégories */}
         {categoryCounts.map((cat) => {
           const isActive = activeCategory === cat.key
           return (
@@ -278,12 +213,68 @@ export default function Brokers() {
             </button>
           )
         })}
+
+        {/* Pagination par page (à droite) */}
         <div className="ml-auto flex items-center gap-1 text-sm text-muted-foreground border border-border rounded-lg px-3 py-2 bg-white">
           12 par page <span className="ml-1">▾</span>
         </div>
       </div>
 
-      {/* Grille des brokers */}
+      {/* ─── Filtres avancés (région, difficulté) ───────────── */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm font-medium text-muted-foreground">Filtres :</span>
+
+        {/* Région */}
+        <Select
+          value={regionFilter}
+          onValueChange={(v) => {
+            setRegionFilter(v as BrokerRegion | "tous")
+            setPage(1)
+          }}
+        >
+          <SelectTrigger className="w-[160px] bg-white">
+            <SelectValue placeholder="Région" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tous">Toutes les régions</SelectItem>
+            <SelectItem value="eu">🇪🇺 {regionLabels.eu}</SelectItem>
+            <SelectItem value="us">🇺🇸 {regionLabels.us}</SelectItem>
+            <SelectItem value="global">🌍 {regionLabels.global}</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Difficulté */}
+        <Select
+          value={difficultyFilter}
+          onValueChange={(v) => {
+            setDifficultyFilter(v as Difficulty | "tous")
+            setPage(1)
+          }}
+        >
+          <SelectTrigger className="w-[160px] bg-white">
+            <SelectValue placeholder="Difficulté" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tous">Toutes difficultés</SelectItem>
+            <SelectItem value="easy">🟢 {difficultyLabels.easy}</SelectItem>
+            <SelectItem value="medium">🟠 {difficultyLabels.medium}</SelectItem>
+            <SelectItem value="hard">🔴 {difficultyLabels.hard}</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Bouton reset (visible seulement si filtres actifs) */}
+        {hasActiveFilters && (
+          <button
+            onClick={resetFilters}
+            className="text-sm font-medium underline transition-colors"
+            style={{ color: "#FC7E34" }}
+          >
+            Réinitialiser les filtres
+          </button>
+        )}
+      </div>
+
+      {/* ─── Grille des brokers ─────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {paginated.map((broker) => {
           const isExcluded = excluded.includes(broker.id)
@@ -309,20 +300,48 @@ export default function Brokers() {
                     className="text-xs uppercase shrink-0 text-white border-0"
                     style={{ backgroundColor: "#253550" }}
                   >
-                    {broker.category}
+                    {categoryLabels[broker.category]}
                   </Badge>
                 </div>
+
+                {/* Badge vérifié / non-vérifié */}
+                <div className="flex items-center gap-2 mt-2">
+                  {broker.isVerified ? (
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+                      style={{ backgroundColor: "#dcfce7", color: "#15803d" }}
+                    >
+                      ✓ Vérifié
+                    </span>
+                  ) : (
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+                      style={{ backgroundColor: "#fef3c7", color: "#92400e" }}
+                    >
+                      ⚠ À vérifier
+                    </span>
+                  )}
+                </div>
               </CardHeader>
+
               <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground leading-snug line-clamp-3">
-                  {broker.description}
+                {/* Notes du broker si dispo, sinon fallback générique */}
+                <p className="text-sm text-muted-foreground leading-snug line-clamp-3 min-h-[60px]">
+                  {broker.notes || `${categoryLabels[broker.category]} basé en ${regionLabels[broker.region]}. Méthode d'opt-out : ${methodLabels[broker.optOutMethod].toLowerCase()}.`}
                 </p>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span>🌐 {broker.region.toUpperCase()}</span>
+
+                {/* Métadonnées (région, méthode, base légale) */}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                  <span>🌐 {regionLabels[broker.region]}</span>
                   <span>
-                    ◯ {broker.legal_basis === "gdpr_art17" ? "RGPD" : "CCPA"}
+                    {methodIcons[broker.optOutMethod]} {methodLabels[broker.optOutMethod]}
+                  </span>
+                  <span>
+                    ◯ {broker.legalBasis === "gdpr_art17" ? "RGPD" : broker.legalBasis === "ccpa" ? "CCPA" : "Autre"}
                   </span>
                 </div>
+
+                {/* Bouton "Ne pas contacter" */}
                 <button
                   className="w-full flex items-center justify-center gap-2 border border-border rounded-lg py-2 text-sm transition-colors hover:bg-muted"
                   style={isExcluded ? { color: "#FC7E34", borderColor: "#FC7E34" } : { color: "#000401" }}
@@ -339,49 +358,70 @@ export default function Brokers() {
         })}
       </div>
 
-      {/* Vide */}
+      {/* ─── État vide ──────────────────────────────────────── */}
       {filtered.length === 0 && (
         <div className="text-center py-16 text-muted-foreground">
-          Aucun broker ne correspond à votre recherche.
+          <p className="text-base mb-2">Aucun broker ne correspond à votre recherche.</p>
+          {hasActiveFilters && (
+            <button
+              onClick={resetFilters}
+              className="text-sm font-medium underline"
+              style={{ color: "#FC7E34" }}
+            >
+              Réinitialiser les filtres
+            </button>
+          )}
         </div>
       )}
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between pt-2">
-        <p className="text-sm text-muted-foreground">
-          Affichage de {paginated.length} sur {filtered.length} brokers
-        </p>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-muted disabled:opacity-40 text-sm"
-          >
-            ‹
-          </button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+      {/* ─── Pagination ─────────────────────────────────────── */}
+      {filtered.length > 0 && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-sm text-muted-foreground">
+            Affichage de {paginated.length} sur {filtered.length} brokers
+          </p>
+          <div className="flex items-center gap-1">
             <button
-              key={p}
-              onClick={() => setPage(p)}
-              className="w-8 h-8 flex items-center justify-center rounded text-sm font-medium transition-colors"
-              style={
-                page === p
-                  ? { backgroundColor: "#FC7E34", color: "white" }
-                  : { border: "1px solid #e5e3e1", backgroundColor: "white" }
-              }
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-muted disabled:opacity-40 text-sm"
+              aria-label="Page précédente"
             >
-              {p}
+              ‹
             </button>
-          ))}
-          <button
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-            className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-muted disabled:opacity-40 text-sm"
-          >
-            ›
-          </button>
+            {pageNumbers.map((p, idx) =>
+              p === "..." ? (
+                <span key={`dots-${idx}`} className="w-8 h-8 flex items-center justify-center text-sm text-muted-foreground">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className="w-8 h-8 flex items-center justify-center rounded text-sm font-medium transition-colors"
+                  style={
+                    safePage === p
+                      ? { backgroundColor: "#FC7E34", color: "white" }
+                      : { border: "1px solid #e5e3e1", backgroundColor: "white" }
+                  }
+                  aria-label={`Page ${p}`}
+                  aria-current={safePage === p ? "page" : undefined}
+                >
+                  {p}
+                </button>
+              )
+            )}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-muted disabled:opacity-40 text-sm"
+              aria-label="Page suivante"
+            >
+              ›
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
     </div>
   )
