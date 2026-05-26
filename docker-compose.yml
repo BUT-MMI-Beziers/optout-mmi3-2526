@@ -1,8 +1,6 @@
 services:
   api:
     build: ./api
-    ports:
-      - "${API_PORT:-3000}:3000"
     volumes:
       - ./api:/app
       - /app/node_modules
@@ -15,8 +13,6 @@ services:
 
   front:
     build: ./front
-    ports:
-      - "${FRONT_PORT:-5173}:5173"
     volumes:
       - ./front:/app
       - /app/node_modules
