@@ -88,22 +88,9 @@ export async function login(c: Context) {
   })
 }
 
-// ── POST /api/v1/auth/logout ────────────────────────────────────────────────
+// ── POST /api/auth/logout ────────────────────────────────────────────────
 
 export async function logout(c: Context) {
-  let body: Record<string, unknown>
-  try {
-    body = await c.req.json()
-  } catch {
-    return c.json({ error: 'Corps JSON invalide' }, 400)
-  }
-
-  const { refreshToken } = body as { refreshToken?: string }
-  if (!refreshToken) {
-    return c.json({ error: 'refreshToken est requis' }, 400)
-  }
-
-  await authService.revokeRefreshToken(refreshToken)
   return c.json({ message: 'Déconnexion réussie' })
 }
 
@@ -138,8 +125,5 @@ export async function changePassword(c: Context) {
   if (!valid) return c.json({ error: 'Mot de passe actuel incorrect' }, 400)
 
   await authService.updatePassword(userId, newPassword)
-  // Révoque tous les sessions actives pour forcer une reconnexion
-  await authService.revokeAllRefreshTokens(userId)
-
   return c.json({ message: 'Mot de passe mis à jour. Veuillez vous reconnecter.' })
 }

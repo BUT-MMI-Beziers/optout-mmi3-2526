@@ -1,3 +1,205 @@
+import { useEffect, useState } from "react"
+
+const API = "/api"
+
+function authHeaders() {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+  }
+}
+
+type Contact = {
+  id: string
+  type: "email" | "phone" | "address"
+  value: string
+  isPrimary: boolean
+  label: string | null
+}
+
+type Profil = {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  role: string
+  contacts: Contact[]
+}
+
 export default function Profile() {
-  return <div className="p-8"><h1 className="text-2xl font-bold">Profile</h1></div>
+  const [profil, setProfil] = useState<Profil | null>(null)
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState("")
+
+  const [newContact, setNewContact] = useState({ type: "email" as Contact["type"], value: "", label: "" })
+  const [contactError, setContactError] = useState("")
+
+  useEffect(() => {
+    fetch(`${API}/users/me`, { headers: authHeaders() })
+      .then(r => r.json())
+      .then((data: Profil) => {
+        setProfil(data)
+        setFirstName(data.firstName)
+        setLastName(data.lastName)
+      })
+  }, [])
+
+  async function saveProfil(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    setMessage("")
+    const res = await fetch(`${API}/users/me`, {
+      method: "PUT",
+      headers: authHeaders(),
+      body: JSON.stringify({ firstName, lastName }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setProfil(data)
+      setMessage("Profil mis à jour")
+    } else {
+      setMessage("Erreur lors de la mise à jour")
+    }
+    setSaving(false)
+  }
+
+  async function addContact(e: React.FormEvent) {
+    e.preventDefault()
+    setContactError("")
+    const res = await fetch(`${API}/users/me/contacts`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(newContact),
+    })
+    const data = await res.json()
+    if (!res.ok) { setContactError(data.error ?? "Erreur"); return }
+    setProfil(p => p ? { ...p, contacts: [...p.contacts, data.contact] } : p)
+    setNewContact({ type: "email", value: "", label: "" })
+  }
+
+  async function deleteContact(id: string) {
+    const res = await fetch(`${API}/users/me/contacts/${id}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    })
+    if (res.ok) {
+      setProfil(p => p ? { ...p, contacts: p.contacts.filter(c => c.id !== id) } : p)
+    }
+  }
+
+  if (!profil) return <div className="p-8">Chargement...</div>
+
+  const emails    = profil.contacts.filter(c => c.type === "email")
+  const addresses = profil.contacts.filter(c => c.type === "address")
+  const phones    = profil.contacts.filter(c => c.type === "phone")
+
+  return (
+    <div className="p-8 max-w-xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Mon profil</h1>
+
+      {/* Infos de base */}
+      <form onSubmit={saveProfil} className="mb-8 flex flex-col gap-3">
+        <div>
+          <label className="block text-sm mb-1">Prénom *</label>
+          <input
+            type="text"
+            value={firstName}
+            onChange={e => setFirstName(e.target.value)}
+            required
+            className="border p-2 w-full rounded"
+          />
+        </div>
+        <div>
+          <label className="block text-sm mb-1">Nom *</label>
+          <input
+            type="text"
+            value={lastName}
+            onChange={e => setLastName(e.target.value)}
+            required
+            className="border p-2 w-full rounded"
+          />
+        </div>
+        <div>
+          <label className="block text-sm mb-1">Email du compte</label>
+          <input type="email" value={profil.email} disabled className="border p-2 w-full rounded bg-gray-100" />
+        </div>
+        {message && <p className="text-sm text-green-600">{message}</p>}
+        <button type="submit" disabled={saving} className="bg-black text-white px-4 py-2 rounded">
+          {saving ? "..." : "Sauvegarder"}
+        </button>
+      </form>
+
+      {/* Contacts */}
+      <section className="mb-6">
+        <h2 className="font-semibold mb-3">Emails ({emails.length}/5) *</h2>
+        {emails.map(c => (
+          <div key={c.id} className="flex justify-between items-center border rounded p-2 mb-2">
+            <span>{c.value} {c.label && <span className="text-xs text-gray-400">({c.label})</span>}</span>
+            <button onClick={() => deleteContact(c.id)} className="text-red-500 text-sm">Supprimer</button>
+          </div>
+        ))}
+      </section>
+
+      <section className="mb-6">
+        <h2 className="font-semibold mb-3">Adresses ({addresses.length}/5) *</h2>
+        {addresses.map(c => (
+          <div key={c.id} className="flex justify-between items-center border rounded p-2 mb-2">
+            <span>{c.value} {c.label && <span className="text-xs text-gray-400">({c.label})</span>}</span>
+            <button onClick={() => deleteContact(c.id)} className="text-red-500 text-sm">Supprimer</button>
+          </div>
+        ))}
+      </section>
+
+      <section className="mb-8">
+        <h2 className="font-semibold mb-3">Téléphones ({phones.length}/3)</h2>
+        {phones.map(c => (
+          <div key={c.id} className="flex justify-between items-center border rounded p-2 mb-2">
+            <span>{c.value} {c.label && <span className="text-xs text-gray-400">({c.label})</span>}</span>
+            <button onClick={() => deleteContact(c.id)} className="text-red-500 text-sm">Supprimer</button>
+          </div>
+        ))}
+      </section>
+
+      {/* Ajouter un contact */}
+      <form onSubmit={addContact} className="flex flex-col gap-3 border-t pt-6">
+        <h2 className="font-semibold">Ajouter un contact</h2>
+        <div>
+          <label className="block text-sm mb-1">Type</label>
+          <select
+            value={newContact.type}
+            onChange={e => setNewContact(n => ({ ...n, type: e.target.value as Contact["type"] }))}
+            className="border p-2 w-full rounded"
+          >
+            <option value="email">Email</option>
+            <option value="address">Adresse</option>
+            <option value="phone">Téléphone</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm mb-1">Valeur</label>
+          <input
+            type="text"
+            value={newContact.value}
+            onChange={e => setNewContact(n => ({ ...n, value: e.target.value }))}
+            required
+            className="border p-2 w-full rounded"
+          />
+        </div>
+        <div>
+          <label className="block text-sm mb-1">Label (optionnel)</label>
+          <input
+            type="text"
+            placeholder="ex: perso, pro, domicile"
+            value={newContact.label}
+            onChange={e => setNewContact(n => ({ ...n, label: e.target.value }))}
+            className="border p-2 w-full rounded"
+          />
+        </div>
+        {contactError && <p className="text-sm text-red-500">{contactError}</p>}
+        <button type="submit" className="bg-black text-white px-4 py-2 rounded">Ajouter</button>
+      </form>
+    </div>
+  )
 }

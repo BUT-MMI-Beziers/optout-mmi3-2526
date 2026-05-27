@@ -5,7 +5,6 @@ import {
   varchar,
   text,
   boolean,
-  date,
   timestamp,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
@@ -66,15 +65,14 @@ export const eventTypeEnum = pgEnum('event_type', [
 // ============================================================
 
 export const users = pgTable('users', {
-  id:           uuid('id').primaryKey().defaultRandom(),
-  email:        varchar('email', { length: 255 }).notNull().unique(),
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
-  firstName:    varchar('first_name', { length: 100 }).notNull(), // chiffré
-  lastName:     varchar('last_name', { length: 100 }).notNull(),  // chiffré
-  birthDate:    date('birth_date'),                                // chiffré
-  role:         userRoleEnum('role').notNull().default('user'),
-  createdAt:    timestamp('created_at').notNull().defaultNow(),
-  updatedAt:    timestamp('updated_at').notNull().defaultNow(),
+  firstName: varchar('first_name', { length: 100 }).notNull(),
+  lastName: varchar('last_name', { length: 100 }).notNull(),
+  role: userRoleEnum('role').notNull().default('user'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // ============================================================
@@ -83,12 +81,12 @@ export const users = pgTable('users', {
 // ============================================================
 
 export const userContacts = pgTable('user_contacts', {
-  id:        uuid('id').primaryKey().defaultRandom(),
-  userId:    uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  type:      contactTypeEnum('type').notNull(),
-  value:     text('value').notNull(),              // chiffré AES-256
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: contactTypeEnum('type').notNull(),
+  value: text('value').notNull(),              // chiffré AES-256
   isPrimary: boolean('is_primary').notNull().default(false),
-  label:     varchar('label', { length: 50 }),     // ex: domicile, pro, ancien
+  label: varchar('label', { length: 50 }),     // ex: domicile, pro, ancien
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -100,23 +98,23 @@ export const userContacts = pgTable('user_contacts', {
 // ============================================================
 
 export const brokers = pgTable('brokers', {
-  id:             uuid('id').primaryKey().defaultRandom(),
-  name:           varchar('name', { length: 255 }).notNull(),
-  slug:           varchar('slug', { length: 255 }).notNull().unique(),
-  emailContact:   varchar('email_contact', { length: 255 }).notNull(),
-  website:        varchar('website', { length: 500 }),
-  optOutUrl:      varchar('opt_out_url', { length: 500 }),
-  category:       brokerCategoryEnum('category').notNull(),
-  region:         brokerRegionEnum('region').notNull(),
-  country:        varchar('country', { length: 2 }),  // code ISO ex: FR, DE, US
-  optOutMethod:   optOutMethodEnum('opt_out_method').notNull(),
-  difficulty:     brokerDifficultyEnum('difficulty').notNull(),
-  legalBasis:     legalBasisEnum('legal_basis').notNull(),
-  notes:          text('notes'),
-  isVerified:     boolean('is_verified').notNull().default(false),
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 255 }).notNull(),
+  slug: varchar('slug', { length: 255 }).notNull().unique(),
+  emailContact: varchar('email_contact', { length: 255 }).notNull(),
+  website: varchar('website', { length: 500 }),
+  optOutUrl: varchar('opt_out_url', { length: 500 }),
+  category: brokerCategoryEnum('category').notNull(),
+  region: brokerRegionEnum('region').notNull(),
+  country: varchar('country', { length: 2 }),
+  optOutMethod: optOutMethodEnum('opt_out_method').notNull(),
+  difficulty: brokerDifficultyEnum('difficulty').notNull(),
+  legalBasis: legalBasisEnum('legal_basis').notNull(),
+  notes: text('notes'),
+  isVerified: boolean('is_verified').notNull().default(false),
   lastVerifiedAt: timestamp('last_verified_at'),
-  createdAt:      timestamp('created_at').notNull().defaultNow(),
-  updatedAt:      timestamp('updated_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // ============================================================
@@ -127,15 +125,15 @@ export const brokers = pgTable('brokers', {
 // ============================================================
 
 export const emailTemplates = pgTable('email_templates', {
-  id:         uuid('id').primaryKey().defaultRandom(),
-  name:       varchar('name', { length: 100 }).notNull(),    // ex: gdpr_erasure_fr
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 100 }).notNull(),
   legalBasis: legalBasisEnum('legal_basis').notNull(),
-  language:   varchar('language', { length: 5 }).notNull(),  // fr, en
-  subject:    varchar('subject', { length: 255 }).notNull(), // avec {{variables}}
-  body:       text('body').notNull(),                        // HTML/texte avec {{variables}}
-  isDefault:  boolean('is_default').notNull().default(false),
-  createdAt:  timestamp('created_at').notNull().defaultNow(),
-  updatedAt:  timestamp('updated_at').notNull().defaultNow(),
+  language: varchar('language', { length: 5 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  body: text('body').notNull(),
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // ============================================================
@@ -148,17 +146,17 @@ export const emailTemplates = pgTable('email_templates', {
 // ============================================================
 
 export const removalRequests = pgTable('removal_requests', {
-  id:           uuid('id').primaryKey().defaultRandom(),
-  userId:       uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  brokerId:     uuid('broker_id').notNull().references(() => brokers.id, { onDelete: 'restrict' }),
-  templateId:   uuid('template_id').notNull().references(() => emailTemplates.id, { onDelete: 'restrict' }),
-  status:       requestStatusEnum('status').notNull().default('DRAFT'),
-  sentAt:       timestamp('sent_at'),           // date d'envoi effectif
-  respondedAt:  timestamp('responded_at'),      // date de réponse du broker
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  brokerId: uuid('broker_id').notNull().references(() => brokers.id, { onDelete: 'restrict' }),
+  templateId: uuid('template_id').notNull().references(() => emailTemplates.id, { onDelete: 'restrict' }),
+  status: requestStatusEnum('status').notNull().default('DRAFT'),
+  sentAt: timestamp('sent_at'),           // date d'envoi effectif
+  respondedAt: timestamp('responded_at'),      // date de réponse du broker
   nextActionAt: timestamp('next_action_at'),    // prochaine relance (utilisé par le scheduler)
-  emailBody:    text('email_body').notNull(),   // corps généré conservé pour traçabilité
-  createdAt:    timestamp('created_at').notNull().defaultNow(),
-  updatedAt:    timestamp('updated_at').notNull().defaultNow(),
+  emailBody: text('email_body').notNull(),   // corps généré conservé pour traçabilité
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // ============================================================
@@ -167,12 +165,12 @@ export const removalRequests = pgTable('removal_requests', {
 // ============================================================
 
 export const requestEvents = pgTable('request_events', {
-  id:        uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id').primaryKey().defaultRandom(),
   requestId: uuid('request_id').notNull().references(() => removalRequests.id, { onDelete: 'cascade' }),
   eventType: eventTypeEnum('event_type').notNull(),
   oldStatus: requestStatusEnum('old_status'),  // renseigné pour status_changed
   newStatus: requestStatusEnum('new_status'),  // renseigné pour status_changed
-  note:      text('note'),                     // commentaire libre
+  note: text('note'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -183,24 +181,11 @@ export const requestEvents = pgTable('request_events', {
 // ============================================================
 
 export const notifications = pgTable('notifications', {
-  id:        uuid('id').primaryKey().defaultRandom(),
-  userId:    uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   requestId: uuid('request_id').references(() => removalRequests.id, { onDelete: 'set null' }),
-  message:   text('message').notNull(),
-  isRead:    boolean('is_read').notNull().default(false),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-})
-
-// ============================================================
-// TABLE : refresh_tokens
-// Refresh tokens JWT — stockés en base pour révocation
-// ============================================================
-
-export const refreshTokens = pgTable('refresh_tokens', {
-  id:        uuid('id').primaryKey().defaultRandom(),
-  userId:    uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  token:     varchar('token', { length: 64 }).notNull().unique(),
-  expiresAt: timestamp('expires_at').notNull(),
+  message: text('message').notNull(),
+  isRead: boolean('is_read').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -209,10 +194,9 @@ export const refreshTokens = pgTable('refresh_tokens', {
 // ============================================================
 
 export const usersRelations = relations(users, ({ many }) => ({
-  contacts:         many(userContacts),
-  removalRequests:  many(removalRequests),
-  notifications:    many(notifications),
-  refreshTokens:    many(refreshTokens),
+  contacts: many(userContacts),
+  removalRequests: many(removalRequests),
+  notifications: many(notifications),
 }))
 
 export const userContactsRelations = relations(userContacts, ({ one }) => ({
@@ -228,10 +212,10 @@ export const emailTemplatesRelations = relations(emailTemplates, ({ many }) => (
 }))
 
 export const removalRequestsRelations = relations(removalRequests, ({ one, many }) => ({
-  user:          one(users,          { fields: [removalRequests.userId],     references: [users.id] }),
-  broker:        one(brokers,        { fields: [removalRequests.brokerId],   references: [brokers.id] }),
-  template:      one(emailTemplates, { fields: [removalRequests.templateId], references: [emailTemplates.id] }),
-  events:        many(requestEvents),
+  user: one(users, { fields: [removalRequests.userId], references: [users.id] }),
+  broker: one(brokers, { fields: [removalRequests.brokerId], references: [brokers.id] }),
+  template: one(emailTemplates, { fields: [removalRequests.templateId], references: [emailTemplates.id] }),
+  events: many(requestEvents),
   notifications: many(notifications),
 }))
 
@@ -240,10 +224,7 @@ export const requestEventsRelations = relations(requestEvents, ({ one }) => ({
 }))
 
 export const notificationsRelations = relations(notifications, ({ one }) => ({
-  user:    one(users,           { fields: [notifications.userId],    references: [users.id] }),
+  user: one(users, { fields: [notifications.userId], references: [users.id] }),
   request: one(removalRequests, { fields: [notifications.requestId], references: [removalRequests.id] }),
 }))
 
-export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
-  user: one(users, { fields: [refreshTokens.userId], references: [users.id] }),
-}))

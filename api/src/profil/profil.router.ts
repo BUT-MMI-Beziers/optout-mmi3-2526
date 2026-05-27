@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { authMiddleware } from '../middleware/auth.middleware.js'
+import { authMiddleware } from '../auth/auth.middleware.js'
 import * as ctrl from './profil.controller.js'
 
 const profil = new Hono()

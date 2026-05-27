@@ -2,11 +2,11 @@
   "name": "api",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "npm run db:migrate && tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "npm run db:migrate && node dist/index.js",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx src/db/migrate.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
@@ -16,10 +16,13 @@
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.23",
+<<<<<<< HEAD
+    "js-yaml": "^4.1.1",
     "jsonwebtoken": "^9.0.3",
     "postgres": "^3.4.9"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.11.17",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
