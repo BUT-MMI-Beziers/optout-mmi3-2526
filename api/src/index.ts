@@ -2,29 +2,39 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
 
-// Import du routeur dédié aux templates (créé lors de la refacto)
+// ============================================================================
+// IMPORTS DES ROUTEURS (Modules métiers)
+// ============================================================================
 import { templatesRoutes } from './routes/templates.routes'
+import { requestsRoutes } from './routes/requests.routes'
 
+// Initialisation de l'application principale
 const app = new Hono()
 
-// Activation du CORS pour permettre au frontend de communiquer avec l'API
+// ============================================================================
+// MIDDLEWARES GLOBAUX
+// ============================================================================
+// Activation du CORS pour autoriser les requêtes provenant du frontend
 app.use('/*', cors())
 
-// Route de vérification de santé de l'API (Healthcheck)
+// ============================================================================
+// ROUTE DE SANTÉ (Healthcheck)
+// ============================================================================
+// Permet de vérifier rapidement que le serveur est démarré et fonctionnel
 app.get('/', (c) => {
   return c.json({ message: 'Float API is running' })
 })
 
 // ============================================================================
-// DÉCLARATION DES ROUTES
+// ROUTAGE DE L'API (v1)
 // ============================================================================
-
-// Branchement du routeur des templates. 
-// Toutes les routes définies dans templatesRoutes seront automatiquement 
-// préfixées par /api/v1/templates
+// Délégation des sous-routes aux routeurs spécifiques par domaine
 app.route('/api/v1/templates', templatesRoutes)
+app.route('/api/v1/requests', requestsRoutes)
 
-// Démarrage du serveur
+// ============================================================================
+// DÉMARRAGE DU SERVEUR
+// ============================================================================
 serve({
   fetch: app.fetch,
   port: Number(process.env.PORT) || 3000,
