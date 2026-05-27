@@ -19,10 +19,12 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Pages sans layout (auth) */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
         <Route element={<MainLayout />}>
           <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/brokers" element={<Brokers />} />
