@@ -107,3 +107,5 @@ templatesRoutes.get('/:id', async (c) => {
     }, 500)
   }
 })
+
+export default templatesRoutes

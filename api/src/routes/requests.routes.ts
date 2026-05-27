@@ -134,3 +134,5 @@ requestsRoutes.get('/:id/preview', async (c) => {
     }, 500)
   }
 })
+
+export default requestsRoutes
