@@ -11,6 +11,19 @@ import {
 } from "@/components/ui/select"
 import { useNavigate } from "react-router-dom"
 import {
+  Search,
+  Globe,
+  Mail,
+  FileText,
+  Send,
+  Shuffle,
+  CheckCircle2,
+  AlertTriangle,
+  Scale,
+  X,
+  Undo2,
+} from "lucide-react"
+import {
   mockBrokers,
   categoryLabels,
   regionLabels,
@@ -30,11 +43,19 @@ const CATEGORY_ORDER: BrokerCategory[] = [
   "recruitment",
 ]
 
-const methodIcons: Record<string, string> = {
-  email: "📧",
-  form: "📋",
-  postal: "✉️",
-  mixed: "🔀",
+// Icône lucide pour chaque méthode d'opt-out
+const methodIconMap = {
+  email: Mail,
+  form: FileText,
+  postal: Send,
+  mixed: Shuffle,
+} as const
+
+// Couleur du point de difficulté
+const difficultyDot: Record<Difficulty, string> = {
+  easy: "#22c55e",
+  medium: "#f97316",
+  hard: "#ef4444",
 }
 
 // ─── Composant ────────────────────────────────────────────────────────────────
@@ -42,7 +63,6 @@ const methodIcons: Record<string, string> = {
 export default function Brokers() {
   const navigate = useNavigate()
 
-  // États
   const [search, setSearch] = useState("")
   const [activeCategory, setActiveCategory] = useState<BrokerCategory | "tous">("tous")
   const [regionFilter, setRegionFilter] = useState<BrokerRegion | "tous">("tous")
@@ -51,7 +71,6 @@ export default function Brokers() {
   const [itemsPerPage, setItemsPerPage] = useState(12)
   const [excluded, setExcluded] = useState<string[]>([])
 
-  // Filtrage
   const filtered = useMemo(() => {
     return mockBrokers.filter((b) => {
       const matchSearch = b.name.toLowerCase().includes(search.toLowerCase())
@@ -62,7 +81,6 @@ export default function Brokers() {
     })
   }, [search, activeCategory, regionFilter, difficultyFilter])
 
-  // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage))
   const safePage = Math.min(page, totalPages)
   const paginated = filtered.slice(
@@ -70,7 +88,6 @@ export default function Brokers() {
     safePage * itemsPerPage
   )
 
-  // Compteurs par catégorie
   const categoryCounts = useMemo(() => {
     return CATEGORY_ORDER.map((cat) => ({
       key: cat,
@@ -79,14 +96,12 @@ export default function Brokers() {
     }))
   }, [])
 
-  // Filtres actifs ?
   const hasActiveFilters =
     search !== "" ||
     activeCategory !== "tous" ||
     regionFilter !== "tous" ||
     difficultyFilter !== "tous"
 
-  // Helpers
   const resetFilters = () => {
     setSearch("")
     setActiveCategory("tous")
@@ -102,7 +117,6 @@ export default function Brokers() {
     )
   }
 
-  // Pagination intelligente (1 ... 4 5 6 ... 12)
   const pageNumbers = useMemo(() => {
     if (totalPages <= 7) {
       return Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -123,10 +137,7 @@ export default function Brokers() {
       {/* ─── Header ─────────────────────────────────────────── */}
       <div className="flex items-start justify-between">
         <div>
-          <h1
-            className="text-4xl font-bold uppercase tracking-wide"
-            style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}
-          >
+          <h1 className="text-4xl font-bold uppercase tracking-wide" style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}>
             Registre des brokers
           </h1>
           <p className="text-muted-foreground mt-1 max-w-xl text-sm">
@@ -137,9 +148,7 @@ export default function Brokers() {
 
       {/* ─── Barre de recherche ─────────────────────────────── */}
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-          🔍
-        </span>
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           placeholder="Rechercher dans le registre..."
           value={search}
@@ -153,7 +162,6 @@ export default function Brokers() {
 
       {/* ─── Filtres catégories ─────────────────────────────── */}
       <div className="flex items-center gap-2 flex-wrap">
-        {/* Bouton "Tous" */}
         <button
           onClick={() => {
             setActiveCategory("tous")
@@ -167,19 +175,11 @@ export default function Brokers() {
           }
         >
           Tous
-          <span
-            className="text-xs px-1.5 py-0.5 rounded font-bold"
-            style={
-              activeCategory === "tous"
-                ? { backgroundColor: "rgba(255,255,255,0.2)", color: "white" }
-                : { backgroundColor: "#f0efee", color: "#6b7280" }
-            }
-          >
+          <span className="text-xs px-1.5 py-0.5 rounded font-bold" style={activeCategory === "tous" ? { backgroundColor: "rgba(255,255,255,0.2)", color: "white" } : { backgroundColor: "#f0efee", color: "#6b7280" }}>
             {mockBrokers.length}
           </span>
         </button>
 
-        {/* Boutons catégories */}
         {categoryCounts.map((cat) => {
           const isActive = activeCategory === cat.key
           return (
@@ -197,14 +197,7 @@ export default function Brokers() {
               }
             >
               {cat.label}
-              <span
-                className="text-xs px-1.5 py-0.5 rounded font-bold"
-                style={
-                  isActive
-                    ? { backgroundColor: "rgba(255,255,255,0.2)", color: "white" }
-                    : { backgroundColor: "#f0efee", color: "#6b7280" }
-                }
-              >
+              <span className="text-xs px-1.5 py-0.5 rounded font-bold" style={isActive ? { backgroundColor: "rgba(255,255,255,0.2)", color: "white" } : { backgroundColor: "#f0efee", color: "#6b7280" }}>
                 {cat.count}
               </span>
             </button>
@@ -212,11 +205,10 @@ export default function Brokers() {
         })}
       </div>
 
-      {/* ─── Filtres avancés (région, difficulté, par page) ─── */}
+      {/* ─── Filtres avancés ────────────────────────────────── */}
       <div className="flex items-center gap-3 flex-wrap">
         <span className="text-sm font-medium text-muted-foreground">Filtres :</span>
 
-        {/* Région */}
         <Select
           value={regionFilter}
           onValueChange={(v) => {
@@ -229,13 +221,12 @@ export default function Brokers() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="tous">Toutes les régions</SelectItem>
-            <SelectItem value="eu">🇪🇺 {regionLabels.eu}</SelectItem>
-            <SelectItem value="us">🇺🇸 {regionLabels.us}</SelectItem>
-            <SelectItem value="global">🌍 {regionLabels.global}</SelectItem>
+            <SelectItem value="eu">{regionLabels.eu}</SelectItem>
+            <SelectItem value="us">{regionLabels.us}</SelectItem>
+            <SelectItem value="global">{regionLabels.global}</SelectItem>
           </SelectContent>
         </Select>
 
-        {/* Difficulté */}
         <Select
           value={difficultyFilter}
           onValueChange={(v) => {
@@ -248,14 +239,13 @@ export default function Brokers() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="tous">Toutes difficultés</SelectItem>
-            <SelectItem value="easy">🟢 {difficultyLabels.easy}</SelectItem>
-            <SelectItem value="medium">🟠 {difficultyLabels.medium}</SelectItem>
-            <SelectItem value="hard">🔴 {difficultyLabels.hard}</SelectItem>
+            <SelectItem value="easy">{difficultyLabels.easy}</SelectItem>
+            <SelectItem value="medium">{difficultyLabels.medium}</SelectItem>
+            <SelectItem value="hard">{difficultyLabels.hard}</SelectItem>
           </SelectContent>
         </Select>
 
-        {/* Bouton reset (visible seulement si filtres actifs) */}
-        {hasActiveFilters && (
+        {hasActiveFilters ? (
           <button
             onClick={resetFilters}
             className="text-sm font-medium underline transition-colors"
@@ -263,9 +253,8 @@ export default function Brokers() {
           >
             Réinitialiser les filtres
           </button>
-        )}
+        ) : null}
 
-        {/* Sélecteur "par page" (à droite) */}
         <div className="ml-auto">
           <Select
             value={String(itemsPerPage)}
@@ -290,28 +279,23 @@ export default function Brokers() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {paginated.map((broker) => {
           const isExcluded = excluded.includes(broker.id)
+          const MethodIcon = methodIconMap[broker.optOutMethod]
           return (
             <Card
               key={broker.id}
               className="cursor-pointer hover:shadow-md transition-shadow bg-white border-border"
               style={isExcluded ? { opacity: 0.5 } : {}}
-              onClick={() => navigate(`/brokers/${broker.slug}`)}
+              onClick={() => navigate("/brokers/" + broker.slug)}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p
-                      className="font-bold text-lg leading-tight"
-                      style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}
-                    >
+                    <p className="font-bold text-lg leading-tight" style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}>
                       {broker.name}
                     </p>
                     <p className="text-xs text-muted-foreground">{broker.website}</p>
                   </div>
-                  <Badge
-                    className="text-xs uppercase shrink-0 text-white border-0"
-                    style={{ backgroundColor: "#253550" }}
-                  >
+                  <Badge className="text-xs uppercase shrink-0 text-white border-0" style={{ backgroundColor: "#253550" }}>
                     {categoryLabels[broker.category]}
                   </Badge>
                 </div>
@@ -319,50 +303,55 @@ export default function Brokers() {
                 {/* Badge vérifié / non-vérifié */}
                 <div className="flex items-center gap-2 mt-2">
                   {broker.isVerified ? (
-                    <span
-                      className="text-xs font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1"
-                      style={{ backgroundColor: "#dcfce7", color: "#15803d" }}
-                    >
-                      ✓ Vérifié
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={{ backgroundColor: "#dcfce7", color: "#15803d" }}>
+                      <CheckCircle2 className="w-3 h-3" strokeWidth={2.5} />
+                      Vérifié
                     </span>
                   ) : (
-                    <span
-                      className="text-xs font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1"
-                      style={{ backgroundColor: "#fef3c7", color: "#92400e" }}
-                    >
-                      ⚠ À vérifier
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={{ backgroundColor: "#fef3c7", color: "#92400e" }}>
+                      <AlertTriangle className="w-3 h-3" strokeWidth={2.5} />
+                      À vérifier
                     </span>
                   )}
                 </div>
               </CardHeader>
 
               <CardContent className="space-y-3">
-                {/* Notes du broker si dispo, sinon fallback générique */}
                 <p className="text-sm text-muted-foreground leading-snug line-clamp-3 min-h-[60px]">
-                  {broker.notes || `${categoryLabels[broker.category]} basé en ${regionLabels[broker.region]}. Méthode d'opt-out : ${methodLabels[broker.optOutMethod].toLowerCase()}.`}
+                  {broker.notes || categoryLabels[broker.category] + " basé en " + regionLabels[broker.region] + ". Méthode d'opt-out : " + methodLabels[broker.optOutMethod].toLowerCase() + "."}
                 </p>
 
-                {/* Métadonnées (région, méthode, base légale) */}
                 <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                  <span>🌐 {regionLabels[broker.region]}</span>
-                  <span>
-                    {methodIcons[broker.optOutMethod]} {methodLabels[broker.optOutMethod]}
+                  <span className="inline-flex items-center gap-1">
+                    <Globe className="w-3 h-3" />
+                    {regionLabels[broker.region]}
                   </span>
-                  <span>
-                    ◯ {broker.legalBasis === "gdpr_art17" ? "RGPD" : broker.legalBasis === "ccpa" ? "CCPA" : "Autre"}
+                  <span className="inline-flex items-center gap-1">
+                    <MethodIcon className="w-3 h-3" />
+                    {methodLabels[broker.optOutMethod]}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Scale className="w-3 h-3" />
+                    {broker.legalBasis === "gdpr_art17" ? "RGPD" : broker.legalBasis === "ccpa" ? "CCPA" : "Autre"}
                   </span>
                 </div>
 
-                {/* Bouton "Ne pas contacter" */}
                 <button
                   className="w-full flex items-center justify-center gap-2 border border-border rounded-lg py-2 text-sm transition-colors hover:bg-muted"
                   style={isExcluded ? { color: "#FC7E34", borderColor: "#FC7E34" } : { color: "#000401" }}
                   onClick={(e) => toggleExclude(broker.id, e)}
                 >
-                  <span style={{ color: isExcluded ? "#FC7E34" : "#ef4444" }}>
-                    {isExcluded ? "↩" : "✕"}
-                  </span>
-                  {isExcluded ? "Réintégrer ce broker" : "Ne pas contacter ce broker"}
+                  {isExcluded ? (
+                    <>
+                      <Undo2 className="w-4 h-4" style={{ color: "#FC7E34" }} />
+                      Réintégrer ce broker
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-4 h-4" style={{ color: "#ef4444" }} />
+                      Ne pas contacter ce broker
+                    </>
+                  )}
                 </button>
               </CardContent>
             </Card>
@@ -371,23 +360,19 @@ export default function Brokers() {
       </div>
 
       {/* ─── État vide ──────────────────────────────────────── */}
-      {filtered.length === 0 && (
+      {filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <p className="text-base mb-2">Aucun broker ne correspond à votre recherche.</p>
-          {hasActiveFilters && (
-            <button
-              onClick={resetFilters}
-              className="text-sm font-medium underline"
-              style={{ color: "#FC7E34" }}
-            >
+          {hasActiveFilters ? (
+            <button onClick={resetFilters} className="text-sm font-medium underline" style={{ color: "#FC7E34" }}>
               Réinitialiser les filtres
             </button>
-          )}
+          ) : null}
         </div>
-      )}
+      ) : null}
 
       {/* ─── Pagination ─────────────────────────────────────── */}
-      {filtered.length > 0 && (
+      {filtered.length > 0 ? (
         <div className="flex items-center justify-between pt-2">
           <p className="text-sm text-muted-foreground">
             Affichage de {paginated.length} sur {filtered.length} brokers
@@ -403,7 +388,7 @@ export default function Brokers() {
             </button>
             {pageNumbers.map((p, idx) =>
               p === "..." ? (
-                <span key={`dots-${idx}`} className="w-8 h-8 flex items-center justify-center text-sm text-muted-foreground">
+                <span key={"dots-" + idx} className="w-8 h-8 flex items-center justify-center text-sm text-muted-foreground">
                   …
                 </span>
               ) : (
@@ -416,7 +401,7 @@ export default function Brokers() {
                       ? { backgroundColor: "#FC7E34", color: "white" }
                       : { border: "1px solid #e5e3e1", backgroundColor: "white" }
                   }
-                  aria-label={`Page ${p}`}
+                  aria-label={"Page " + p}
                   aria-current={safePage === p ? "page" : undefined}
                 >
                   {p}
@@ -433,7 +418,7 @@ export default function Brokers() {
             </button>
           </div>
         </div>
-      )}
+      ) : null}
 
     </div>
   )

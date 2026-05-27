@@ -5,6 +5,18 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import {
+  ArrowLeft,
+  ExternalLink,
+  Mail,
+  FileText,
+  Send,
+  Shuffle,
+  CheckCircle2,
+  AlertTriangle,
+  Scale,
+  Globe,
+} from "lucide-react"
+import {
   mockBrokers,
   mockRequests,
   categoryLabels,
@@ -22,18 +34,12 @@ const legalLabel: Record<string, string> = {
   other: "Autre",
 }
 
-const regionFlag: Record<string, string> = {
-  eu: "🇪🇺",
-  us: "🇺🇸",
-  global: "🌍",
-}
-
-const methodIcons: Record<string, string> = {
-  email: "📧",
-  form: "📋",
-  postal: "✉️",
-  mixed: "🔀",
-}
+const methodIconMap = {
+  email: Mail,
+  form: FileText,
+  postal: Send,
+  mixed: Shuffle,
+} as const
 
 const difficultyColor: Record<string, { bg: string; text: string }> = {
   easy: { bg: "#dcfce7", text: "#15803d" },
@@ -67,7 +73,8 @@ export default function BrokerDetail() {
           Broker introuvable
         </h1>
         <p className="text-muted-foreground">Le broker que vous cherchez n'existe pas dans le registre.</p>
-        <Button onClick={() => navigate("/brokers")} className="font-semibold text-white" style={{ backgroundColor: "#FC7E34" }}>
+        <Button onClick={() => navigate("/brokers")} className="font-semibold text-white inline-flex items-center gap-2" style={{ backgroundColor: "#FC7E34" }}>
+          <ArrowLeft className="w-4 h-4" />
           Retour au registre
         </Button>
       </div>
@@ -77,11 +84,13 @@ export default function BrokerDetail() {
   const diffStyle = difficultyColor[broker.difficulty]
   const websiteUrl = "https://" + broker.website
   const mailtoUrl = "mailto:" + broker.emailContact
+  const MethodIcon = methodIconMap[broker.optOutMethod]
 
   return (
     <div className="p-8 space-y-6 max-w-7xl mx-auto">
 
       <Link to="/brokers" className="text-sm font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors">
+        <ArrowLeft className="w-4 h-4" />
         Retour au registre
       </Link>
 
@@ -92,17 +101,20 @@ export default function BrokerDetail() {
               {broker.name}
             </h1>
             {broker.isVerified ? (
-              <span className="text-sm font-semibold px-3 py-1 rounded-full inline-flex items-center gap-1" style={{ backgroundColor: "#dcfce7", color: "#15803d" }}>
+              <span className="text-sm font-semibold px-3 py-1 rounded-full inline-flex items-center gap-1.5" style={{ backgroundColor: "#dcfce7", color: "#15803d" }}>
+                <CheckCircle2 className="w-4 h-4" strokeWidth={2.5} />
                 Vérifié
               </span>
             ) : (
-              <span className="text-sm font-semibold px-3 py-1 rounded-full inline-flex items-center gap-1" style={{ backgroundColor: "#fef3c7", color: "#92400e" }}>
+              <span className="text-sm font-semibold px-3 py-1 rounded-full inline-flex items-center gap-1.5" style={{ backgroundColor: "#fef3c7", color: "#92400e" }}>
+                <AlertTriangle className="w-4 h-4" strokeWidth={2.5} />
                 À vérifier
               </span>
             )}
           </div>
 
-          <a href={websiteUrl} target="_blank" rel="noopener noreferrer" className="text-base text-muted-foreground hover:underline inline-flex items-center gap-1">
+          <a href={websiteUrl} target="_blank" rel="noopener noreferrer" className="text-base text-muted-foreground hover:underline inline-flex items-center gap-1.5">
+            <ExternalLink className="w-4 h-4" />
             {broker.website}
           </a>
 
@@ -110,13 +122,15 @@ export default function BrokerDetail() {
             <Badge className="text-xs uppercase shrink-0 text-white border-0" style={{ backgroundColor: "#253550" }}>
               {categoryLabels[broker.category]}
             </Badge>
-            <Badge variant="outline" className="text-xs uppercase border-border">
-              {regionFlag[broker.region]} {regionLabels[broker.region]}
+            <Badge variant="outline" className="text-xs uppercase border-border inline-flex items-center gap-1">
+              <Globe className="w-3 h-3" />
+              {regionLabels[broker.region]}
             </Badge>
             <Badge className="text-xs uppercase border-0" style={{ backgroundColor: diffStyle.bg, color: diffStyle.text }}>
               {difficultyLabels[broker.difficulty]}
             </Badge>
-            <Badge variant="outline" className="text-xs uppercase border-border">
+            <Badge variant="outline" className="text-xs uppercase border-border inline-flex items-center gap-1">
+              <Scale className="w-3 h-3" />
               {legalLabel[broker.legalBasis]}
             </Badge>
           </div>
@@ -151,14 +165,16 @@ export default function BrokerDetail() {
             <CardContent className="space-y-3 text-sm">
               <div className="flex items-start gap-3">
                 <span className="text-muted-foreground shrink-0 w-32">Email DPO :</span>
-                <a href={mailtoUrl} className="hover:underline font-medium" style={{ color: "#FC7E34" }}>
+                <a href={mailtoUrl} className="hover:underline font-medium inline-flex items-center gap-1.5" style={{ color: "#FC7E34" }}>
+                  <Mail className="w-4 h-4" />
                   {broker.emailContact}
                 </a>
               </div>
               {broker.optOutUrl ? (
                 <div className="flex items-start gap-3">
                   <span className="text-muted-foreground shrink-0 w-32">Formulaire :</span>
-                  <a href={broker.optOutUrl} target="_blank" rel="noopener noreferrer" className="hover:underline font-medium break-all" style={{ color: "#FC7E34" }}>
+                  <a href={broker.optOutUrl} target="_blank" rel="noopener noreferrer" className="hover:underline font-medium break-all inline-flex items-center gap-1.5" style={{ color: "#FC7E34" }}>
+                    <ExternalLink className="w-4 h-4 shrink-0" />
                     {broker.optOutUrl}
                   </a>
                 </div>
@@ -169,13 +185,17 @@ export default function BrokerDetail() {
               </div>
               <div className="flex items-start gap-3">
                 <span className="text-muted-foreground shrink-0 w-32">Méthode :</span>
-                <span className="font-medium inline-flex items-center gap-1">
-                  {methodIcons[broker.optOutMethod]} {methodLabels[broker.optOutMethod]}
+                <span className="font-medium inline-flex items-center gap-1.5">
+                  <MethodIcon className="w-4 h-4" />
+                  {methodLabels[broker.optOutMethod]}
                 </span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="text-muted-foreground shrink-0 w-32">Base légale :</span>
-                <span className="font-medium">{legalLabel[broker.legalBasis]}</span>
+                <span className="font-medium inline-flex items-center gap-1.5">
+                  <Scale className="w-4 h-4" />
+                  {legalLabel[broker.legalBasis]}
+                </span>
               </div>
               {broker.lastVerifiedAt ? (
                 <div className="flex items-start gap-3">
@@ -240,7 +260,8 @@ export default function BrokerDetail() {
                 <p className="text-sm text-muted-foreground">
                   Envoyez une demande de suppression de vos données personnelles à {broker.name}.
                 </p>
-                <Button className="w-full font-semibold text-white" style={{ backgroundColor: "#FC7E34" }} onClick={() => navigate("/requests/new?broker=" + broker.slug)}>
+                <Button className="w-full font-semibold text-white inline-flex items-center justify-center gap-2" style={{ backgroundColor: "#FC7E34" }} onClick={() => navigate("/requests/new?broker=" + broker.slug)}>
+                  <Mail className="w-4 h-4" />
                   Demander la suppression
                 </Button>
                 <p className="text-xs text-muted-foreground italic">
@@ -264,14 +285,16 @@ export default function BrokerDetail() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Méthode</span>
-                  <span className="font-medium">
-                    {methodIcons[broker.optOutMethod]} {methodLabels[broker.optOutMethod]}
+                  <span className="font-medium inline-flex items-center gap-1.5">
+                    <MethodIcon className="w-4 h-4" />
+                    {methodLabels[broker.optOutMethod]}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Région</span>
-                  <span className="font-medium">
-                    {regionFlag[broker.region]} {regionLabels[broker.region]}
+                  <span className="font-medium inline-flex items-center gap-1.5">
+                    <Globe className="w-4 h-4" />
+                    {regionLabels[broker.region]}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
