@@ -17,6 +17,15 @@ export type Difficulty = 'easy' | 'medium' | 'hard'
 export type LegalBasis = 'gdpr_art17' | 'gdpr_art15' | 'ccpa' | 'pipeda' | 'other'
 export type ContactType = 'email' | 'phone' | 'address'
 
+export type NotificationType =
+  | 'reminder_sent'
+  | 'no_response'
+  | 'completed'
+  | 'refused'
+  | 'suppressed'
+  | 'broker_verified'
+  | 'broker_added'
+
 export interface User {
   id: string
   email: string
@@ -95,6 +104,18 @@ export interface RequestEvent {
   oldStatus?: RequestStatus
   newStatus?: RequestStatus
   note?: string
+  createdAt: string
+}
+
+export interface Notification {
+  id: string
+  userId: string
+  type: NotificationType
+  title: string
+  message: string
+  isRead: boolean
+  relatedRequestId?: string
+  relatedBrokerId?: string
   createdAt: string
 }
 
