@@ -113,6 +113,21 @@ CREATE TABLE brokers (
   updated_at       TIMESTAMP         NOT NULL DEFAULT NOW()
 );
 
+-- Mise à jour automatique de updated_at lors des modifications de broker
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_brokers_updated_at ON brokers;
+CREATE TRIGGER trg_brokers_updated_at
+BEFORE UPDATE ON brokers
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
 -- ============================================================
 -- TABLE : email_templates
 -- Templates d'emails RGPD pour les demandes de suppression.
