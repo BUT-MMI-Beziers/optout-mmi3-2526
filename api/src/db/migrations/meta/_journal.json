@@ -15,6 +15,13 @@
       "when": 1779808916448,
       "tag": "0001_short_luke_cage",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779882083776,
+      "tag": "0002_clever_shaman",
+      "breakpoints": true
     }
   ]
 }

@@ -192,6 +192,19 @@ export const notifications = pgTable('notifications', {
 })
 
 // ============================================================
+// TABLE : refresh_tokens
+// Refresh tokens JWT — stockés en base pour révocation
+// ============================================================
+
+export const refreshTokens = pgTable('refresh_tokens', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  userId:    uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token:     varchar('token', { length: 64 }).notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ============================================================
 // RELATIONS (pour les requêtes Drizzle avec .with())
 // ============================================================
 
@@ -199,6 +212,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   contacts:         many(userContacts),
   removalRequests:  many(removalRequests),
   notifications:    many(notifications),
+  refreshTokens:    many(refreshTokens),
 }))
 
 export const userContactsRelations = relations(userContacts, ({ one }) => ({
@@ -228,4 +242,8 @@ export const requestEventsRelations = relations(requestEvents, ({ one }) => ({
 export const notificationsRelations = relations(notifications, ({ one }) => ({
   user:    one(users,           { fields: [notifications.userId],    references: [users.id] }),
   request: one(removalRequests, { fields: [notifications.requestId], references: [removalRequests.id] }),
+}))
+
+export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
+  user: one(users, { fields: [refreshTokens.userId], references: [users.id] }),
 }))
