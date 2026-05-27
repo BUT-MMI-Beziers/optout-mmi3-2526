@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
 import {
   Search,
   Globe,
@@ -20,8 +20,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   Scale,
-  X,
-  Undo2,
 } from "lucide-react"
 import {
   mockBrokers,
@@ -69,7 +67,6 @@ export default function Brokers() {
   const [difficultyFilter, setDifficultyFilter] = useState<Difficulty | "tous">("tous")
   const [page, setPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(12)
-  const [excluded, setExcluded] = useState<string[]>([])
 
   const filtered = useMemo(() => {
     return mockBrokers.filter((b) => {
@@ -110,12 +107,6 @@ export default function Brokers() {
     setPage(1)
   }
 
-  const toggleExclude = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setExcluded((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    )
-  }
 
   const pageNumbers = useMemo(() => {
     if (totalPages <= 7) {
@@ -132,7 +123,14 @@ export default function Brokers() {
   }, [safePage, totalPages])
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
+
+      {/* ─── Breadcrumb ─────────────────────────────────────── */}
+      <nav className="text-sm text-muted-foreground flex items-center gap-1">
+        <Link to="/dashboard" className="hover:text-foreground">FLOAT</Link>
+        <span>›</span>
+        <span className="text-foreground">Data brokers</span>
+      </nav>
 
       {/* ─── Header ─────────────────────────────────────────── */}
       <div className="flex items-start justify-between">
@@ -278,19 +276,17 @@ export default function Brokers() {
       {/* ─── Grille des brokers ─────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {paginated.map((broker) => {
-          const isExcluded = excluded.includes(broker.id)
           const MethodIcon = methodIconMap[broker.optOutMethod]
           return (
             <Card
               key={broker.id}
               className="cursor-pointer hover:shadow-md transition-shadow bg-white border-border"
-              style={isExcluded ? { opacity: 0.5 } : {}}
               onClick={() => navigate("/brokers/" + broker.slug)}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-bold text-lg leading-tight" style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}>
+                    <p className="font-bold text-lg leading-tight" style={{ color: "#000401" }}>
                       {broker.name}
                     </p>
                     <p className="text-xs text-muted-foreground">{broker.website}</p>
@@ -336,23 +332,14 @@ export default function Brokers() {
                   </span>
                 </div>
 
-                <button
+                <Link
+                  to={`/brokers/${broker.slug}`}
+                  onClick={(e) => e.stopPropagation()}
                   className="w-full flex items-center justify-center gap-2 border border-border rounded-lg py-2 text-sm transition-colors hover:bg-muted"
-                  style={isExcluded ? { color: "#FC7E34", borderColor: "#FC7E34" } : { color: "#000401" }}
-                  onClick={(e) => toggleExclude(broker.id, e)}
+                  style={{ color: "#000401" }}
                 >
-                  {isExcluded ? (
-                    <>
-                      <Undo2 className="w-4 h-4" style={{ color: "#FC7E34" }} />
-                      Réintégrer ce broker
-                    </>
-                  ) : (
-                    <>
-                      <X className="w-4 h-4" style={{ color: "#ef4444" }} />
-                      Ne pas contacter ce broker
-                    </>
-                  )}
-                </button>
+                  Voir les détails
+                </Link>
               </CardContent>
             </Card>
           )

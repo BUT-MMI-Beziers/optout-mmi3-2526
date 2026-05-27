@@ -4,7 +4,11 @@ import { motion, type Variants } from 'framer-motion'
 
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } }
 const rowVariant: Variants = { hidden: { opacity: 0, x: -12 }, show: { opacity: 1, x: 0, transition: { duration: 0.22 } } }
-import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react'
+import {
+  Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown,
+  Send, Clock, CheckCircle2, AlertCircle, XCircle, FileText, Flag, Archive,
+  type LucideIcon,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -14,13 +18,24 @@ import { statusConfig, categoryLabels, type RequestStatus } from '@/lib/mock-dat
 
 type StatusFilter = 'all' | RequestStatus
 
-const STATUS_TABS: { key: StatusFilter; label: string; dot?: string }[] = [
+const STATUS_TABS: { key: StatusFilter; label: string; icon?: LucideIcon }[] = [
   { key: 'all',          label: 'Tous' },
-  { key: 'SENT',         label: 'Envoyées',    dot: 'bg-blue-500' },
-  { key: 'ACKNOWLEDGED', label: 'En attente',  dot: 'bg-amber-500' },
-  { key: 'COMPLETED',    label: 'Confirmées',  dot: 'bg-green-500' },
-  { key: 'NO_RESPONSE',  label: 'À Relancer',  dot: 'bg-orange-500' },
+  { key: 'SENT',         label: 'Envoyées',   icon: Send },
+  { key: 'ACKNOWLEDGED', label: 'En attente', icon: Clock },
+  { key: 'COMPLETED',    label: 'Confirmées', icon: CheckCircle2 },
+  { key: 'NO_RESPONSE',  label: 'À Relancer', icon: AlertCircle },
 ]
+
+const statusIcons: Record<RequestStatus, LucideIcon> = {
+  DRAFT:        FileText,
+  SENT:         Send,
+  ACKNOWLEDGED: Clock,
+  COMPLETED:    CheckCircle2,
+  REFUSED:      XCircle,
+  NO_RESPONSE:  AlertCircle,
+  COMPLAINT:    Flag,
+  SUPPRESSED:   Archive,
+}
 
 const PER_PAGE_OPTIONS = [12, 24, 48]
 
@@ -51,7 +66,7 @@ export default function Requests() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-6">
       {/* Breadcrumb */}
       <nav className="text-sm text-muted-foreground flex items-center gap-1">
         <Link to="/dashboard" className="hover:text-foreground">FLOAT</Link>
@@ -60,7 +75,7 @@ export default function Requests() {
       </nav>
 
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: "'Squada One', sans-serif" }}>
             MES DEMANDES
@@ -103,7 +118,7 @@ export default function Requests() {
                   : { backgroundColor: 'white', color: '#000401', borderColor: '#e5e3e1' }
               }
             >
-              {tab.dot && <span className={`w-2 h-2 rounded-full shrink-0 ${tab.dot}`} />}
+              {tab.icon && <tab.icon className="w-3.5 h-3.5 shrink-0" />}
               {tab.label}
               {active && (
                 <span className="text-xs px-1.5 py-0.5 rounded font-bold" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}>
@@ -135,7 +150,7 @@ export default function Requests() {
         </div>
 
         {/* En-tête */}
-        <div className="grid grid-cols-[2fr_1.2fr_1.3fr_1fr] px-5 py-2.5 border-b border-border bg-muted/30">
+        <div className="grid grid-cols-[2fr_1fr] sm:grid-cols-[2fr_1.3fr_1fr] lg:grid-cols-[2fr_1.2fr_1.3fr_1fr] px-5 py-2.5 border-b border-border bg-muted/30">
           {['BROKER', 'CATÉGORIE', "DATE D'ENVOI", 'STATUT'].map((h) => (
             <span key={h} className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">
               {h}
@@ -146,7 +161,7 @@ export default function Requests() {
         {/* Lignes */}
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="grid grid-cols-[2fr_1.2fr_1.3fr_1fr] px-5 py-4 border-b border-border items-center gap-3">
+            <div key={i} className="grid grid-cols-[2fr_1fr] sm:grid-cols-[2fr_1.3fr_1fr] lg:grid-cols-[2fr_1.2fr_1.3fr_1fr] px-5 py-4 border-b border-border items-center gap-3">
               <div className="flex items-center gap-3">
                 <Skeleton className="w-9 h-9 rounded-lg" />
                 <div className="space-y-1.5">
@@ -154,8 +169,8 @@ export default function Requests() {
                   <Skeleton className="h-3 w-20" />
                 </div>
               </div>
-              <Skeleton className="h-3.5 w-24" />
-              <div className="space-y-1.5">
+              <Skeleton className="hidden lg:block h-3.5 w-24" />
+              <div className="hidden sm:block space-y-1.5">
                 <Skeleton className="h-3.5 w-28" />
                 <Skeleton className="h-3 w-16" />
               </div>
@@ -170,11 +185,12 @@ export default function Requests() {
           <motion.div key={`${page}-${activeStatus}-${search}`} variants={stagger} initial="hidden" animate="show">
           {requests.map((req) => {
             const cfg = statusConfig[req.status]
+            const StatusIcon = statusIcons[req.status]
             return (
               <motion.div key={req.id} variants={rowVariant}>
               <Link
                 to={`/requests/${req.id}`}
-                className="grid grid-cols-[2fr_1.2fr_1.3fr_1fr] px-5 py-4 border-b border-border last:border-0 hover:bg-accent/50 transition-colors items-center"
+                className="grid grid-cols-[2fr_1fr] sm:grid-cols-[2fr_1.3fr_1fr] lg:grid-cols-[2fr_1.2fr_1.3fr_1fr] px-5 py-4 border-b border-border last:border-0 hover:bg-accent/50 transition-colors items-center"
               >
                 <div className="flex items-center gap-3">
                   <img
@@ -183,21 +199,21 @@ export default function Requests() {
                     className="w-9 h-9 rounded-lg object-contain bg-muted p-1 shrink-0"
                     onError={(e) => { (e.target as HTMLImageElement).src = '/icon.png' }}
                   />
-                  <div>
-                    <p className="text-base font-medium">{req.brokerName}</p>
-                    <p className="text-sm text-muted-foreground">{req.brokerUrl}</p>
+                  <div className="min-w-0">
+                    <p className="text-base font-medium truncate">{req.brokerName}</p>
+                    <p className="text-sm text-muted-foreground truncate">{req.brokerUrl}</p>
                   </div>
                 </div>
-                <span className="text-sm font-medium text-muted-foreground">
+                <span className="hidden lg:block text-sm font-medium text-muted-foreground">
                   {categoryLabels[req.brokerCategory]}
                 </span>
-                <div>
+                <div className="hidden sm:block">
                   <p className="text-base">{formatDate(req.sentAt)}</p>
                   <p className="text-sm text-muted-foreground">{formatRelative(req.sentAt)}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
-                  <span className={`text-base font-medium ${cfg.color}`}>{cfg.label}</span>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <StatusIcon className="w-4 h-4 shrink-0" />
+                  <span className="text-sm font-medium">{cfg.label}</span>
                 </div>
               </Link>
               </motion.div>

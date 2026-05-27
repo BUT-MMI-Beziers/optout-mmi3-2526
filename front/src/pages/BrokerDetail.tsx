@@ -69,7 +69,7 @@ export default function BrokerDetail() {
   if (!broker) {
     return (
       <div className="p-8 max-w-2xl mx-auto text-center space-y-4">
-        <h1 className="text-3xl font-bold uppercase" style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}>
+        <h1 className="text-3xl font-bold uppercase" style={{ color: "#000401" }}>
           Broker introuvable
         </h1>
         <p className="text-muted-foreground">Le broker que vous cherchez n'existe pas dans le registre.</p>
@@ -97,7 +97,7 @@ export default function BrokerDetail() {
       <div className="flex items-start justify-between gap-6 flex-wrap">
         <div className="flex-1 min-w-0 space-y-3">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-5xl font-bold uppercase tracking-wide" style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}>
+            <h1 className="text-5xl font-bold uppercase tracking-wide" style={{ color: "#000401" }}>
               {broker.name}
             </h1>
             {broker.isVerified ? (
@@ -145,7 +145,7 @@ export default function BrokerDetail() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl uppercase" style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}>
+              <CardTitle className="text-2xl uppercase" style={{ color: "#000401" }}>
                 À propos
               </CardTitle>
             </CardHeader>
@@ -158,7 +158,7 @@ export default function BrokerDetail() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl uppercase" style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}>
+              <CardTitle className="text-2xl uppercase" style={{ color: "#000401" }}>
                 Coordonnées
               </CardTitle>
             </CardHeader>
@@ -208,7 +208,7 @@ export default function BrokerDetail() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl uppercase" style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}>
+              <CardTitle className="text-2xl uppercase" style={{ color: "#000401" }}>
                 Historique de vos demandes
               </CardTitle>
             </CardHeader>
@@ -252,7 +252,7 @@ export default function BrokerDetail() {
 
             <Card style={{ borderColor: "#FC7E34", borderWidth: 2 }}>
               <CardHeader>
-                <CardTitle className="text-xl uppercase" style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}>
+                <CardTitle className="text-xl uppercase" style={{ color: "#000401" }}>
                   Action
                 </CardTitle>
               </CardHeader>
@@ -272,7 +272,7 @@ export default function BrokerDetail() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base uppercase" style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}>
+                <CardTitle className="text-base uppercase" style={{ color: "#000401" }}>
                   En bref
                 </CardTitle>
               </CardHeader>
