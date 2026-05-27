@@ -4,7 +4,7 @@ import { motion, AnimatePresence, type Variants } from 'framer-motion'
 
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } }
 const rowVariant: Variants = { hidden: { opacity: 0, x: -10 }, show: { opacity: 1, x: 0, transition: { duration: 0.2 } } }
-import { Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, Users, Megaphone, Shield, Briefcase, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -20,12 +20,12 @@ import { useNavigate } from 'react-router-dom'
 
 type CategoryFilter = 'all' | BrokerCategory
 
-const CATEGORY_TABS: { key: CategoryFilter; label: string; dot: string }[] = [
-  { key: 'all',             label: 'Toutes catégories', dot: '' },
-  { key: 'people-search',  label: 'People-search',     dot: 'bg-blue-500' },
-  { key: 'marketing',      label: 'Marketing',          dot: 'bg-amber-500' },
-  { key: 'risk-mitigation',label: 'Risk-mitigation',   dot: 'bg-red-500' },
-  { key: 'recruitment',    label: 'Recruitment',        dot: 'bg-green-500' },
+const CATEGORY_TABS: { key: CategoryFilter; label: string; icon?: LucideIcon }[] = [
+  { key: 'all',              label: 'Toutes catégories' },
+  { key: 'people-search',   label: 'People-search',    icon: Users },
+  { key: 'marketing',       label: 'Marketing',         icon: Megaphone },
+  { key: 'risk-mitigation', label: 'Risk-mitigation',  icon: Shield },
+  { key: 'recruitment',     label: 'Recruitment',       icon: Briefcase },
 ]
 
 const PER_PAGE_OPTIONS = [12, 24, 48]
@@ -73,7 +73,7 @@ export default function NewRequest() {
   const selectedBrokers = Array.from(selected.values())
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-6">
       {/* Breadcrumb */}
       <nav className="text-sm text-muted-foreground flex items-center gap-1">
         <Link to="/dashboard" className="hover:text-foreground">FLOAT</Link>
@@ -112,13 +112,13 @@ export default function NewRequest() {
             <button
               key={tab.key}
               onClick={() => { setActiveCategory(tab.key); setPage(1) }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 active
                   ? 'bg-[#000401] text-white'
                   : 'bg-card border border-border hover:bg-accent'
               }`}
             >
-              {tab.dot && <span className={`w-2 h-2 rounded-full ${tab.dot}`} />}
+              {tab.icon && <tab.icon className="w-3.5 h-3.5 shrink-0" />}
               {tab.label}
             </button>
           )
@@ -128,14 +128,16 @@ export default function NewRequest() {
       {/* Table */}
       <div className="bg-card rounded-lg border border-border overflow-hidden">
         {/* En-têtes */}
-        <div className="grid grid-cols-[2.5rem_2fr_0.8fr_1.2fr_0.9fr_0.9fr] px-4 py-3 border-b border-border bg-muted/30 items-center">
+        <div className="grid grid-cols-[2.5rem_2fr_1fr] sm:grid-cols-[2.5rem_2fr_0.8fr_1fr] lg:grid-cols-[2.5rem_2fr_0.8fr_1.2fr_0.9fr_0.9fr] px-4 py-3 border-b border-border bg-muted/30 items-center">
           <Checkbox
             checked={allPageSelected}
             onCheckedChange={toggleAll}
             className="data-[state=checked]:bg-[#FC7E34] data-[state=checked]:border-[#FC7E34]"
           />
-          {['BROKER', 'RÉGION', 'CATÉGORIE', 'DIFFICULTÉ', 'MÉTHODE'].map((h) => (
-            <span key={h} className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">
+          {['BROKER', 'RÉGION', 'CATÉGORIE', 'DIFFICULTÉ', 'MÉTHODE'].map((h, i) => (
+            <span key={h} className={`text-xs font-semibold text-muted-foreground tracking-wide uppercase ${
+              i === 1 ? 'hidden sm:block' : i === 2 ? 'hidden sm:block' : i >= 3 ? 'hidden lg:block' : ''
+            }`}>
               {h}
             </span>
           ))}
@@ -144,13 +146,13 @@ export default function NewRequest() {
         {/* Lignes */}
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="grid grid-cols-[2.5rem_2fr_0.8fr_1.2fr_0.9fr_0.9fr] px-4 py-3 border-b border-border items-center gap-2">
+            <div key={i} className="grid grid-cols-[2.5rem_2fr_1fr] sm:grid-cols-[2.5rem_2fr_0.8fr_1fr] lg:grid-cols-[2.5rem_2fr_0.8fr_1.2fr_0.9fr_0.9fr] px-4 py-3 border-b border-border items-center gap-2">
               <Skeleton className="w-4 h-4 rounded" />
               <Skeleton className="h-4 w-32 rounded" />
-              <Skeleton className="h-4 w-10 rounded" />
+              <Skeleton className="hidden sm:block h-4 w-10 rounded" />
               <Skeleton className="h-4 w-24 rounded" />
-              <Skeleton className="h-4 w-16 rounded" />
-              <Skeleton className="h-4 w-16 rounded" />
+              <Skeleton className="hidden lg:block h-4 w-16 rounded" />
+              <Skeleton className="hidden lg:block h-4 w-16 rounded" />
             </div>
           ))
         ) : brokers.length === 0 ? (
@@ -165,7 +167,7 @@ export default function NewRequest() {
                 <motion.label
                   key={broker.id}
                   variants={rowVariant}
-                  className={`grid grid-cols-[2.5rem_2fr_0.8fr_1.2fr_0.9fr_0.9fr] px-4 py-3.5 border-b border-border last:border-0 items-center cursor-pointer transition-colors ${
+                  className={`grid grid-cols-[2.5rem_2fr_1fr] sm:grid-cols-[2.5rem_2fr_0.8fr_1fr] lg:grid-cols-[2.5rem_2fr_0.8fr_1.2fr_0.9fr_0.9fr] px-4 py-3.5 border-b border-border last:border-0 items-center cursor-pointer transition-colors ${
                     isSelected ? 'bg-[#FC7E34]/5' : 'hover:bg-accent/40'
                   }`}
                 >
@@ -174,22 +176,22 @@ export default function NewRequest() {
                     onCheckedChange={() => toggle(broker)}
                     className="data-[state=checked]:bg-[#FC7E34] data-[state=checked]:border-[#FC7E34]"
                   />
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <img
                       src={`https://www.google.com/s2/favicons?domain=${broker.website}&sz=32`}
                       alt={broker.name}
-                      className="w-6 h-6 object-contain"
+                      className="w-6 h-6 object-contain shrink-0"
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                     />
-                    <span className="text-base font-medium">{broker.name}</span>
+                    <span className="text-base font-medium truncate">{broker.name}</span>
                     {!broker.isVerified && (
-                      <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Non vérifié</span>
+                      <span className="hidden sm:inline text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded shrink-0">Non vérifié</span>
                     )}
                   </div>
-                  <span className="text-base text-muted-foreground font-medium">{regionLabels[broker.region]}</span>
-                  <span className="text-base text-muted-foreground">{categoryLabels[broker.category]}</span>
-                  <span className="text-base text-muted-foreground">{difficultyLabels[broker.difficulty]}</span>
-                  <span className="text-base text-muted-foreground">{methodLabels[broker.optOutMethod]}</span>
+                  <span className="hidden sm:block text-sm text-muted-foreground font-medium truncate">{regionLabels[broker.region]}</span>
+                  <span className="text-sm text-muted-foreground truncate">{categoryLabels[broker.category]}</span>
+                  <span className="hidden lg:block text-sm text-muted-foreground">{difficultyLabels[broker.difficulty]}</span>
+                  <span className="hidden lg:block text-sm text-muted-foreground">{methodLabels[broker.optOutMethod]}</span>
                 </motion.label>
               )
             })}
@@ -234,7 +236,7 @@ export default function NewRequest() {
       <AnimatePresence>
         {selectedBrokers.length > 0 && (
           <motion.div
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-[#000401] text-white px-6 py-3.5 rounded-full shadow-2xl"
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-[#000401] text-white px-6 py-3.5 rounded-xl shadow-2xl"
             initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 80, opacity: 0 }}
