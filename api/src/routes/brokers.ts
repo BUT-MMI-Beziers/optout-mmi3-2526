@@ -151,4 +151,80 @@ brokersRoute.post('/import', async (c) => {
   }, 201)
 })
 
+// ─── PUT /brokers/:slug ──────────────────────────────────
+brokersRoute.put('/:slug', async (c) => {
+  const slug = c.req.param('slug')
+  const body = await c.req.json()
+
+  const [existing] = await db
+    .select()
+    .from(brokers)
+    .where(eq(brokers.slug, slug))
+    .limit(1)
+
+  if (!existing) {
+    return c.json({ error: 'Broker introuvable' }, 404)
+  }
+
+  const nextName = body.name ?? existing.name
+  const [updatedBroker] = await db
+    .update(brokers)
+    .set({
+      name:         nextName,
+      slug:         body.name ? toSlug(nextName) : existing.slug,
+      emailContact: body.emailContact ?? existing.emailContact,
+      website:      body.website ?? existing.website,
+      optOutUrl:    body.optOutUrl ?? existing.optOutUrl,
+      category:     body.category ?? existing.category,
+      region:       body.region ?? existing.region,
+      country:      body.country ?? existing.country,
+      optOutMethod: body.optOutMethod ?? existing.optOutMethod,
+      difficulty:   body.difficulty ?? existing.difficulty,
+      legalBasis:   body.legalBasis ?? existing.legalBasis,
+      notes:        body.notes ?? existing.notes,
+      updatedAt:    new Date(),
+    })
+    .where(eq(brokers.slug, slug))
+    .returning()
+
+  return c.json(updatedBroker)
+})
+
+// ─── DELETE /brokers/:slug ────────────────────────────────
+brokersRoute.delete('/:slug', async (c) => {
+  const slug = c.req.param('slug')
+
+  const [deletedBroker] = await db
+    .delete(brokers)
+    .where(eq(brokers.slug, slug))
+    .returning()
+
+  if (!deletedBroker) {
+    return c.json({ error: 'Broker introuvable' }, 404)
+  }
+
+  return c.json({ success: true, broker: deletedBroker })
+})
+
+// ─── PATCH /brokers/:slug/verify ─────────────────────────
+brokersRoute.patch('/:slug/verify', async (c) => {
+  const slug = c.req.param('slug')
+
+  const [verifiedBroker] = await db
+    .update(brokers)
+    .set({
+      isVerified: true,
+      lastVerifiedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(brokers.slug, slug))
+    .returning()
+
+  if (!verifiedBroker) {
+    return c.json({ error: 'Broker introuvable' }, 404)
+  }
+
+  return c.json(verifiedBroker)
+})
+
 export default brokersRoute
