@@ -3,13 +3,11 @@ import { useEffect, useState, type ReactNode } from "react"
 import {
   LayoutDashboard,
   FileText,
-  Clock,
   Database,
   Bell,
-  Mail,
+  Activity,
+  Clock,
   User,
-  Download,
-  ShieldCheck,
   Settings,
   ChevronDown,
 } from "lucide-react"
@@ -26,19 +24,16 @@ import type { User as UserType } from "@/lib/mock-data"
 import GlobalSearch from "@/components/GlobalSearch"
 
 const navItems = [
-  { label: "Tableau de bord", icon: LayoutDashboard, to: "/dashboard" },
-  { label: "Mes demandes", icon: FileText, to: "/requests" },
-  { label: "Relances programmées", icon: Clock, to: "/reminders" },
-  { label: "Registre des brokers", icon: Database, to: "/brokers" },
-  { label: "Notifications", icon: Bell, to: "/notifications" },
-  { label: "Templates d'emails", icon: Mail, to: "/templates" },
+  { label: "Dashboard",              icon: LayoutDashboard, to: "/dashboard" },
+  { label: "Data brokers",           icon: Database,        to: "/brokers" },
+  { label: "Demandes",               icon: FileText,        to: "/requests" },
+  { label: "Relances programmées",   icon: Clock,           to: "/reminders" },
+  { label: "Activité",               icon: Activity,        to: "/notifications" },
 ]
 
 const bottomNavItems = [
-  { label: "Mon profil", icon: User, to: "/profile" },
-  { label: "Export de données", icon: Download, to: "/export" },
-  { label: "Administration", icon: ShieldCheck, to: "/admin/brokers" },
-  { label: "Paramètres", icon: Settings, to: "/settings" },
+  { label: "Profil",        icon: User,     to: "/profile" },
+  { label: "Paramètres",    icon: Settings, to: "/settings" },
 ]
 
 export default function MainLayout() {
