@@ -96,16 +96,19 @@ export default function Requests() {
             <button
               key={tab.key}
               onClick={() => { setActiveStatus(tab.key); setPage(1) }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border"
+              style={
                 active
-                  ? 'bg-[#000401] text-white'
-                  : 'bg-card border border-border hover:bg-accent'
-              }`}
+                  ? { backgroundColor: '#253550', color: '#F9F7F6', borderColor: '#253550' }
+                  : { backgroundColor: 'white', color: '#000401', borderColor: '#e5e3e1' }
+              }
             >
-              {tab.dot && <span className={`w-2 h-2 rounded-full ${tab.dot}`} />}
-              <span>{tab.label}</span>
+              {tab.dot && <span className={`w-2 h-2 rounded-full shrink-0 ${tab.dot}`} />}
+              {tab.label}
               {active && (
-                <span className="text-white/70 text-xs ml-0.5">{total}</span>
+                <span className="text-xs px-1.5 py-0.5 rounded font-bold" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}>
+                  {total}
+                </span>
               )}
             </button>
           )

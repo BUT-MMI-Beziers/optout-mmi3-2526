@@ -44,10 +44,10 @@ export default function Dashboard() {
 
   const statCards = stats
     ? [
-        { label: 'Total envoyées', value: stats.total, icon: Send, color: 'text-foreground', iconBg: 'bg-[#FC7E34]/10', iconColor: 'text-[#FC7E34]' },
-        { label: 'En attente', value: stats.acknowledged, icon: Clock, color: 'text-amber-600', iconBg: 'bg-amber-100', iconColor: 'text-amber-600' },
-        { label: 'Confirmées', value: stats.completed, icon: CheckCircle2, color: 'text-green-600', iconBg: 'bg-green-100', iconColor: 'text-green-600' },
-        { label: 'À relancer', value: stats.noResponse, icon: AlertCircle, color: 'text-orange-600', iconBg: 'bg-orange-100', iconColor: 'text-orange-600' },
+        { label: 'Total envoyées', value: stats.total, icon: Send, color: 'text-foreground', iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+        { label: 'En attente', value: stats.acknowledged, icon: Clock, color: 'text-foreground', iconBg: 'bg-amber-100', iconColor: 'text-amber-600' },
+        { label: 'Confirmées', value: stats.completed, icon: CheckCircle2, color: 'text-foreground', iconBg: 'bg-green-100', iconColor: 'text-green-600' },
+        { label: 'À relancer', value: stats.noResponse, icon: AlertCircle, color: 'text-foreground', iconBg: 'bg-orange-100', iconColor: 'text-orange-600' },
       ]
     : []
 
@@ -112,14 +112,14 @@ export default function Dashboard() {
 
       {/* Charts row */}
       <motion.div
-        className="grid grid-cols-5 gap-5"
+        className="grid grid-cols-5 gap-5 items-stretch"
         variants={stagger}
         initial="hidden"
         animate="show"
       >
         {/* Bar chart — 3/5 */}
-        <motion.div variants={fadeUp} className="col-span-3">
-          <Card>
+        <motion.div variants={fadeUp} className="col-span-3 h-full">
+          <Card className="h-full">
             <CardHeader className="px-6 pt-6 pb-0">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl font-medium">Demandes envoyées</CardTitle>
@@ -153,7 +153,7 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Donut — 2/5 */}
-        <motion.div variants={fadeUp} className="col-span-2">
+        <motion.div variants={fadeUp} className="col-span-2 h-full">
           <Card className="flex flex-col h-full">
             <CardHeader className="px-6 pt-6 pb-0">
               <div className="flex items-center gap-2">
