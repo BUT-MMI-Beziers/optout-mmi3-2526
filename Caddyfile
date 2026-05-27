@@ -1,6 +1,5 @@
 localhost {
     handle /api/* {
-        uri strip_prefix /api
         reverse_proxy {env.API_HOST}:{env.API_PORT_INTERNAL}
     }
 

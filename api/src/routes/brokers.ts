@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { db } from '../db/index.js'
 import { brokers } from '../db/schema.js'
 import { and, eq, ilike } from 'drizzle-orm'
+import * as yaml from 'js-yaml'
 
 const brokersRoute = new Hono()
 
@@ -9,10 +10,10 @@ const brokersRoute = new Hono()
 function toSlug(name: string): string {
   return name
     .toLowerCase()
-    .normalize('NFD')                  
-    .replace(/[\u0300-\u036f]/g, '') 
-    .replace(/[^a-z0-9]+/g, '-')    
-    .replace(/^-|-$/g, '')           
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 }
 
 // ─── GET / ────────────────────────────────────────────────
@@ -58,9 +59,9 @@ brokersRoute.get('/', async (c) => {
 brokersRoute.post('/', async (c) => {
   const body = await c.req.json()
 
-  
+
   const required = ['name', 'emailContact', 'category',
-                    'region', 'optOutMethod', 'difficulty', 'legalBasis']
+    'region', 'optOutMethod', 'difficulty', 'legalBasis']
 
   for (const field of required) {
     if (!body[field]) {
@@ -71,19 +72,19 @@ brokersRoute.post('/', async (c) => {
   const [newBroker] = await db
     .insert(brokers)
     .values({
-      name:          body.name,
-      slug:          toSlug(body.name),
-      emailContact:  body.emailContact,
-      website:       body.website ?? null,
-      optOutUrl:     body.optOutUrl ?? null,
-      category:      body.category,
-      region:        body.region,
-      country:       body.country ?? null,
-      optOutMethod:  body.optOutMethod,
-      difficulty:    body.difficulty,
-      legalBasis:    body.legalBasis,
-      notes:         body.notes ?? null,
-      isVerified:    false,   
+      name: body.name,
+      slug: toSlug(body.name),
+      emailContact: body.emailContact,
+      website: body.website ?? null,
+      optOutUrl: body.optOutUrl ?? null,
+      category: body.category,
+      region: body.region,
+      country: body.country ?? null,
+      optOutMethod: body.optOutMethod,
+      difficulty: body.difficulty,
+      legalBasis: body.legalBasis,
+      notes: body.notes ?? null,
+      isVerified: false,
     })
     .returning()
 
@@ -93,62 +94,86 @@ brokersRoute.post('/', async (c) => {
 // ─── GET /brokers/export ─────────────────────────────────
 brokersRoute.get('/export', async (c) => {
 
-  // Récupère tous les brokers
   const allBrokers = await db
     .select()
     .from(brokers)
 
-  const date = new Date().toISOString().split('T')[0] 
-  const filename = `brokers-export-${date}.json`
+  const format = c.req.query('format') ?? 'json' // ?format=yaml ou ?format=json
+  const date = new Date().toISOString().split('T')[0]
+  const data = {
+    exportedAt: new Date().toISOString(),
+    count: allBrokers.length,
+    brokers: allBrokers,
+  }
 
+  if (format === 'yaml') {
+    const filename = `brokers-export-${date}.yaml`
+    c.header('Content-Disposition', `attachment; filename="${filename}"`)
+    c.header('Content-Type', 'application/yaml')
+    return c.text(yaml.dump(data))
+  }
+
+  const filename = `brokers-export-${date}.json`
   c.header('Content-Disposition', `attachment; filename="${filename}"`)
   c.header('Content-Type', 'application/json')
-
-  return c.json({
-    exportedAt: new Date().toISOString(),
-    count:      allBrokers.length,
-    brokers:    allBrokers,
-  })
+  return c.json(data)
 })
 
 // ─── POST /brokers/import ────────────────────────────────
 brokersRoute.post('/import', async (c) => {
-  const body = await c.req.json()
 
-  const list = Array.isArray(body) ? body : body.brokers
+  const contentType = c.req.header('Content-Type') ?? ''
+  let list: any[]
 
-   if (!Array.isArray(list) || list.length === 0) {
+  try {
+    // Détecte automatiquement JSON ou YAML selon le Content-Type
+    if (contentType.includes('yaml')) {
+      const text = await c.req.text()
+      const parsed: any = yaml.load(text)
+      list = Array.isArray(parsed) ? parsed : parsed?.brokers
+    } else {
+      const body = await c.req.json()
+      list = Array.isArray(body) ? body : body.brokers
+    }
+  } catch (err: any) {
+    return c.json({ error: `Erreur de parsing du fichier : ${err.message}` }, 400)
+  }
+
+  if (!Array.isArray(list) || list.length === 0) {
     return c.json({ error: 'Body invalide : tableau de brokers attendu' }, 400)
   }
 
   const rows = list.map((b: any) => ({
-    name:         b.name,
-    slug:         b.slug ?? toSlug(b.name),
-    emailContact: b.emailContact ?? b.email_contact,
-    website:      b.website      ?? null,
-    optOutUrl:    b.optOutUrl    ?? b.opt_out_url ?? null,
-    category:     b.category,
-    region:       b.region,
-    country:      b.country      ?? null,
+    name: b.name,
+    slug: b.slug ?? toSlug(b.name),
+    emailContact: b.emailContact ?? b.email_contact ?? "no-email@optout.local",
+    website: b.website ?? null,
+    optOutUrl: b.optOutUrl ?? b.opt_out_url ?? null,
+    category: b.category,
+    region: b.region,
+    country: b.country ?? null,
     optOutMethod: b.optOutMethod ?? b.opt_out_method,
-    difficulty:   b.difficulty,
-    legalBasis:   b.legalBasis   ?? b.legal_basis,
-    notes:        b.notes        ?? null,
-    isVerified:   b.isVerified   ?? false,
+    difficulty: b.difficulty,
+    legalBasis: b.legalBasis ?? b.legal_basis,
+    notes: b.notes ?? null,
+    isVerified: b.isVerified ?? false,
   }))
 
+  try {
+    const inserted = await db
+      .insert(brokers)
+      .values(rows)
+      .onConflictDoNothing()
+      .returning()
 
-  const inserted = await db
-    .insert(brokers)
-    .values(rows)
-    .onConflictDoNothing()  
-    .returning()
-
-  return c.json({
-    imported: inserted.length,
-    skipped:  rows.length - inserted.length,
-    brokers:  inserted,
-  }, 201)
+    return c.json({
+      imported: inserted.length,
+      skipped: rows.length - inserted.length,
+      brokers: inserted,
+    }, 201)
+  } catch (err: any) {
+    return c.json({ error: `Erreur lors de l'insertion en base de données : ${err.message}` }, 500)
+  }
 })
 
 // ─── PUT /brokers/:slug ──────────────────────────────────
@@ -170,19 +195,19 @@ brokersRoute.put('/:slug', async (c) => {
   const [updatedBroker] = await db
     .update(brokers)
     .set({
-      name:         nextName,
-      slug:         body.name ? toSlug(nextName) : existing.slug,
+      name: nextName,
+      slug: body.name ? toSlug(nextName) : existing.slug,
       emailContact: body.emailContact ?? existing.emailContact,
-      website:      body.website ?? existing.website,
-      optOutUrl:    body.optOutUrl ?? existing.optOutUrl,
-      category:     body.category ?? existing.category,
-      region:       body.region ?? existing.region,
-      country:      body.country ?? existing.country,
+      website: body.website ?? existing.website,
+      optOutUrl: body.optOutUrl ?? existing.optOutUrl,
+      category: body.category ?? existing.category,
+      region: body.region ?? existing.region,
+      country: body.country ?? existing.country,
       optOutMethod: body.optOutMethod ?? existing.optOutMethod,
-      difficulty:   body.difficulty ?? existing.difficulty,
-      legalBasis:   body.legalBasis ?? existing.legalBasis,
-      notes:        body.notes ?? existing.notes,
-      updatedAt:    new Date(),
+      difficulty: body.difficulty ?? existing.difficulty,
+      legalBasis: body.legalBasis ?? existing.legalBasis,
+      notes: body.notes ?? existing.notes,
+      updatedAt: new Date(),
     })
     .where(eq(brokers.slug, slug))
     .returning()

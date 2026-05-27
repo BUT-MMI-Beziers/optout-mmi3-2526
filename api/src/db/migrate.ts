@@ -2,6 +2,8 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import * as dotenv from 'dotenv'
+import { seedTemplates } from './seeds/template_mails_seed.js'
+import { seedBrokers } from './seeds/brokers_seed.js'
 
 // Charge l'environnement depuis le fichier de configuration racine
 dotenv.config({ path: '../.env' })
@@ -50,8 +52,12 @@ async function main() {
     // Applique les migrations présentes dans le dossier
     await migrate(db, { migrationsFolder: './src/db/migrations' })
     console.log('Migrations applied successfully!')
+
+    // Exécute les seeds indispensables
+    await seedTemplates(db)
+    await seedBrokers(db)
   } catch (error) {
-    console.error('Failed to run migrations:', error)
+    console.error('Failed to run migrations or seeds:', error)
     process.exit(1)
   } finally {
     await client.end()
