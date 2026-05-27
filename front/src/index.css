@@ -14,7 +14,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-heading: 'Squada One', sans-serif;
+    --font-heading: 'Afacad', 'Inter Variable', sans-serif;
     --font-sans: 'Afacad', 'Inter Variable', sans-serif;
     --color-brand: #FC7E34;
     --color-brand-foreground: #ffffff;

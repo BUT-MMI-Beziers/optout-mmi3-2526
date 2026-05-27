@@ -13,15 +13,18 @@ import NewRequest from "@/pages/NewRequest"
 import AdminBrokers from "@/pages/AdminBrokers"
 import Notifications from "@/pages/Notifications"
 import Settings from "@/pages/Settings"
+import Reminders from "@/pages/Reminders"
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Pages sans layout (auth) */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
         <Route element={<MainLayout />}>
           <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/brokers" element={<Brokers />} />
@@ -32,6 +35,7 @@ function App() {
           <Route path="/admin/brokers" element={<AdminBrokers />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/reminders" element={<Reminders />} />
         </Route>
       </Routes>
     </BrowserRouter>

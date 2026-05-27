@@ -3,13 +3,11 @@ import { useEffect, useState, type ReactNode } from "react"
 import {
   LayoutDashboard,
   FileText,
-  Clock,
   Database,
   Bell,
-  Mail,
+  Activity,
+  Clock,
   User,
-  Download,
-  ShieldCheck,
   Settings,
   ChevronDown,
 } from "lucide-react"
@@ -26,18 +24,23 @@ import type { User as UserType } from "@/lib/mock-data"
 import GlobalSearch from "@/components/GlobalSearch"
 
 const navItems = [
-  { label: "Tableau de bord", icon: LayoutDashboard, to: "/dashboard" },
-  { label: "Mes demandes", icon: FileText, to: "/requests" },
-  { label: "Relances programmées", icon: Clock, to: "/reminders" },
-  { label: "Registre des brokers", icon: Database, to: "/brokers" },
-  { label: "Notifications", icon: Bell, to: "/notifications" },
-  { label: "Templates d'emails", icon: Mail, to: "/templates" },
+  { label: "Dashboard",            icon: LayoutDashboard, to: "/dashboard" },
+  { label: "Data brokers",         icon: Database,        to: "/brokers" },
+  { label: "Demandes",             icon: FileText,        to: "/requests" },
+  { label: "Relances programmées", icon: Clock,           to: "/reminders" },
+  { label: "Activité",             icon: Activity,        to: "/notifications" },
+]
+
+// 5 items max pour la bottom nav mobile
+const bottomNavMobile = [
+  { label: "Dashboard", icon: LayoutDashboard, to: "/dashboard" },
+  { label: "Brokers",   icon: Database,        to: "/brokers" },
+  { label: "Demandes",  icon: FileText,        to: "/requests" },
+  { label: "Activité",  icon: Activity,        to: "/notifications" },
 ]
 
 const bottomNavItems = [
-  { label: "Mon profil", icon: User, to: "/profile" },
-  { label: "Export de données", icon: Download, to: "/export" },
-  { label: "Administration", icon: ShieldCheck, to: "/admin/brokers" },
+  { label: "Profil",     icon: User,     to: "/profile" },
   { label: "Paramètres", icon: Settings, to: "/settings" },
 ]
 
@@ -62,12 +65,12 @@ export default function MainLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* Sidebar */}
-      <aside className="w-[210px] shrink-0 flex flex-col border-r border-border bg-card">
+      {/* Sidebar — desktop uniquement */}
+      <aside className="hidden lg:flex lg:static lg:shrink-0 w-[210px] flex-col border-r border-border bg-card">
         {/* Logo */}
-        <div className="px-4 py-4 border-b border-border">
+        <div className="px-4 py-5 border-b border-border flex items-center justify-center">
           <Link to="/dashboard">
-            <img src="/logo.png" alt="FLOAT" className="h-7 object-contain" />
+            <img src="/logo.png" alt="FLOAT" className="h-10 object-contain" />
           </Link>
         </div>
 
@@ -89,10 +92,10 @@ export default function MainLayout() {
       {/* Contenu principal */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="h-14 shrink-0 flex items-center gap-4 px-6 border-b border-border bg-card">
+        <header className="h-14 shrink-0 flex items-center gap-3 px-4 md:px-6 border-b border-border bg-card">
           <GlobalSearch />
 
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-2 md:gap-3 ml-auto">
             <button
               className="relative p-2 rounded-md hover:bg-accent transition-colors"
               onClick={() => navigate("/notifications")}
@@ -109,7 +112,7 @@ export default function MainLayout() {
                   <Avatar className="w-7 h-7">
                     <AvatarFallback className="text-xs bg-[#253550] text-white">{initials}</AvatarFallback>
                   </Avatar>
-                  <span className="text-sm font-medium">{displayName}</span>
+                  <span className="hidden sm:block text-sm font-medium">{displayName}</span>
                   <ChevronDown className="w-3 h-3 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
@@ -122,12 +125,33 @@ export default function MainLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto">
+        {/* Contenu scrollable — padding bas pour la bottom nav */}
+        <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
           <PageWrapper pathname={location.pathname}>
             <Outlet />
           </PageWrapper>
         </main>
       </div>
+
+      {/* Bottom nav — mobile uniquement */}
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 h-16 bg-card border-t border-border flex items-stretch">
+        {bottomNavMobile.map((item) => {
+          const active = isActive(item.to)
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={cn(
+                "flex-1 flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors",
+                active ? "text-[#FC7E34]" : "text-muted-foreground"
+              )}
+            >
+              <item.icon className={cn("w-5 h-5", active && "stroke-[2.5px]")} />
+              <span>{item.label}</span>
+            </Link>
+          )
+        })}
+      </nav>
     </div>
   )
 }
