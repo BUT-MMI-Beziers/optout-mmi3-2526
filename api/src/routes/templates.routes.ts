@@ -5,15 +5,13 @@ import { eq, and } from 'drizzle-orm'
 
 export const templatesRoutes = new Hono()
 
-
-// Route API GET TEMPLATES
-/*
-La route sert a récupérer les templates d'emails selon les parametres de langues & la base légale.
-Les templates sont directemenet récupérées depuis les migrations Drizzle / ORM
-*/
+/**
+ * GET /api/v1/templates
+ * Liste des templates avec filtres optionnels
+ */
 templatesRoutes.get('/', async (c) => {
-  const language = c.req.query('language') ?? undefined
-  const legalBasis = c.req.query('legal_basis') ?? undefined
+  const language = c.req.query('language')
+  const legalBasis = c.req.query('legal_basis')
 
   const conditions = []
 
@@ -28,9 +26,7 @@ templatesRoutes.get('/', async (c) => {
   const templates = await db
     .select()
     .from(emailTemplates)
-    .where(
-      conditions.length ? and(...conditions) : undefined
-    )
+    .where(conditions.length ? and(...conditions) : undefined)
 
   return c.json({
     data: templates,
@@ -38,49 +34,32 @@ templatesRoutes.get('/', async (c) => {
   })
 })
 
-
-// Route API GET TEMPLATE BY ID
-/*
- * TODO (SECURITÉ) : L'authentification n'étant pas encore implémentée par l'équipe,
- * cette route est temporairement publique. Il faudra ajouter le middleware JWT plus tard.
- * La route sert à récupérer un template d'email précis grâce à son identifiant unique.
+/**
+ * GET /api/v1/templates/:id
+ * Récupère un template par ID
  */
 templatesRoutes.get('/:id', async (c) => {
-  try {
-    // 1. Récupération de l'ID depuis les paramètres de l'URL
-    const id = c.req.param('id')
+  const id = c.req.param('id')
 
-    // 2. Requête Drizzle pour trouver le template spécifique
-    // On utilise eq() pour correspondre à l'ID et limit(1) car l'ID est unique
-    const templateResult = await db
-      .select()
-      .from(emailTemplates)
-      .where(eq(emailTemplates.id, id))
-      .limit(1)
-
-    // 3. Gestion de l'erreur 404 (Si aucun template n'est trouvé)
-    if (templateResult.length === 0) {
-      return c.json({
-        error: "Template introuvable",
-        code: "NOT_FOUND",
-        details: {}
-      }, 404)
-    }
-
-    // 4. Renvoi du template trouvé avec un code 200 (Succès)
-    // templateResult est un tableau, on renvoie donc le premier (et unique) élément
+  if (!id || typeof id !== 'string') {
     return c.json({
-      data: templateResult[0]
-    }, 200)
-
-  } catch (error) {
-    // 5. Gestion des erreurs internes
-    console.error("Erreur lors de la récupération du template détaillé :", error)
-    return c.json({
-      error: "Une erreur interne est survenue",
-      code: "INTERNAL_SERVER_ERROR",
-      details: error instanceof Error ? error.message : {}
-    }, 500)
+      error: 'Invalid ID',
+      code: 'BAD_REQUEST'
+    }, 400)
   }
-})
 
+  const template = await db
+    .select()
+    .from(emailTemplates)
+    .where(eq(emailTemplates.id, id))
+    .limit(1)
+
+  if (template.length === 0) {
+    return c.json({
+      error: 'Template introuvable',
+      code: 'NOT_FOUND'
+    }, 404)
+  }
+
+  return c.json({ data: template[0] })
+})
