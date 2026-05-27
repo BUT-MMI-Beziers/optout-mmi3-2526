@@ -13,9 +13,11 @@
     "@hono/node-server": "^1.19.14",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.23",
+    "js-yaml": "^4.1.1",
     "postgres": "^3.4.9"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.11.17",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",

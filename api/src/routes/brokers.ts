@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { db } from '../db/index.js'
 import { brokers } from '../db/schema.js'
 import { and, eq, ilike } from 'drizzle-orm'
+import * as yaml from 'js-yaml'
 
 const brokersRoute = new Hono()
 
@@ -90,32 +91,50 @@ brokersRoute.post('/', async (c) => {
   return c.json(newBroker, 201)
 })
 
+
 // ─── GET /brokers/export ─────────────────────────────────
 brokersRoute.get('/export', async (c) => {
 
-  // Récupère tous les brokers
   const allBrokers = await db
     .select()
     .from(brokers)
 
-  const date = new Date().toISOString().split('T')[0] 
-  const filename = `brokers-export-${date}.json`
-
-  c.header('Content-Disposition', `attachment; filename="${filename}"`)
-  c.header('Content-Type', 'application/json')
-
-  return c.json({
+  const format = c.req.query('format') ?? 'json' // ?format=yaml ou ?format=json
+  const date = new Date().toISOString().split('T')[0]
+  const data = {
     exportedAt: new Date().toISOString(),
     count:      allBrokers.length,
     brokers:    allBrokers,
-  })
+  }
+
+  if (format === 'yaml') {
+    const filename = `brokers-export-${date}.yaml`
+    c.header('Content-Disposition', `attachment; filename="${filename}"`)
+    c.header('Content-Type', 'application/yaml')
+    return c.text(yaml.dump(data))
+  }
+
+  const filename = `brokers-export-${date}.json`
+  c.header('Content-Disposition', `attachment; filename="${filename}"`)
+  c.header('Content-Type', 'application/json')
+  return c.json(data)
 })
 
 // ─── POST /brokers/import ────────────────────────────────
 brokersRoute.post('/import', async (c) => {
-  const body = await c.req.json()
 
-  const list = Array.isArray(body) ? body : body.brokers
+  const contentType = c.req.header('Content-Type') ?? ''
+  let list: any[]
+
+
+  if (contentType.includes('yaml')) {
+    const text = await c.req.text()
+    const parsed: any = yaml.load(text)
+    list = Array.isArray(parsed) ? parsed : parsed?.brokers
+  } else {
+    const body = await c.req.json()
+    list = Array.isArray(body) ? body : body.brokers
+  }
 
   if (!Array.isArray(list) || list.length === 0) {
     return c.json({ error: 'Body invalide : tableau de brokers attendu' }, 400)
@@ -137,11 +156,10 @@ brokersRoute.post('/import', async (c) => {
     isVerified:   b.isVerified   ?? false,
   }))
 
-
   const inserted = await db
     .insert(brokers)
     .values(rows)
-    .onConflictDoNothing()  
+    .onConflictDoNothing()
     .returning()
 
   return c.json({
