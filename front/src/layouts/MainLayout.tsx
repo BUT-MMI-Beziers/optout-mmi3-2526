@@ -9,6 +9,8 @@ export default function MainLayout() {
           <Link to="/dashboard">Dashboard</Link>
           <Link to="/brokers">Brokers</Link>
           <Link to="/profile">Profil</Link>
+          <Link to="/login">Connexion</Link>
+          <Link to="/register">Inscription</Link>
         </nav>
       </header>
       <main className="flex-1">
