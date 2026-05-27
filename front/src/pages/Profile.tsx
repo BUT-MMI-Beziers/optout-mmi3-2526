@@ -35,6 +35,7 @@ export default function Profile() {
 
   const [newContact, setNewContact] = useState({ type: "email" as Contact["type"], value: "", label: "" })
   const [contactError, setContactError] = useState("")
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetch(`${API}/users/me`, { headers: authHeaders() })
@@ -86,6 +87,22 @@ export default function Profile() {
     })
     if (res.ok) {
       setProfil(p => p ? { ...p, contacts: p.contacts.filter(c => c.id !== id) } : p)
+    }
+  }
+
+  async function deleteAccount() {
+    if (!window.confirm("Supprimer définitivement votre compte ? Cette action est irréversible.")) return
+    setDeleting(true)
+    const res = await fetch(`${API}/users/me`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    })
+    if (res.ok) {
+      localStorage.removeItem("accessToken")
+      localStorage.removeItem("refreshToken")
+      window.location.href = "/"
+    } else {
+      setDeleting(false)
     }
   }
 
@@ -200,6 +217,19 @@ export default function Profile() {
         {contactError && <p className="text-sm text-red-500">{contactError}</p>}
         <button type="submit" className="bg-black text-white px-4 py-2 rounded">Ajouter</button>
       </form>
+
+      {/* Supprimer le compte */}
+      <div className="border-t pt-6 mt-6">
+        <h2 className="font-semibold mb-2 text-red-600">Zone dangereuse</h2>
+        <p className="text-sm text-gray-500 mb-3">La suppression de votre compte est définitive et irréversible.</p>
+        <button
+          onClick={deleteAccount}
+          disabled={deleting}
+          className="bg-red-600 text-white px-4 py-2 rounded"
+        >
+          {deleting ? "..." : "Supprimer mon compte"}
+        </button>
+      </div>
     </div>
   )
 }
