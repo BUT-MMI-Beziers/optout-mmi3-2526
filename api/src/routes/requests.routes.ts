@@ -1,12 +1,44 @@
 import { Hono } from 'hono'
 import { eq, and } from 'drizzle-orm'
-import { db } from '../db' // Vérifie bien que ce chemin correspond à ton export db
+import { db } from '../db' 
 import { removalRequests, users, brokers, emailTemplates, userContacts } from '../db/schema'
 
 export const requestsRoutes = new Hono()
 
+// SÉCURITÉ : Regex pour valider le format UUID
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ============================================================================
-// PRÉVISUALISATION D'UNE DEMANDE
+// LISTER TOUTES LES DEMANDES
+// Route finale : GET /api/v1/requests
+// ============================================================================
+/*
+ * TODO (SÉCURITÉ) : Route temporairement publique.
+ * À protéger avec le middleware d'authentification plus tard.
+ * Utilité : Récupère la liste de toutes les requêtes (demandes d'opt-out) en base.
+ */
+requestsRoutes.get('/', async (c) => {
+  try {
+    const requestsList = await db
+      .select()
+      .from(removalRequests)
+
+    return c.json({
+      data: requestsList,
+      count: requestsList.length
+    }, 200)
+
+  } catch (error) {
+    console.error("[GET /requests] Erreur critique :", error)
+    return c.json({
+      error: "Impossible de récupérer la liste des requêtes.",
+      code: "INTERNAL_SERVER_ERROR"
+    }, 500)
+  }
+})
+
+// ============================================================================
+// FEATURE 6 : PRÉVISUALISATION D'UNE DEMANDE
 // Route finale : GET /api/v1/requests/:id/preview
 // ============================================================================
 /*
@@ -19,7 +51,14 @@ requestsRoutes.get('/:id/preview', async (c) => {
   try {
     const requestId = c.req.param('id')
 
-    // 1. Récupération de la demande avec ses relations (Jointures)
+    // SÉCURITÉ : Validation stricte du format UUID
+    if (!uuidRegex.test(requestId)) {
+      return c.json({
+        error: "Format d'identifiant de demande invalide. Un UUID est attendu.",
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
     const requestData = await db
       .select({
         request: removalRequests,
@@ -34,18 +73,15 @@ requestsRoutes.get('/:id/preview', async (c) => {
       .where(eq(removalRequests.id, requestId))
       .limit(1)
 
-    // Gestion de l'erreur 404
     if (requestData.length === 0) {
       return c.json({
-        error: "Demande introuvable",
-        code: "NOT_FOUND",
-        details: {}
+        error: "La demande de suppression spécifiée est introuvable.",
+        code: "NOT_FOUND"
       }, 404)
     }
 
     const data = requestData[0]
 
-    // 2. Récupération de l'adresse principale de l'utilisateur (si elle existe)
     const addressData = await db
       .select()
       .from(userContacts)
@@ -60,15 +96,12 @@ requestsRoutes.get('/:id/preview', async (c) => {
 
     const userAddress = addressData.length > 0 ? addressData[0].value : "[Adresse non renseignée]"
 
-    // 3. Formatage des dates utiles
     const requestDate = new Date(data.request.createdAt).toLocaleDateString('fr-FR')
     
-    // Calcul de la date limite (ex: +30 jours selon le RGPD)
     const deadline = new Date(data.request.createdAt)
     deadline.setDate(deadline.getDate() + 30)
     const deadlineDate = deadline.toLocaleDateString('fr-FR')
 
-    // 4. Moteur d'interpolation (Remplacement des balises)
     const interpolate = (text: string) => {
       if (!text) return ''
       return text
@@ -83,11 +116,9 @@ requestsRoutes.get('/:id/preview', async (c) => {
         .replace(/{{request\.id}}/g, data.request.id)
     }
 
-    // 5. Application du remplacement sur le sujet et le corps du mail
     const previewSubject = interpolate(data.template.subject)
     const previewBody = interpolate(data.template.body)
 
-    // 6. Renvoi des données générées
     return c.json({
       data: {
         subject: previewSubject,
@@ -96,42 +127,10 @@ requestsRoutes.get('/:id/preview', async (c) => {
     }, 200)
 
   } catch (error) {
-    console.error("Erreur lors de la prévisualisation :", error)
+    console.error(`[GET /requests/${c.req.param('id')}/preview] Erreur critique :`, error)
     return c.json({
-      error: "Une erreur interne est survenue",
-      code: "INTERNAL_SERVER_ERROR",
-      details: error instanceof Error ? error.message : {}
-    }, 500)
-  }
-})
-
-// ============================================================================
-// LISTER TOUTES LES DEMANDES
-// Route finale : GET /api/v1/requests
-// ============================================================================
-/*
- * TODO (SÉCURITÉ) : Route temporairement publique.
- * À protéger avec le middleware d'authentification plus tard.
- * Utilité : Récupère la liste de toutes les requêtes (demandes d'opt-out) en base.
- */
-requestsRoutes.get('/', async (c) => {
-  try {
-    // Récupération simple de toutes les demandes
-    const requestsList = await db
-      .select()
-      .from(removalRequests)
-
-    return c.json({
-      data: requestsList,
-      count: requestsList.length
-    }, 200)
-
-  } catch (error) {
-    console.error("Erreur lors de la récupération des demandes :", error)
-    return c.json({
-      error: "Une erreur interne est survenue",
-      code: "INTERNAL_SERVER_ERROR",
-      details: error instanceof Error ? error.message : {}
+      error: "Une erreur interne est survenue lors de la prévisualisation de la demande.",
+      code: "INTERNAL_SERVER_ERROR"
     }, 500)
   }
 })
