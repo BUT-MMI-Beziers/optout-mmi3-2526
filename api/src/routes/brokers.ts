@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../db/index.js'
 import { brokers } from '../db/schema.js'
+import { and, eq, ilike } from 'drizzle-orm'
 
 const brokersRoute = new Hono()
 
@@ -13,6 +14,45 @@ function toSlug(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')    
     .replace(/^-|-$/g, '')           
 }
+
+// ─── GET / ────────────────────────────────────────────────
+brokersRoute.get('/', async (c) => {
+  try {
+    const category = c.req.query('category')
+    const region = c.req.query('region')
+    const difficulty = c.req.query('difficulty')
+    const search = c.req.query('search')
+    const isVerifiedStr = c.req.query('isVerified')
+
+    const conditions = []
+
+    if (category) {
+      conditions.push(eq(brokers.category, category as any))
+    }
+    if (region) {
+      conditions.push(eq(brokers.region, region as any))
+    }
+    if (difficulty) {
+      conditions.push(eq(brokers.difficulty, difficulty as any))
+    }
+    if (isVerifiedStr) {
+      conditions.push(eq(brokers.isVerified, isVerifiedStr === 'true'))
+    }
+    if (search) {
+      conditions.push(ilike(brokers.name, `%${search}%`))
+    }
+
+    const query = db.select().from(brokers)
+    const results = conditions.length > 0
+      ? await query.where(and(...conditions))
+      : await query
+
+    return c.json(results)
+  } catch (error) {
+    console.error('Error fetching brokers:', error)
+    return c.json({ error: 'Une erreur interne est survenue lors de la récupération des brokers' }, 500)
+  }
+})
 
 // ─── POST /brokers ───────────────────────────────────────
 brokersRoute.post('/', async (c) => {
