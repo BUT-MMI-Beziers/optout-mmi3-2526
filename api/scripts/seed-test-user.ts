@@ -5,7 +5,7 @@
 import 'dotenv/config'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { sign } from 'jsonwebtoken'
+import { sign } from 'hono/jwt'
 import { users, userContacts } from '../src/db/schema.js'
 import { encrypt } from '../src/utils/crypto.util.js'
 
@@ -29,10 +29,9 @@ if (!user) {
   const existing = await db.select().from(users)
   const found = existing.find(u => u.email === 'test@float.local')
   if (found) {
-    const token = sign(
-      { sub: found.id, email: found.email, role: found.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
+    const token = await sign(
+      { sub: found.id, role: found.role, exp: Math.floor(Date.now() / 1000) + 7 * 24 * 3600 },
+      process.env.JWT_SECRET!
     )
     console.log('\nUser ID :', found.id)
     console.log('\nJWT :\n' + token)
@@ -59,10 +58,9 @@ await db.insert(userContacts).values([
   },
 ])
 
-const token = sign(
-  { sub: user.id, email: user.email, role: user.role },
-  process.env.JWT_SECRET!,
-  { expiresIn: '7d' }
+const token = await sign(
+  { sub: user.id, role: user.role, exp: Math.floor(Date.now() / 1000) + 7 * 24 * 3600 },
+  process.env.JWT_SECRET!
 )
 
 console.log('\nUser créé avec succès !')

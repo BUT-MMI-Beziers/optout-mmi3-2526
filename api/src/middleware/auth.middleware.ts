@@ -1,9 +1,8 @@
 import { createMiddleware } from 'hono/factory'
-import { verify } from 'jsonwebtoken'
+import { verify } from 'hono/jwt'
 
 export interface JwtPayload {
-  sub: string   // user UUID
-  email: string
+  sub: string
   role: 'user' | 'admin'
   iat?: number
   exp?: number
@@ -26,7 +25,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
   if (!secret) throw new Error('JWT_SECRET is not set')
 
   try {
-    const payload = verify(token, secret) as JwtPayload
+    const payload = await verify(token, secret, 'HS256') as unknown as JwtPayload
     c.set('user', payload)
     await next()
   } catch {
