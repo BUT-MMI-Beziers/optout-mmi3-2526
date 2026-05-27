@@ -13,6 +13,7 @@ import NewRequest from "@/pages/NewRequest"
 import AdminBrokers from "@/pages/AdminBrokers"
 import Notifications from "@/pages/Notifications"
 import Settings from "@/pages/Settings"
+import Reminders from "@/pages/Reminders"
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
           <Route path="/admin/brokers" element={<AdminBrokers />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/reminders" element={<Reminders />} />
         </Route>
       </Routes>
     </BrowserRouter>
