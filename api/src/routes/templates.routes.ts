@@ -2,13 +2,15 @@ import { Hono } from 'hono'
 import { eq, and } from 'drizzle-orm'
 
 // ----------------------------------------------------------------------------
-// IMPORTS CORRIGÉS (Correction du bug "db is not defined")
-// On remonte d'un niveau (../) car ce fichier est dans le dossier /routes
+// IMPORTS 
 // ----------------------------------------------------------------------------
-import { db } from '../db/index' // Chemin vers l'initialisation de la DB
-import { emailTemplates } from '../schema' // Chemin vers le schéma Drizzle
+import { db } from '../db/index' 
+import { emailTemplates } from '../db/schema' 
 
 export const templatesRoutes = new Hono()
+
+// SÉCURITÉ : Regex pour valider le format UUID
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ============================================================================
 // FEATURE 4 : LISTER LES TEMPLATES (Route de Clément)
@@ -22,13 +24,10 @@ export const templatesRoutes = new Hono()
  */
 templatesRoutes.get('/', async (c) => {
   try {
-    // 1. Récupération des paramètres de requête optionnels
     const language = c.req.query('language') ?? undefined
     const legalBasis = c.req.query('legal_basis') ?? undefined
-
     const conditions = []
 
-    // 2. Application des filtres Drizzle si les paramètres sont fournis
     if (language) {
       conditions.push(eq(emailTemplates.language, language))
     }
@@ -37,7 +36,6 @@ templatesRoutes.get('/', async (c) => {
       conditions.push(eq(emailTemplates.legalBasis, legalBasis))
     }
 
-    // 3. Exécution de la requête en base de données
     const templates = await db
       .select()
       .from(emailTemplates)
@@ -45,16 +43,18 @@ templatesRoutes.get('/', async (c) => {
         conditions.length > 0 ? and(...conditions) : undefined
       )
 
-    // 4. Renvoi de la liste des templates
     return c.json({
       data: templates,
       count: templates.length
     }, 200)
 
   } catch (error) {
-    console.error("Erreur lors de la récupération de la liste des templates :", error)
+    // Log serveur conservé pour le debug
+    console.error("[GET /templates] Erreur critique :", error)
+    
+    // SÉCURITÉ : Réponse client aseptisée
     return c.json({
-      error: "Une erreur interne est survenue",
+      error: "Impossible de récupérer les templates d'emails.",
       code: "INTERNAL_SERVER_ERROR"
     }, 500)
   }
@@ -72,37 +72,38 @@ templatesRoutes.get('/', async (c) => {
  */
 templatesRoutes.get('/:id', async (c) => {
   try {
-    // 1. Récupération de l'ID dynamique depuis l'URL
     const id = c.req.param('id')
 
-    // 2. Recherche du template spécifique en base de données (optimisé avec limit 1)
+    // SÉCURITÉ : Vérification stricte du format UUID
+    if (!uuidRegex.test(id)) {
+      return c.json({
+        error: "Format d'identifiant invalide. Un UUID est attendu.",
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
     const templateResult = await db
       .select()
       .from(emailTemplates)
       .where(eq(emailTemplates.id, id))
       .limit(1)
 
-    // 3. Gestion de l'erreur 404 si le template n'existe pas
     if (templateResult.length === 0) {
       return c.json({
-        error: "Template introuvable",
-        code: "NOT_FOUND",
-        details: {}
+        error: "Le template demandé est introuvable.",
+        code: "NOT_FOUND"
       }, 404)
     }
 
-    // 4. Renvoi du template trouvé (le premier élément du tableau)
     return c.json({ 
       data: templateResult[0] 
     }, 200)
 
   } catch (error) {
-    // 5. Gestion des erreurs inattendues (ex: mauvaise syntaxe d'UUID)
-    console.error("Erreur lors de la récupération du template détaillé :", error)
+    console.error(`[GET /templates/${c.req.param('id')}] Erreur critique :`, error)
     return c.json({
-      error: "Une erreur interne est survenue",
-      code: "INTERNAL_SERVER_ERROR",
-      details: error instanceof Error ? error.message : {}
+      error: "Une erreur interne est survenue lors de la récupération du template.",
+      code: "INTERNAL_SERVER_ERROR"
     }, 500)
   }
 })
