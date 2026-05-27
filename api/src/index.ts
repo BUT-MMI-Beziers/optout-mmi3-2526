@@ -2,9 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
 
-import { db } from './db/index'
-import { emailTemplates } from './db/schema'
-import { eq, and } from 'drizzle-orm'
+import { templatesRoutes } from './routes/templates.routes'
 
 const app = new Hono()
 
@@ -93,6 +91,8 @@ app.get('/api/v1/templates/:id', async (c) => {
   }
 })
 
+// mount routes
+app.route('/api/v1/templates', templatesRoutes)
 
 serve({
   fetch: app.fetch,
