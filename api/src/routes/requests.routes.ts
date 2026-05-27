@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { eq, and } from 'drizzle-orm'
 import { db } from '../db' 
 import { removalRequests, users, brokers, emailTemplates, userContacts } from '../db/schema'
+import { renderTemplate } from '../services/template.service'
 
 export const requestsRoutes = new Hono()
 
@@ -15,7 +16,6 @@ const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 /*
  * TODO (SÉCURITÉ) : Route temporairement publique.
  * À protéger avec le middleware d'authentification plus tard.
- * Utilité : Récupère la liste de toutes les requêtes (demandes d'opt-out) en base.
  */
 requestsRoutes.get('/', async (c) => {
   try {
@@ -43,9 +43,8 @@ requestsRoutes.get('/', async (c) => {
 // ============================================================================
 /*
  * TODO (SÉCURITÉ) : Route temporairement publique. 
- * L'équipe Bleue (les gnomes) devra ajouter le middleware d'authentification 
- * quand ils auront fini leur module !
- * Utilité : Retourne l'email final avec toutes les variables remplacées, sans envoyer.
+ * L'équipe Bleue devra ajouter le middleware d'authentification 
+ * quand ils auront fini leur module.
  */
 requestsRoutes.get('/:id/preview', async (c) => {
   try {
@@ -96,28 +95,20 @@ requestsRoutes.get('/:id/preview', async (c) => {
 
     const userAddress = addressData.length > 0 ? addressData[0].value : "[Adresse non renseignée]"
 
-    const requestDate = new Date(data.request.createdAt).toLocaleDateString('fr-FR')
-    
-    const deadline = new Date(data.request.createdAt)
-    deadline.setDate(deadline.getDate() + 30)
-    const deadlineDate = deadline.toLocaleDateString('fr-FR')
+    // FEATURE 3 : Utilisation du service d'interpolation centralisé
+    const previewSubject = renderTemplate(data.template.subject, {
+      user: data.user,
+      userAddress: userAddress,
+      broker: data.broker,
+      request: data.request
+    })
 
-    const interpolate = (text: string) => {
-      if (!text) return ''
-      return text
-        .replace(/{{user\.first_name}}/g, data.user.firstName || '')
-        .replace(/{{user\.last_name}}/g, data.user.lastName || '')
-        .replace(/{{user\.email}}/g, data.user.email || '')
-        .replace(/{{user\.address}}/g, userAddress)
-        .replace(/{{broker\.name}}/g, data.broker.name || '')
-        .replace(/{{broker\.email_contact}}/g, data.broker.emailContact || '')
-        .replace(/{{request\.date}}/g, requestDate)
-        .replace(/{{request\.deadline_date}}/g, deadlineDate)
-        .replace(/{{request\.id}}/g, data.request.id)
-    }
-
-    const previewSubject = interpolate(data.template.subject)
-    const previewBody = interpolate(data.template.body)
+    const previewBody = renderTemplate(data.template.body, {
+      user: data.user,
+      userAddress: userAddress,
+      broker: data.broker,
+      request: data.request
+    })
 
     return c.json({
       data: {
