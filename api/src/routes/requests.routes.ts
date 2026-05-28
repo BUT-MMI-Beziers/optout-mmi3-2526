@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { eq, and } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { removalRequests, users, brokers, emailTemplates, userContacts } from '../db/schema.js'
+import { removalRequests, users, brokers, emailTemplates, userContacts, requestEvents } from '../db/schema.js'
 import { renderTemplate } from '../services/template.service.js'
 import { emailQueue } from '../services/queue.service.js'
 
@@ -98,6 +98,76 @@ requestsRoutes.get('/', async (c) => {
     console.error("[GET /requests] Erreur critique :", error)
     return c.json({
       error: "Impossible de récupérer la liste des demandes.",
+      code: "INTERNAL_SERVER_ERROR"
+    }, 500)
+  }
+})
+
+// ============================================================================
+// FEATURE 12 : DÉTAIL COMPLET D'UNE DEMANDE
+// Route finale : GET /api/v1/requests/:id
+// ============================================================================
+/*
+ * Retourne une demande complète avec :
+ *  - le broker associé
+ *  - le template associé
+ *  - l'historique des événements (request_events)
+ */
+requestsRoutes.get('/:id', async (c) => {
+  try {
+    const requestId = c.req.param('id')
+
+    // SÉCURITÉ : Validation stricte du format UUID
+    if (!uuidRegex.test(requestId)) {
+      return c.json({
+        error: "Format d'identifiant de demande invalide. Un UUID est attendu.",
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
+    // 1. Récupérer la demande avec broker + template (jointures)
+    const rows = await db
+      .select({
+        request: removalRequests,
+        broker: brokers,
+        template: emailTemplates,
+      })
+      .from(removalRequests)
+      .innerJoin(brokers, eq(removalRequests.brokerId, brokers.id))
+      .innerJoin(emailTemplates, eq(removalRequests.templateId, emailTemplates.id))
+      .where(eq(removalRequests.id, requestId))
+      .limit(1)
+
+    if (rows.length === 0) {
+      return c.json({
+        error: "La demande spécifiée est introuvable.",
+        code: "NOT_FOUND"
+      }, 404)
+    }
+
+    const data = rows[0]
+
+    // 2. Récupérer l'historique des événements
+    const events = await db
+      .select()
+      .from(requestEvents)
+      .where(eq(requestEvents.requestId, requestId))
+      .orderBy(requestEvents.createdAt)
+
+    // 3. Retourner le tout assemblé
+    return c.json({
+      data: {
+        ...data.request,
+        broker: data.broker,
+        template: data.template,
+        events,
+      }
+    }, 200)
+
+  } catch (error) {
+    console.error(`[GET /requests/${c.req.param('id')}] Erreur critique :`, error)
+    return c.json({
+      error: "Une erreur interne est survenue lors de la récupération de la demande.",
       code: "INTERNAL_SERVER_ERROR"
     }, 500)
   }
