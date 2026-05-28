@@ -1,0 +1,7 @@
+import { Worker, Job } from 'bullmq'
+import nodemailer from 'nodemailer'
+import { eq } from 'drizzle-orm'
+import { redisConnection, type SendEmailJobData } from '../queues/email.queue.js'
+import { db } from '../db/index.js'
+import { removalRequests, requestEvents } from '../db/schema.js'
+import { renderRequestEmail } from '../services/render-template.js'
