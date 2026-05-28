@@ -10,17 +10,94 @@ export const requestsRoutes = new Hono()
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ============================================================================
-// LISTER TOUTES LES DEMANDES
+// FEATURE 11 : LISTER LES DEMANDES AVEC FILTRES ET PAGINATION
 // Route finale : GET /api/v1/requests
 // ============================================================================
+/*
+ * Query params disponibles :
+ *  - status     : filtre par statut (DRAFT, SENT, NO_RESPONSE, RESPONDED, CLOSED)
+ *  - broker_id  : filtre par broker UUID
+ *  - page       : numéro de page (défaut: 1)
+ *  - limit      : nombre de résultats par page (défaut: 10, max: 100)
+ *
+ * Réponse :
+ *  - data       : tableau des demandes
+ *  - total      : nombre total de résultats (avant pagination)
+ *  - page       : page actuelle
+ *  - limit      : limite actuelle
+ *  - totalPages : nombre total de pages
+ */
 requestsRoutes.get('/', async (c) => {
   try {
-    const requestsList = await db.select().from(removalRequests)
-    return c.json({ data: requestsList, count: requestsList.length }, 200)
+    // 1. Récupérer et valider les query params
+    const statusParam = c.req.query('status')
+    const brokerIdParam = c.req.query('broker_id')
+    const pageParam = c.req.query('page')
+    const limitParam = c.req.query('limit')
+
+    // Valider le statut si fourni
+    const validStatuses = ['DRAFT', 'SENT', 'NO_RESPONSE', 'RESPONDED', 'CLOSED']
+    if (statusParam && !validStatuses.includes(statusParam)) {
+      return c.json({
+        error: `Statut invalide. Valeurs acceptées : ${validStatuses.join(', ')}`,
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
+    // Valider le broker_id si fourni
+    if (brokerIdParam && !uuidRegex.test(brokerIdParam)) {
+      return c.json({
+        error: "broker_id doit être un UUID valide.",
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
+    // Parser et valider page + limit
+    const page = Math.max(1, parseInt(pageParam || '1'))
+    const limit = Math.min(100, Math.max(1, parseInt(limitParam || '10')))
+    const offset = (page - 1) * limit
+
+    // 2. Construire les conditions de filtre
+    const conditions = []
+
+    if (statusParam) {
+      conditions.push(eq(removalRequests.status, statusParam as any))
+    }
+
+    if (brokerIdParam) {
+      conditions.push(eq(removalRequests.brokerId, brokerIdParam))
+    }
+
+    // 3. Récupérer les demandes avec filtres + pagination
+    const requestsList = await db
+      .select()
+      .from(removalRequests)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(removalRequests.createdAt)
+      .limit(limit)
+      .offset(offset)
+
+    // 4. Compter le total (pour calculer totalPages)
+    const allRequests = await db
+      .select({ id: removalRequests.id })
+      .from(removalRequests)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+
+    const total = allRequests.length
+    const totalPages = Math.ceil(total / limit)
+
+    return c.json({
+      data: requestsList,
+      total,
+      page,
+      limit,
+      totalPages,
+    }, 200)
+
   } catch (error) {
     console.error("[GET /requests] Erreur critique :", error)
     return c.json({
-      error: "Impossible de récupérer la liste des requêtes.",
+      error: "Impossible de récupérer la liste des demandes.",
       code: "INTERNAL_SERVER_ERROR"
     }, 500)
   }
