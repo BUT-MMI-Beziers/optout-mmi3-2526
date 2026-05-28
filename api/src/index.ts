@@ -6,9 +6,9 @@ import requestsRoutes from './routes/requests.routes.js'
 
 const app = new Hono()
 
-app.route('/api/brokers', brokersRoute)
-app.route('/api/templates', templatesRoutes)
-app.route('/api/requests', requestsRoutes)
+app.route('/api/v1/brokers', brokersRoute)
+app.route('/api/v1/templates', templatesRoutes)
+app.route('/api/v1/requests', requestsRoutes)
 
 
 const port = Number(process.env.API_PORT_INTERNAL) || 3000
