@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -241,38 +241,33 @@ export default function Notifications() {
   }
 
   return (
-    <div className="p-8 space-y-6 w-full">
+    <div className="p-4 md:p-8 space-y-6">
+
+      {/* ─── Breadcrumb ─────────────────────────────────────── */}
+      <nav className="text-sm text-muted-foreground flex items-center gap-1">
+        <Link to="/dashboard" className="hover:text-foreground">FLOAT</Link>
+        <span>›</span>
+        <span className="text-foreground">Notifications</span>
+      </nav>
 
       {/* ─── Header ──────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-4">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
-            style={{ backgroundColor: "#FC7E34" }}
-          >
-            <Bell className="w-7 h-7 text-white" strokeWidth={2.5} />
-          </div>
-          <div>
-            <h1
-              className="text-[42px] font-bold uppercase tracking-wide leading-none"
-              style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}
-            >
-              Notifications
-            </h1>
-            <p className="text-muted-foreground mt-2 text-[15px]">
-              {unreadCount > 0
-                ? "Vous avez " + unreadCount + " notification" + (unreadCount > 1 ? "s" : "") + " non lue" + (unreadCount > 1 ? "s" : "") + "."
-                : "Vous êtes à jour, aucune notification non lue."}
-            </p>
-          </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-4xl font-bold uppercase tracking-wide" style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}>
+            Notifications
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {unreadCount > 0
+              ? "Vous avez " + unreadCount + " notification" + (unreadCount > 1 ? "s" : "") + " non lue" + (unreadCount > 1 ? "s" : "") + "."
+              : "Vous êtes à jour, aucune notification non lue."}
+          </p>
         </div>
 
         {unreadCount > 0 ? (
           <Button
             variant="outline"
             onClick={markAllAsRead}
-            className="text-[15px] font-semibold inline-flex items-center gap-2 px-5 py-2.5 h-auto"
-            style={{ borderColor: "#FC7E34", color: "#FC7E34", borderWidth: 2 }}
+            className="gap-2 h-10 px-5 text-sm font-medium border-[#FC7E34] text-[#FC7E34] hover:bg-[#FC7E34] hover:text-white"
           >
             <CheckCheck className="w-4 h-4" />
             Tout marquer comme lu
@@ -281,74 +276,62 @@ export default function Notifications() {
       </div>
 
       {/* ─── Filtres par état (lu / non lu) ─────────────────── */}
-      <div className="flex items-center gap-2.5 flex-wrap">
-        <button
-          onClick={() => setReadFilter("all")}
-          className="px-5 py-2.5 rounded-xl text-[15px] font-semibold flex items-center gap-2.5 transition-colors border-2"
-          style={
-            readFilter === "all"
-              ? { backgroundColor: "#253550", color: "#F9F7F6", borderColor: "#253550" }
-              : { backgroundColor: "white", color: "#000401", borderColor: "#e5e3e1" }
-          }
-        >
-          Toutes
-          <span
-            className="text-[13px] px-1.5 py-0.5 rounded-md font-bold"
-            style={
-              readFilter === "all"
-                ? { backgroundColor: "rgba(255,255,255,0.2)", color: "white" }
-                : { backgroundColor: "#f0efee", color: "#6b7280" }
-            }
-          >
-            {notifications.length}
-          </span>
-        </button>
-        <button
-          onClick={() => setReadFilter("unread")}
-          className="px-5 py-2.5 rounded-xl text-[15px] font-semibold flex items-center gap-2.5 transition-colors border-2"
-          style={
-            readFilter === "unread"
-              ? { backgroundColor: "#253550", color: "#F9F7F6", borderColor: "#253550" }
-              : { backgroundColor: "white", color: "#000401", borderColor: "#e5e3e1" }
-          }
-        >
-          Non lues
-          <span
-            className="text-[13px] px-1.5 py-0.5 rounded-md font-bold"
-            style={
-              readFilter === "unread"
-                ? { backgroundColor: "rgba(255,255,255,0.2)", color: "white" }
-                : { backgroundColor: "#f0efee", color: "#6b7280" }
-            }
-          >
-            {unreadCount}
-          </span>
-        </button>
+      <div className="flex items-center gap-2 flex-wrap">
+        {([
+          { key: "all" as ReadFilter, label: "Toutes", count: notifications.length },
+          { key: "unread" as ReadFilter, label: "Non lues", count: unreadCount },
+        ]).map((tab) => {
+          const isActive = readFilter === tab.key
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setReadFilter(tab.key)}
+              className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border"
+              style={
+                isActive
+                  ? { backgroundColor: "#253550", color: "#F9F7F6", borderColor: "#253550" }
+                  : { backgroundColor: "white", color: "#000401", borderColor: "#e5e3e1" }
+              }
+            >
+              {tab.label}
+              <span
+                className="text-xs px-1.5 py-0.5 rounded font-bold"
+                style={
+                  isActive
+                    ? { backgroundColor: "rgba(255,255,255,0.2)", color: "white" }
+                    : { backgroundColor: "#f0efee", color: "#6b7280" }
+                }
+              >
+                {tab.count}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
       {/* ─── Filtres par type ───────────────────────────────── */}
-      <div className="flex items-center gap-2.5 flex-wrap">
-        <span className="font-semibold text-muted-foreground text-[15px]">Type :</span>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm font-medium text-muted-foreground">Type :</span>
         {(Object.keys(typeFilterLabels) as TypeFilter[]).map((type) => {
           const isActive = typeFilter === type
           return (
             <button
               key={type}
               onClick={() => setTypeFilter(type)}
-              className="px-3.5 py-1.5 rounded-full text-[13px] font-semibold transition-colors border-2 inline-flex items-center gap-2"
+              className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border"
               style={
                 isActive
-                  ? { backgroundColor: "#FC7E34", color: "white", borderColor: "#FC7E34" }
-                  : { backgroundColor: "white", color: "#6b7280", borderColor: "#e5e3e1" }
+                  ? { backgroundColor: "#253550", color: "#F9F7F6", borderColor: "#253550" }
+                  : { backgroundColor: "white", color: "#000401", borderColor: "#e5e3e1" }
               }
             >
               {typeFilterLabels[type]}
               <span
-                className="text-[12px] px-1.5 py-0.5 rounded font-bold"
+                className="text-xs px-1.5 py-0.5 rounded font-bold"
                 style={
                   isActive
-                    ? { backgroundColor: "rgba(255,255,255,0.25)" }
-                    : { backgroundColor: "#f0efee" }
+                    ? { backgroundColor: "rgba(255,255,255,0.2)", color: "white" }
+                    : { backgroundColor: "#f0efee", color: "#6b7280" }
                 }
               >
                 {typeCounts[type]}
