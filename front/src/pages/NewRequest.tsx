@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import SendRequestModal from '@/components/SendRequestModal'
 import { useBrokers } from '@/hooks/useBrokers'
 import {
   categoryLabels, difficultyLabels, methodLabels, regionLabels,
@@ -37,7 +36,6 @@ export default function NewRequest() {
   const [perPage, setPerPage] = useState(12)
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Map<string, Broker>>(new Map())
-  const [modalOpen, setModalOpen] = useState(false)
 
   const { data, loading } = useBrokers({
     page,
@@ -248,7 +246,7 @@ export default function NewRequest() {
             <Button
               size="sm"
               className="bg-[#FC7E34] hover:bg-[#e06e28] text-white h-8 gap-1.5"
-              onClick={() => setModalOpen(true)}
+              onClick={() => navigate('/requests/new/review', { state: { brokers: selectedBrokers } })}
             >
               Préparer l'envoi →
             </Button>
@@ -256,13 +254,6 @@ export default function NewRequest() {
         )}
       </AnimatePresence>
 
-      {/* Modal */}
-      <SendRequestModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        selectedBrokers={selectedBrokers}
-        onSuccess={() => navigate('/requests')}
-      />
     </div>
   )
 }
