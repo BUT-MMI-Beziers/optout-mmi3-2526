@@ -20,12 +20,11 @@ export default function Register() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(form),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? "Erreur"); return }
-      localStorage.setItem("accessToken", data.accessToken)
-      localStorage.setItem("refreshToken", data.refreshToken)
       navigate("/dashboard")
     } catch {
       setError("Impossible de contacter le serveur")

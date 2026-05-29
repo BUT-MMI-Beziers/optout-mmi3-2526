@@ -1,24 +1,21 @@
 // Rôle : regroupe les trois middlewares Hono du module auth.
-// authMiddleware — vérifie le JWT et injecte userId + userRole dans le contexte.
+// authMiddleware — vérifie le JWT (cookie HttpOnly accessToken) et injecte userId + userRole.
 // loginRateLimiter — anti brute-force : 5 tentatives max par IP sur 15 minutes.
-// adminGuard — à utiliser après authMiddleware, bloque avec 403 si le rôle n'est pas admin.
-//
+// adminGuard — bloque avec 403 si le rôle n'est pas admin.
 import { createMiddleware } from 'hono/factory'
 import { verify } from 'hono/jwt'
 import type { JWTPayload } from './auth.types.js'
 
 // ── authMiddleware ──────────────────────────────────────────────────────────
-// Vérifie le token JWT dans le header Authorization (format : "Bearer <token>").
-// Si valide, injecte userId et userRole dans le contexte Hono pour que les
-// controllers puissent les lire avec c.get('userId') / c.get('userRole').
-// Retourne 401 si le token est absent, malformé ou expiré.
+// Lit le JWT dans le cookie HttpOnly `accessToken`.
+// Si valide, injecte userId et userRole dans le contexte Hono.
+// Retourne 401 si le cookie est absent, malformé ou expiré.
 export const authMiddleware = createMiddleware(async (c, next) => {
-  const authHeader = c.req.header('Authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const token = getCookieValue(c.req.header('Cookie'), 'accessToken')
+  if (!token) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const token = authHeader.slice(7)
   const secret = process.env.JWT_SECRET
   if (!secret) {
     console.error('JWT_SECRET is not configured')
@@ -36,9 +33,6 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 })
 
 // ── adminGuard ──────────────────────────────────────────────────────────────
-// À utiliser après authMiddleware. Vérifie que l'utilisateur connecté a le rôle
-// 'admin'. Retourne 403 sinon. L'équipe rouge peut l'importer pour protéger
-// les routes write de leurs brokers (POST, PUT, DELETE, PATCH /verify, import, export).
 export const adminGuard = createMiddleware(async (c, next) => {
   if (c.get('userRole') !== 'admin') {
     return c.json({ error: 'Forbidden' }, 403)
@@ -48,15 +42,12 @@ export const adminGuard = createMiddleware(async (c, next) => {
 
 // ── loginRateLimiter ────────────────────────────────────────────────────────
 // Protection anti brute-force sur les endpoints login et register.
-// Stockage en mémoire (Map) : 5 tentatives max par adresse IP sur une fenêtre
-// glissante de 15 minutes. Au-delà, renvoie 429 Too Many Requests.
-// Note : le compteur se remet à zéro au redémarrage du serveur (in-memory).
+// 5 tentatives max par IP sur une fenêtre glissante de 15 minutes (in-memory).
 const loginAttempts = new Map<string, { count: number; resetAt: number }>()
 const MAX_ATTEMPTS = 5
 const WINDOW_MS = 15 * 60 * 1000
 
 export const loginRateLimiter = createMiddleware(async (c, next) => {
-  // Récupère l'IP réelle derrière le reverse proxy Caddy
   const ip =
     c.req.header('x-forwarded-for')?.split(',')[0].trim() ??
     c.req.header('x-real-ip') ??
@@ -67,7 +58,6 @@ export const loginRateLimiter = createMiddleware(async (c, next) => {
 
   if (record) {
     if (now >= record.resetAt) {
-      // Fenêtre expirée : repart à 1
       loginAttempts.set(ip, { count: 1, resetAt: now + WINDOW_MS })
     } else if (record.count >= MAX_ATTEMPTS) {
       return c.json(
@@ -83,3 +73,14 @@ export const loginRateLimiter = createMiddleware(async (c, next) => {
 
   await next()
 })
+
+// ── Utilitaire ──────────────────────────────────────────────────────────────
+
+function getCookieValue(cookieHeader: string | undefined, name: string): string | undefined {
+  if (!cookieHeader) return undefined
+  for (const part of cookieHeader.split(';')) {
+    const [key, ...rest] = part.trim().split('=')
+    if (key === name) return rest.join('=')
+  }
+  return undefined
+}

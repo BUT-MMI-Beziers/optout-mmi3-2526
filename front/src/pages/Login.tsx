@@ -17,12 +17,11 @@ export default function Login() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? "Erreur"); return }
-      localStorage.setItem("accessToken", data.accessToken)
-      localStorage.setItem("refreshToken", data.refreshToken)
       navigate("/dashboard")
     } catch {
       setError("Impossible de contacter le serveur")

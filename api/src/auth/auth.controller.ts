@@ -1,12 +1,29 @@
 // Rôle : point d'entrée HTTP du module auth.
-// Valide les données reçues (format email, règles mot de passe, champs requis),
-// retourne les erreurs 400/409 si nécessaire, puis délègue à auth.service.ts.
-// Ne touche jamais la base de données directement.
-//
-// Reçoit les requêtes HTTP auth, valide les données et renvoie les réponses.
-// Ne touche pas la base de données directement — délègue à auth.service.ts.
+// Valide les données reçues, retourne les erreurs 400/409 si nécessaire,
+// puis délègue à auth.service.ts.
+// Les tokens sont transmis exclusivement via cookies HttpOnly Secure SameSite=Strict
+// — jamais dans le body JSON — pour éviter toute fuite XSS.
 import type { Context } from 'hono'
 import * as authService from './auth.service.js'
+
+const IS_PROD = process.env.NODE_ENV === 'production'
+
+// Construit la valeur d'un Set-Cookie HttpOnly Secure SameSite=Strict.
+function buildCookie(name: string, value: string, maxAge: number): string {
+  const parts = [
+    `${name}=${value}`,
+    `Max-Age=${maxAge}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Strict',
+  ]
+  if (IS_PROD) parts.push('Secure')
+  return parts.join('; ')
+}
+
+function clearCookie(name: string): string {
+  return `${name}=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict`
+}
 
 // ── Helpers de validation ───────────────────────────────────────────────────
 
@@ -14,7 +31,6 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-// Retourne un message d'erreur si le mot de passe ne respecte pas les règles, sinon null.
 function validatePassword(password: string): string | null {
   if (password.length < 8) return 'Le mot de passe doit contenir au moins 8 caractères'
   return null
@@ -37,7 +53,6 @@ export async function register(c: Context) {
     lastName?: string
   }
 
-  // Validation des champs obligatoires
   if (!email || !password || !firstName || !lastName) {
     return c.json({ error: 'email, password, firstName et lastName sont requis' }, 400)
   }
@@ -47,13 +62,11 @@ export async function register(c: Context) {
   const pwError = validatePassword(password)
   if (pwError) return c.json({ error: pwError }, 400)
 
-  // Vérifie que l'email n'est pas déjà utilisé
   const existing = await authService.findUserByEmail(email.toLowerCase())
   if (existing) {
     return c.json({ error: 'Cet email est déjà utilisé' }, 409)
   }
 
-  // Crée l'utilisateur (prénom/nom chiffrés, mot de passe hashé dans le service)
   const user = await authService.createUser({
     email: email.toLowerCase(),
     password,
@@ -62,7 +75,10 @@ export async function register(c: Context) {
   })
   const tokens = await authService.generateTokens(user.id, user.role)
 
-  return c.json({ ...tokens, user }, 201)
+  c.header('Set-Cookie', buildCookie('accessToken', tokens.accessToken, tokens.accessExpiresIn), { append: true })
+  c.header('Set-Cookie', buildCookie('refreshToken', tokens.refreshToken, tokens.refreshExpiresIn), { append: true })
+
+  return c.json({ user }, 201)
 }
 
 // ── POST /api/auth/login ────────────────────────────────────────────────────
@@ -93,23 +109,56 @@ export async function login(c: Context) {
   }
 
   const tokens = await authService.generateTokens(user.id, user.role)
-  return c.json({
-    ...tokens,
-    user: { id: user.id, email: user.email, role: user.role },
-  })
+
+  c.header('Set-Cookie', buildCookie('accessToken', tokens.accessToken, tokens.accessExpiresIn), { append: true })
+  c.header('Set-Cookie', buildCookie('refreshToken', tokens.refreshToken, tokens.refreshExpiresIn), { append: true })
+
+  return c.json({ user: { id: user.id, email: user.email, role: user.role } })
+}
+
+// ── POST /api/auth/refresh ──────────────────────────────────────────────────
+// Échange le refresh token (cookie HttpOnly) contre un nouvel access token.
+// Rotation : un nouveau refresh token est émis et l'ancien invalidé en base.
+// Le refresh token a le format "<userId>.<random>" — userId extrait sans JWT.
+
+export async function refresh(c: Context) {
+  const refreshToken = getCookieValue(c, 'refreshToken')
+  if (!refreshToken) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const userId = refreshToken.split('.')[0]
+  if (!userId) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const user = await authService.verifyRefreshToken(userId, refreshToken)
+  if (!user) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const tokens = await authService.generateTokens(user.id, user.role)
+
+  c.header('Set-Cookie', buildCookie('accessToken', tokens.accessToken, tokens.accessExpiresIn), { append: true })
+  c.header('Set-Cookie', buildCookie('refreshToken', tokens.refreshToken, tokens.refreshExpiresIn), { append: true })
+
+  return c.json({ ok: true })
 }
 
 // ── POST /api/auth/logout ───────────────────────────────────────────────────
-// Les tokens JWT sont stateless : la déconnexion côté client suffit
-// (suppression du token dans le localStorage). Pas de liste noire côté serveur.
+// Révoque le refresh token en base et efface les deux cookies.
 
 export async function logout(c: Context) {
+  const userId = c.get('userId') as string | undefined
+  if (userId) {
+    await authService.revokeRefreshToken(userId)
+  }
+  c.header('Set-Cookie', clearCookie('accessToken'), { append: true })
+  c.header('Set-Cookie', clearCookie('refreshToken'), { append: true })
   return c.json({ message: 'Déconnexion réussie' })
 }
 
 // ── PATCH /api/auth/password ────────────────────────────────────────────────
-// Route protégée par authMiddleware — l'utilisateur doit être connecté.
-// Vérifie l'ancien mot de passe avant d'accepter le nouveau.
 
 export async function changePassword(c: Context) {
   const userId = c.get('userId')
@@ -139,5 +188,20 @@ export async function changePassword(c: Context) {
   if (!valid) return c.json({ error: 'Mot de passe actuel incorrect' }, 400)
 
   await authService.updatePassword(userId, newPassword)
+  // Révoque le refresh token pour forcer une reconnexion sur tous les appareils
+  await authService.revokeRefreshToken(userId)
+  c.header('Set-Cookie', clearCookie('accessToken'), { append: true })
+  c.header('Set-Cookie', clearCookie('refreshToken'), { append: true })
   return c.json({ message: 'Mot de passe mis à jour. Veuillez vous reconnecter.' })
+}
+
+// ── Utilitaire ──────────────────────────────────────────────────────────────
+
+function getCookieValue(c: Context, name: string): string | undefined {
+  const cookieHeader = c.req.header('Cookie') ?? ''
+  for (const part of cookieHeader.split(';')) {
+    const [key, ...rest] = part.trim().split('=')
+    if (key === name) return rest.join('=')
+  }
+  return undefined
 }

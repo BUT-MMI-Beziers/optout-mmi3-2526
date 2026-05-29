@@ -2,11 +2,8 @@ import { useEffect, useState } from "react"
 
 const API = "/api"
 
-function authHeaders() {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-  }
+function authFetch(url: string, options: RequestInit = {}) {
+  return fetch(url, { ...options, credentials: "include" })
 }
 
 type Contact = {
@@ -38,7 +35,7 @@ export default function Profile() {
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    fetch(`${API}/users/me`, { headers: authHeaders() })
+    authFetch(`${API}/users/me`, { headers: { "Content-Type": "application/json" } })
       .then(r => r.json())
       .then((data: Profil) => {
         setProfil(data)
@@ -51,9 +48,9 @@ export default function Profile() {
     e.preventDefault()
     setSaving(true)
     setMessage("")
-    const res = await fetch(`${API}/users/me`, {
+    const res = await authFetch(`${API}/users/me`, {
       method: "PUT",
-      headers: authHeaders(),
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ firstName, lastName }),
     })
     if (res.ok) {
@@ -69,9 +66,9 @@ export default function Profile() {
   async function addContact(e: React.FormEvent) {
     e.preventDefault()
     setContactError("")
-    const res = await fetch(`${API}/users/me/contacts`, {
+    const res = await authFetch(`${API}/users/me/contacts`, {
       method: "POST",
-      headers: authHeaders(),
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(newContact),
     })
     const data = await res.json()
@@ -81,9 +78,9 @@ export default function Profile() {
   }
 
   async function deleteContact(id: string) {
-    const res = await fetch(`${API}/users/me/contacts/${id}`, {
+    const res = await authFetch(`${API}/users/me/contacts/${id}`, {
       method: "DELETE",
-      headers: authHeaders(),
+      headers: { "Content-Type": "application/json" },
     })
     if (res.ok) {
       setProfil(p => p ? { ...p, contacts: p.contacts.filter(c => c.id !== id) } : p)
@@ -93,13 +90,12 @@ export default function Profile() {
   async function deleteAccount() {
     if (!window.confirm("Supprimer définitivement votre compte ? Cette action est irréversible.")) return
     setDeleting(true)
-    const res = await fetch(`${API}/users/me`, {
+    const res = await authFetch(`${API}/users/me`, {
       method: "DELETE",
-      headers: authHeaders(),
+      headers: { "Content-Type": "application/json" },
     })
     if (res.ok) {
-      localStorage.removeItem("accessToken")
-      localStorage.removeItem("refreshToken")
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" })
       window.location.href = "/"
     } else {
       setDeleting(false)
