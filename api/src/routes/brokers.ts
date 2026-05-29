@@ -91,7 +91,7 @@ brokersRoute.post('/', async (c) => {
     return c.json(newBroker, 201)
 
   } catch (err: any) {
-    if (err.code === '23505') {
+    if (err.code === '23505' || err.cause?.code === '23505') {
       return c.json({ error: `Un broker avec le nom "${body.name}" existe déjà` }, 409)
     }
     console.error('Erreur POST /brokers:', err)

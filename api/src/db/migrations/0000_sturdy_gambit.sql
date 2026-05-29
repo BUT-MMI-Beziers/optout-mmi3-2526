@@ -4,7 +4,7 @@ CREATE TYPE "public"."broker_region" AS ENUM('eu', 'us', 'global');--> statement
 CREATE TYPE "public"."contact_type" AS ENUM('email', 'phone', 'address');--> statement-breakpoint
 CREATE TYPE "public"."event_type" AS ENUM('created', 'sent', 'reminder_sent', 'status_changed', 'note_added');--> statement-breakpoint
 CREATE TYPE "public"."legal_basis" AS ENUM('gdpr_art17', 'gdpr_art15', 'ccpa', 'pipeda', 'other');--> statement-breakpoint
-CREATE TYPE "public"."opt_out_method" AS ENUM('email', 'form', 'postal', 'mixed');--> statement-breakpoint
+CREATE TYPE "public"."opt_out_method" AS ENUM('email', 'form', 'mixed');--> statement-breakpoint
 CREATE TYPE "public"."request_status" AS ENUM('DRAFT', 'SENT', 'ACKNOWLEDGED', 'COMPLETED', 'REFUSED', 'NO_RESPONSE', 'COMPLAINT', 'SUPPRESSED');--> statement-breakpoint
 CREATE TYPE "public"."user_role" AS ENUM('user', 'admin');--> statement-breakpoint
 CREATE TABLE "brokers" (
