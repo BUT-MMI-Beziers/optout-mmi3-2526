@@ -6,7 +6,7 @@ import { seedTemplates } from './seeds/template_mails_seed.js'
 import { seedBrokers } from './seeds/brokers_seed.js'
 
 // Charge l'environnement depuis le fichier de configuration racine
-dotenv.config({ path: '../.env' })
+dotenv.config({ path: '../../.env' })
 
 const databaseUrl = process.env.DATABASE_URL!
 if (!databaseUrl) {
