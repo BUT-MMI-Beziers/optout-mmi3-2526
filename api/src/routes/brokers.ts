@@ -176,6 +176,24 @@ brokersRoute.post('/import', async (c) => {
   }
 })
 
+// ─── GET /brokers/:slug ────────────────────────────────
+brokersRoute.get('/:slug', async (c) => {
+  const slug = c.req.param('slug')
+
+  const [broker] = await db
+    .select()
+    .from(brokers)
+    .where(eq(brokers.slug, slug))
+    .limit(1)
+
+  if (!broker) {
+    return c.json({ error: 'Broker introuvable' }, 404)
+  }
+
+  return c.json(broker)
+})
+
+
 // ─── PUT /brokers/:slug ──────────────────────────────────
 brokersRoute.put('/:slug', async (c) => {
   const slug = c.req.param('slug')
