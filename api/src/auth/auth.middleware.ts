@@ -30,6 +30,17 @@ export const authMiddleware = createMiddleware(async (c, next) => {
   }
 })
 
+// ── adminGuard ──────────────────────────────────────────────────────────────
+// À utiliser après authMiddleware. Vérifie que l'utilisateur connecté a le rôle
+// 'admin'. Retourne 403 sinon. L'équipe rouge peut l'importer pour protéger
+// les routes write de leurs brokers (POST, PUT, DELETE, PATCH /verify, import, export).
+export const adminGuard = createMiddleware(async (c, next) => {
+  if (c.get('userRole') !== 'admin') {
+    return c.json({ error: 'Forbidden' }, 403)
+  }
+  await next()
+})
+
 // ── loginRateLimiter ────────────────────────────────────────────────────────
 // Protection anti brute-force sur les endpoints login et register.
 // Stockage en mémoire (Map) : 5 tentatives max par adresse IP sur une fenêtre
