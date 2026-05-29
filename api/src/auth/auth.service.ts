@@ -1,3 +1,8 @@
+// Rôle : logique métier de l'authentification — seul fichier qui écrit dans la table users.
+// Gère le hashage bcrypt des mots de passe (12 rounds), le chiffrement AES-256-GCM
+// des données personnelles (prénom, nom) avant insertion, et la génération des tokens JWT
+// avec le rôle embarqué dans le payload. Ne traite jamais de requêtes HTTP directement.
+//
 // Contient la logique métier de l'authentification :
 // hashage des mots de passe, chiffrement des données personnelles,
 // génération des tokens JWT. Seul fichier qui écrit dans la table users.

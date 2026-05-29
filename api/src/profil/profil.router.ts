@@ -1,3 +1,8 @@
+// Rôle : déclare les routes du module profil, montées sous /api dans index.ts.
+// authMiddleware est appliqué sur /* — toutes les routes exigent un JWT valide.
+// Couvre : profil (get/update/delete), contacts (list/add/delete),
+// export RGPD Art. 15, et notifications.
+//
 // Définit les routes du profil, montées sous /api dans index.ts.
 // Toutes les routes passent par authMiddleware — l'utilisateur doit être connecté.
 import { Hono } from 'hono'

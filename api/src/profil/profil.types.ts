@@ -1,3 +1,8 @@
+// Rôle : définit tous les types TypeScript du module profil.
+// Contient les DTOs retournés au client (données déchiffrées), les corps de requêtes
+// entrantes (update, ajout de contact) et les règles métier sur les contacts
+// (min/max par type : email, phone, address).
+//
 // Types partagés entre profil.controller.ts et profil.service.ts
 
 // Les trois types de contact acceptés

@@ -1,3 +1,8 @@
+// Rôle : point d'entrée HTTP du module auth.
+// Valide les données reçues (format email, règles mot de passe, champs requis),
+// retourne les erreurs 400/409 si nécessaire, puis délègue à auth.service.ts.
+// Ne touche jamais la base de données directement.
+//
 // Reçoit les requêtes HTTP auth, valide les données et renvoie les réponses.
 // Ne touche pas la base de données directement — délègue à auth.service.ts.
 import type { Context } from 'hono'

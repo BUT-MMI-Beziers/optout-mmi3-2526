@@ -1,3 +1,8 @@
+// Rôle : logique métier du module profil — seul fichier qui lit/écrit les données personnelles.
+// Toutes les valeurs sensibles (prénom, nom, contacts) sont chiffrées AES-256-GCM
+// avant insertion et déchiffrées à la lecture. Gère les limites par type de contact,
+// l'export RGPD Art. 15 (toutes les données de l'utilisateur en JSON) et les notifications.
+//
 // Logique métier du profil : lecture/écriture en base, chiffrement/déchiffrement,
 // validation des limites de contacts, export RGPD, gestion des notifications.
 import { eq, and } from 'drizzle-orm'

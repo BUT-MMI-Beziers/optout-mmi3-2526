@@ -1,3 +1,8 @@
+// Rôle : regroupe les trois middlewares Hono du module auth.
+// authMiddleware — vérifie le JWT et injecte userId + userRole dans le contexte.
+// loginRateLimiter — anti brute-force : 5 tentatives max par IP sur 15 minutes.
+// adminGuard — à utiliser après authMiddleware, bloque avec 403 si le rôle n'est pas admin.
+//
 import { createMiddleware } from 'hono/factory'
 import { verify } from 'hono/jwt'
 import type { JWTPayload } from './auth.types.js'

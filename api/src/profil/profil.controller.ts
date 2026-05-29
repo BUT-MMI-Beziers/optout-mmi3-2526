@@ -1,3 +1,8 @@
+// Rôle : point d'entrée HTTP du module profil.
+// Lit userId depuis le contexte injecté par authMiddleware, valide les inputs
+// basiques, délègue à profil.service.ts et retourne le JSON au client.
+// Ne touche jamais la base de données directement.
+//
 // Reçoit les requêtes HTTP profil, récupère userId depuis le contexte JWT,
 // appelle le service et renvoie la réponse. Ne touche pas la base directement.
 import type { Context } from 'hono'

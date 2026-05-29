@@ -1,3 +1,8 @@
+// Rôle : déclare les routes du module auth et branche les middlewares.
+// loginRateLimiter est appliqué sur /register et /login pour bloquer le brute-force.
+// authMiddleware est appliqué sur /password — seul un utilisateur connecté peut
+// changer son mot de passe.
+//
 // Définit les routes de l'authentification, montées sous /api/auth dans index.ts
 import { Hono } from 'hono'
 import { authMiddleware, loginRateLimiter } from './auth.middleware.js'
