@@ -1,22 +1,23 @@
+// Chiffrement AES-256-GCM pour les données personnelles sensibles
+// (prénom, nom, contacts) stockées en base de données.
+// Utilise APP_ENCRYPTION_KEY défini dans .env.
+// Format de stockage : <iv_hex>:<tag_hex>:<ciphertext_hex>
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 
 const ALGORITHM = 'aes-256-gcm'
-const IV_LENGTH = 12   // 96 bits recommandé pour GCM
-const TAG_LENGTH = 16  // 128 bits (défaut GCM)
+const IV_LENGTH = 12   // 96 bits — recommandé pour GCM
 
+// Dérive la clé de chiffrement depuis APP_ENCRYPTION_KEY (32 octets = 256 bits)
 function getKey(): Buffer {
   const raw = process.env.APP_ENCRYPTION_KEY
   if (!raw || raw.length < 32) {
     throw new Error('APP_ENCRYPTION_KEY must be set and at least 32 characters long')
   }
-  // Tronquer/padder à 32 octets (256 bits)
   return Buffer.from(raw.slice(0, 32), 'utf8')
 }
 
-/**
- * Chiffre une chaîne en AES-256-GCM.
- * Format de sortie : <iv_hex>:<tag_hex>:<ciphertext_hex>
- */
+// Chiffre une chaîne en AES-256-GCM avec un IV aléatoire unique à chaque appel.
+// Retourne : "<iv_hex>:<tag_hex>:<ciphertext_hex>"
 export function encrypt(plaintext: string): string {
   const key = getKey()
   const iv = randomBytes(IV_LENGTH)
@@ -31,9 +32,8 @@ export function encrypt(plaintext: string): string {
   return `${iv.toString('hex')}:${tag.toString('hex')}:${encrypted.toString('hex')}`
 }
 
-/**
- * Déchiffre une chaîne produite par encrypt().
- */
+// Déchiffre une chaîne produite par encrypt().
+// Le tag GCM garantit l'intégrité : toute modification des données en base sera détectée.
 export function decrypt(ciphertext: string): string {
   const key = getKey()
   const parts = ciphertext.split(':')

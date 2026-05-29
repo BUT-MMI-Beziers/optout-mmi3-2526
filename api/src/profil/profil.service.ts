@@ -1,3 +1,5 @@
+// Logique métier du profil : lecture/écriture en base, chiffrement/déchiffrement,
+// validation des limites de contacts, export RGPD, gestion des notifications.
 import { eq, and } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { users, userContacts, notifications, removalRequests } from '../db/schema.js'
@@ -14,11 +16,12 @@ import { CONTACT_LIMITS } from './profil.types.js'
 
 // ── Helpers ───────────────────────────────────────────────────
 
+// Convertit une ligne de la table user_contacts en ContactDto déchiffré pour le client
 function mapContact(row: typeof userContacts.$inferSelect): ContactDto {
   return {
     id: row.id,
     type: row.type as ContactType,
-    value: decrypt(row.value),
+    value: decrypt(row.value),   // déchiffrement AES-256-GCM
     isPrimary: row.isPrimary,
     label: row.label ?? null,
     createdAt: row.createdAt.toISOString(),
@@ -27,6 +30,7 @@ function mapContact(row: typeof userContacts.$inferSelect): ContactDto {
 
 // ── Profil ────────────────────────────────────────────────────
 
+// Retourne le profil complet avec contacts déchiffrés, ou null si l'utilisateur n'existe pas
 export async function getProfil(userId: string): Promise<ProfilDto | null> {
   const rows = await db
     .select()
@@ -45,8 +49,8 @@ export async function getProfil(userId: string): Promise<ProfilDto | null> {
   return {
     id: user.id,
     email: user.email,
-    firstName: decrypt(user.firstName),
-    lastName: decrypt(user.lastName),
+    firstName: decrypt(user.firstName),  // déchiffrement AES-256-GCM
+    lastName: decrypt(user.lastName),    // déchiffrement AES-256-GCM
     role: user.role,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
@@ -54,6 +58,7 @@ export async function getProfil(userId: string): Promise<ProfilDto | null> {
   }
 }
 
+// Met à jour prénom et/ou nom (re-chiffrement avant écriture en base)
 export async function updateProfil(userId: string, body: UpdateProfilBody): Promise<ProfilDto | null> {
   const updates: Partial<typeof users.$inferInsert> = {
     updatedAt: new Date(),
@@ -66,14 +71,15 @@ export async function updateProfil(userId: string, body: UpdateProfilBody): Prom
   return getProfil(userId)
 }
 
+// Supprime le compte — les FK avec onDelete: 'cascade' suppriment automatiquement
+// les contacts, demandes de suppression et notifications associés
 export async function deleteProfil(userId: string): Promise<void> {
-  // Les FK avec onDelete: 'cascade' suppriment automatiquement
-  // user_contacts, removal_requests, notifications liés
   await db.delete(users).where(eq(users.id, userId))
 }
 
 // ── Contacts ──────────────────────────────────────────────────
 
+// Retourne tous les contacts de l'utilisateur (déchiffrés)
 export async function getContacts(userId: string): Promise<ContactDto[]> {
   const rows = await db
     .select()
@@ -82,6 +88,8 @@ export async function getContacts(userId: string): Promise<ContactDto[]> {
   return rows.map(mapContact)
 }
 
+// Ajoute un contact après vérification de la limite max du type.
+// Le premier contact d'un type devient automatiquement primary.
 export async function addContact(
   userId: string,
   body: CreateContactBody,
@@ -96,10 +104,9 @@ export async function addContact(
     return { error: `Maximum ${limit} ${body.type}(s) allowed` }
   }
 
-  // Le premier contact du type devient primary si aucun n'existe
   const isPrimary = body.isPrimary ?? existing.length === 0
 
-  // Si on force isPrimary, retirer le flag des autres
+  // Si on force isPrimary sur ce contact, on retire le flag des autres du même type
   if (isPrimary) {
     await db
       .update(userContacts)
@@ -112,7 +119,7 @@ export async function addContact(
     .values({
       userId,
       type: body.type,
-      value: encrypt(body.value),
+      value: encrypt(body.value),  // chiffrement AES-256-GCM avant insertion
       isPrimary,
       label: body.label ?? null,
     })
@@ -121,8 +128,10 @@ export async function addContact(
   return { contact: mapContact(inserted) }
 }
 
+// Supprime un contact après vérification :
+// - le contact appartient bien à cet utilisateur
+// - la suppression ne descend pas en dessous du minimum requis pour ce type
 export async function deleteContact(userId: string, contactId: string): Promise<boolean> {
-  // Vérifier que le contact appartient bien à l'utilisateur
   const rows = await db
     .select()
     .from(userContacts)
@@ -131,7 +140,6 @@ export async function deleteContact(userId: string, contactId: string): Promise<
 
   if (!rows.length) return false
 
-  // Vérifier la contrainte min (email min 1, address min 1)
   const contact = rows[0]
   const min = CONTACT_LIMITS[contact.type as ContactType].min
   if (min > 0) {
@@ -139,7 +147,7 @@ export async function deleteContact(userId: string, contactId: string): Promise<
       .select()
       .from(userContacts)
       .where(and(eq(userContacts.userId, userId), eq(userContacts.type, contact.type)))
-    if (count.length <= min) return false // suppression refusée
+    if (count.length <= min) return false
   }
 
   await db.delete(userContacts).where(eq(userContacts.id, contactId))
@@ -148,6 +156,8 @@ export async function deleteContact(userId: string, contactId: string): Promise<
 
 // ── Export RGPD (Art. 15) ─────────────────────────────────────
 
+// Retourne toutes les données personnelles de l'utilisateur pour l'export RGPD.
+// Inclut : profil, contacts, notifications, demandes de suppression envoyées.
 export async function exportUserData(userId: string) {
   const userRows = await db.select().from(users).where(eq(users.id, userId)).limit(1)
   if (!userRows.length) return null
@@ -188,6 +198,7 @@ export async function exportUserData(userId: string) {
 
 // ── Notifications ─────────────────────────────────────────────
 
+// Retourne toutes les notifications de l'utilisateur
 export async function getNotifications(userId: string): Promise<NotificationDto[]> {
   const rows = await db
     .select()
@@ -202,6 +213,7 @@ export async function getNotifications(userId: string): Promise<NotificationDto[
   }))
 }
 
+// Marque une notification comme lue — vérifie qu'elle appartient à l'utilisateur
 export async function markNotificationRead(
   userId: string,
   notifId: string,

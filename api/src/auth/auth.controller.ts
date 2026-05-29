@@ -1,18 +1,21 @@
+// Reçoit les requêtes HTTP auth, valide les données et renvoie les réponses.
+// Ne touche pas la base de données directement — délègue à auth.service.ts.
 import type { Context } from 'hono'
 import * as authService from './auth.service.js'
 
-// ── Validation helpers ──────────────────────────────────────────────────────
+// ── Helpers de validation ───────────────────────────────────────────────────
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
+// Retourne un message d'erreur si le mot de passe ne respecte pas les règles, sinon null.
 function validatePassword(password: string): string | null {
   if (password.length < 8) return 'Le mot de passe doit contenir au moins 8 caractères'
   return null
 }
 
-// ── POST /api/v1/auth/register ──────────────────────────────────────────────
+// ── POST /api/auth/register ─────────────────────────────────────────────────
 
 export async function register(c: Context) {
   let body: Record<string, unknown>
@@ -29,6 +32,7 @@ export async function register(c: Context) {
     lastName?: string
   }
 
+  // Validation des champs obligatoires
   if (!email || !password || !firstName || !lastName) {
     return c.json({ error: 'email, password, firstName et lastName sont requis' }, 400)
   }
@@ -38,11 +42,13 @@ export async function register(c: Context) {
   const pwError = validatePassword(password)
   if (pwError) return c.json({ error: pwError }, 400)
 
+  // Vérifie que l'email n'est pas déjà utilisé
   const existing = await authService.findUserByEmail(email.toLowerCase())
   if (existing) {
     return c.json({ error: 'Cet email est déjà utilisé' }, 409)
   }
 
+  // Crée l'utilisateur (prénom/nom chiffrés, mot de passe hashé dans le service)
   const user = await authService.createUser({
     email: email.toLowerCase(),
     password,
@@ -54,7 +60,7 @@ export async function register(c: Context) {
   return c.json({ ...tokens, user }, 201)
 }
 
-// ── POST /api/v1/auth/login ─────────────────────────────────────────────────
+// ── POST /api/auth/login ────────────────────────────────────────────────────
 
 export async function login(c: Context) {
   let body: Record<string, unknown>
@@ -71,7 +77,7 @@ export async function login(c: Context) {
   }
 
   const user = await authService.findUserByEmail(email.toLowerCase())
-  // Même message volontairement vague pour ne pas révéler l'existence du compte
+  // Message volontairement vague pour ne pas révéler si l'email existe en base
   if (!user) {
     return c.json({ error: 'Identifiants invalides' }, 401)
   }
@@ -88,14 +94,17 @@ export async function login(c: Context) {
   })
 }
 
-// ── POST /api/auth/logout ────────────────────────────────────────────────
+// ── POST /api/auth/logout ───────────────────────────────────────────────────
+// Les tokens JWT sont stateless : la déconnexion côté client suffit
+// (suppression du token dans le localStorage). Pas de liste noire côté serveur.
 
 export async function logout(c: Context) {
   return c.json({ message: 'Déconnexion réussie' })
 }
 
-// ── PATCH /api/v1/auth/password ─────────────────────────────────────────────
-// Route protégée par authMiddleware — utilisée depuis la page Profil
+// ── PATCH /api/auth/password ────────────────────────────────────────────────
+// Route protégée par authMiddleware — l'utilisateur doit être connecté.
+// Vérifie l'ancien mot de passe avant d'accepter le nouveau.
 
 export async function changePassword(c: Context) {
   const userId = c.get('userId')

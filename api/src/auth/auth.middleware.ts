@@ -2,11 +2,11 @@ import { createMiddleware } from 'hono/factory'
 import { verify } from 'hono/jwt'
 import type { JWTPayload } from './auth.types.js'
 
-// ── JWT authMiddleware ──────────────────────────────────────────────────────
-// Vérifie le Bearer token dans Authorization, injecte userId + userRole dans
-// le contexte Hono. Retourne 401 si absent ou invalide.
-// Réutilisable par tous les modules : import { authMiddleware } from '../auth/auth.middleware.js'
-
+// ── authMiddleware ──────────────────────────────────────────────────────────
+// Vérifie le token JWT dans le header Authorization (format : "Bearer <token>").
+// Si valide, injecte userId et userRole dans le contexte Hono pour que les
+// controllers puissent les lire avec c.get('userId') / c.get('userRole').
+// Retourne 401 si le token est absent, malformé ou expiré.
 export const authMiddleware = createMiddleware(async (c, next) => {
   const authHeader = c.req.header('Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -31,14 +31,16 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 })
 
 // ── loginRateLimiter ────────────────────────────────────────────────────────
-// Protection brute-force sur les endpoints login/register.
-// Implémentation in-memory : 5 tentatives max par IP sur 15 minutes.
-
+// Protection anti brute-force sur les endpoints login et register.
+// Stockage en mémoire (Map) : 5 tentatives max par adresse IP sur une fenêtre
+// glissante de 15 minutes. Au-delà, renvoie 429 Too Many Requests.
+// Note : le compteur se remet à zéro au redémarrage du serveur (in-memory).
 const loginAttempts = new Map<string, { count: number; resetAt: number }>()
 const MAX_ATTEMPTS = 5
 const WINDOW_MS = 15 * 60 * 1000
 
 export const loginRateLimiter = createMiddleware(async (c, next) => {
+  // Récupère l'IP réelle derrière le reverse proxy Caddy
   const ip =
     c.req.header('x-forwarded-for')?.split(',')[0].trim() ??
     c.req.header('x-real-ip') ??
@@ -49,6 +51,7 @@ export const loginRateLimiter = createMiddleware(async (c, next) => {
 
   if (record) {
     if (now >= record.resetAt) {
+      // Fenêtre expirée : repart à 1
       loginAttempts.set(ip, { count: 1, resetAt: now + WINDOW_MS })
     } else if (record.count >= MAX_ATTEMPTS) {
       return c.json(

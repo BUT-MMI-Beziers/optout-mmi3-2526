@@ -1,12 +1,15 @@
-// Payload embarqué dans l'access token JWT
+// Types partagés entre les fichiers auth (middleware, controller, service)
+
+// Structure du payload embarqué dans le token JWT
 export interface JWTPayload {
   sub: string             // userId (UUID)
   role: 'user' | 'admin'
-  exp: number
-  iat: number
+  exp: number             // timestamp d'expiration (Unix)
+  iat: number             // timestamp d'émission (Unix)
 }
 
-// Variables injectées dans le contexte Hono par authMiddleware
+// Déclare les variables injectées dans le contexte Hono par authMiddleware.
+// Permet d'utiliser c.get('userId') avec le bon type dans tous les controllers.
 declare module 'hono' {
   interface ContextVariableMap {
     userId: string
@@ -14,6 +17,7 @@ declare module 'hono' {
   }
 }
 
+// Corps de la requête POST /register
 export interface RegisterBody {
   email: string
   password: string
@@ -21,11 +25,13 @@ export interface RegisterBody {
   lastName: string
 }
 
+// Corps de la requête POST /login
 export interface LoginBody {
   email: string
   password: string
 }
 
+// Corps de la requête PATCH /password
 export interface ChangePasswordBody {
   currentPassword: string
   newPassword: string

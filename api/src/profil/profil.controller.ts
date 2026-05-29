@@ -1,9 +1,12 @@
+// Reçoit les requêtes HTTP profil, récupère userId depuis le contexte JWT,
+// appelle le service et renvoie la réponse. Ne touche pas la base directement.
 import type { Context } from 'hono'
 import * as service from './profil.service.js'
 import type { UpdateProfilBody, CreateContactBody } from './profil.types.js'
 
 // ── Profil ────────────────────────────────────────────────────
 
+// GET /api/users/me — retourne les infos déchiffrées du compte connecté
 export async function getMe(c: Context) {
   const userId = c.get('userId') as string
   const profil = await service.getProfil(userId)
@@ -11,6 +14,7 @@ export async function getMe(c: Context) {
   return c.json(profil)
 }
 
+// PUT /api/users/me — modifie prénom et/ou nom (les deux sont optionnels)
 export async function updateMe(c: Context) {
   const userId = c.get('userId') as string
   const body = await c.req.json<UpdateProfilBody>()
@@ -24,6 +28,7 @@ export async function updateMe(c: Context) {
   return c.json(updated)
 }
 
+// DELETE /api/users/me — supprime le compte et toutes ses données (cascade en base)
 export async function deleteMe(c: Context) {
   const userId = c.get('userId') as string
   await service.deleteProfil(userId)
@@ -32,12 +37,14 @@ export async function deleteMe(c: Context) {
 
 // ── Contacts ──────────────────────────────────────────────────
 
+// GET /api/users/me/contacts — liste tous les contacts de l'utilisateur
 export async function getContacts(c: Context) {
   const userId = c.get('userId') as string
   const contacts = await service.getContacts(userId)
   return c.json(contacts)
 }
 
+// POST /api/users/me/contacts — ajoute un contact après validation du type et des limites
 export async function addContact(c: Context) {
   const userId = c.get('userId') as string
   const body = await c.req.json<CreateContactBody>()
@@ -52,10 +59,12 @@ export async function addContact(c: Context) {
   }
 
   const result = await service.addContact(userId, body)
+  // Le service retourne une erreur si la limite max du type est atteinte
   if (result.error) return c.json({ error: result.error }, 422)
   return c.json(result.contact, 201)
 }
 
+// DELETE /api/users/me/contacts/:id — supprime un contact (refusé si min atteint)
 export async function deleteContact(c: Context) {
   const userId = c.get('userId') as string
   const id = c.req.param('id') ?? ''
@@ -68,8 +77,9 @@ export async function deleteContact(c: Context) {
   return c.body(null, 204)
 }
 
-// ── Export RGPD ───────────────────────────────────────────────
+// ── Export RGPD (Art. 15) ─────────────────────────────────────
 
+// GET /api/users/me/export — retourne toutes les données personnelles en JSON téléchargeable
 export async function exportData(c: Context) {
   const userId = c.get('userId') as string
   const data = await service.exportUserData(userId)
@@ -82,12 +92,14 @@ export async function exportData(c: Context) {
 
 // ── Notifications ─────────────────────────────────────────────
 
+// GET /api/users/me/notifications — liste les notifications (ex: réponse à une demande de suppression)
 export async function getNotifications(c: Context) {
   const userId = c.get('userId') as string
   const notifs = await service.getNotifications(userId)
   return c.json(notifs)
 }
 
+// PATCH /api/users/me/notifications/:id — marque une notification comme lue
 export async function markNotificationRead(c: Context) {
   const userId = c.get('userId') as string
   const id = c.req.param('id') ?? ''
