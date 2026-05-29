@@ -114,7 +114,7 @@ export default function NewRequest() {
               onClick={() => { setActiveCategory(tab.key); setPage(1) }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 active
-                  ? 'bg-[#000401] text-white'
+                  ? 'bg-[#253550] text-white'
                   : 'bg-card border border-border hover:bg-accent'
               }`}
             >
@@ -236,7 +236,7 @@ export default function NewRequest() {
       <AnimatePresence>
         {selectedBrokers.length > 0 && (
           <motion.div
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-[#000401] text-white px-6 py-3.5 rounded-xl shadow-2xl"
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-[#253550] text-white px-6 py-3.5 rounded-xl shadow-2xl"
             initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 80, opacity: 0 }}
