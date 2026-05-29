@@ -5,7 +5,7 @@ import { motion, type Variants } from 'framer-motion'
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } }
 const rowVariant: Variants = { hidden: { opacity: 0, x: -12 }, show: { opacity: 1, x: 0, transition: { duration: 0.22 } } }
 import {
-  Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown,
+  Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown,
   Send, Clock, CheckCircle2, AlertCircle, XCircle, FileText, Flag, Archive,
   type LucideIcon,
 } from 'lucide-react'
@@ -44,6 +44,7 @@ export default function Requests() {
   const [activeStatus, setActiveStatus] = useState<StatusFilter>('all')
   const [perPage, setPerPage] = useState(12)
   const [page, setPage] = useState(1)
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
 
   const { data, loading } = useRequests({
     page,
@@ -52,7 +53,10 @@ export default function Requests() {
     search,
   })
 
-  const requests = data?.data ?? []
+  const requests = [...(data?.data ?? [])].sort((a, b) => {
+    const diff = new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
+    return sortOrder === 'desc' ? -diff : diff
+  })
   const total = data?.total ?? 0
   const totalPages = data?.lastPage ?? 1
 
@@ -130,30 +134,98 @@ export default function Requests() {
         })}
       </div>
 
-      {/* Table */}
-      <div className="bg-card rounded-lg border border-border overflow-hidden">
-        {/* Barre de tri */}
-        <div className="px-5 py-3 border-b border-border text-xs text-muted-foreground flex items-center gap-1.5">
-          {loading ? (
-            <Skeleton className="h-3 w-24" />
-          ) : (
-            <>
-              <span>{total} demande{total > 1 ? 's' : ''}</span>
-              <span>•</span>
-              <span>Trier par</span>
-              <button className="flex items-center gap-0.5 text-foreground font-medium hover:underline">
-                date d'envoi <ArrowUpDown className="w-3 h-3 ml-0.5" />
-              </button>
-              <span>(Récent)</span>
-            </>
-          )}
-        </div>
+      {/* Barre de tri — toujours visible */}
+      <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+        {loading ? (
+          <Skeleton className="h-3 w-24" />
+        ) : (
+          <>
+            <span>{total} demande{total > 1 ? 's' : ''}</span>
+            <span>•</span>
+            <span>Trier par</span>
+            <button
+              onClick={() => setSortOrder((o) => o === 'desc' ? 'asc' : 'desc')}
+              className="flex items-center gap-0.5 text-foreground font-medium hover:underline"
+            >
+              date d'envoi
+              {sortOrder === 'desc'
+                ? <ArrowDown className="w-3 h-3 ml-0.5" />
+                : <ArrowUp className="w-3 h-3 ml-0.5" />
+              }
+            </button>
+            <span>({sortOrder === 'desc' ? 'Récent' : 'Ancien'})</span>
+          </>
+        )}
+      </div>
 
+      {/* Cartes — mobile uniquement */}
+      <div className="sm:hidden space-y-2">
+        {loading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="bg-card border border-border rounded-lg p-4 space-y-2">
+              <div className="flex items-center gap-3">
+                <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
+                <div className="space-y-1.5 flex-1">
+                  <Skeleton className="h-3.5 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <Skeleton className="h-6 w-20 rounded-md" />
+              </div>
+              <Skeleton className="h-3 w-28" />
+            </div>
+          ))
+        ) : requests.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground text-sm">Aucune demande trouvée.</div>
+        ) : (
+          <motion.div key={`mob-${page}-${activeStatus}-${search}`} variants={stagger} initial="hidden" animate="show" className="space-y-2">
+            {requests.map((req) => {
+              const cfg = statusConfig[req.status]
+              const StatusIcon = statusIcons[req.status]
+              return (
+                <motion.div key={req.id} variants={rowVariant}>
+                  <Link
+                    to={`/requests/${req.id}`}
+                    className="bg-card border border-border rounded-lg p-4 flex flex-col gap-2 hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={`https://www.google.com/s2/favicons?domain=${req.brokerUrl}&sz=32`}
+                        alt={req.brokerName}
+                        className="w-9 h-9 rounded-lg object-contain bg-muted p-1 shrink-0"
+                        onError={(e) => { (e.target as HTMLImageElement).src = '/icon.png' }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base font-medium truncate">{req.brokerName}</p>
+                        <p className="text-sm text-muted-foreground truncate">{req.brokerUrl}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
+                        <StatusIcon className="w-4 h-4" />
+                        <span className="text-sm font-medium">{cfg.label}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Envoyée {formatRelative(req.sentAt)} · {formatDate(req.sentAt)}
+                    </p>
+                  </Link>
+                </motion.div>
+              )
+            })}
+          </motion.div>
+        )}
+      </div>
+
+      {/* Tableau — sm et plus */}
+      <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
         {/* En-tête */}
         <div className="grid grid-cols-[2fr_1fr] sm:grid-cols-[2fr_1.3fr_1fr] lg:grid-cols-[2fr_1.2fr_1.3fr_1fr] px-5 py-2.5 border-b border-border bg-muted/30">
-          {['BROKER', 'CATÉGORIE', "DATE D'ENVOI", 'STATUT'].map((h) => (
-            <span key={h} className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">
-              {h}
+          {([
+            { label: 'BROKER',       cls: '' },
+            { label: 'CATÉGORIE',    cls: 'hidden lg:block' },
+            { label: "DATE D'ENVOI", cls: '' },
+            { label: 'STATUT',       cls: '' },
+          ] as { label: string; cls: string }[]).map(({ label, cls }) => (
+            <span key={label} className={`text-xs font-semibold text-muted-foreground tracking-wide uppercase ${cls}`}>
+              {label}
             </span>
           ))}
         </div>
@@ -221,7 +293,7 @@ export default function Requests() {
           })}
           </motion.div>
         )}
-      </div>
+      </div>{/* fin tableau */}
 
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm">
