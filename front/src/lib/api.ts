@@ -162,8 +162,16 @@ export async function getRequestEvents(id: string): Promise<RequestEvent[]> {
 export async function getEmailPreview(requestId: string): Promise<string> {
   const req = mockRequests.find((r) => r.id === requestId)
   const tpl = req ? mockTemplates.find((t) => t.id === req.templateId) : null
-  const fallback = tpl && req
-    ? `À : ${req.brokerUrl}\nObjet : ${tpl.subject}\n\n${tpl.body}`
+  const address = mockContacts.find((c) => c.type === 'address' && c.userId === mockUser.id)?.value ?? ''
+  const filledBody = tpl
+    ? tpl.body
+        .replace(/\{\{user\.first_name\}\}/g, mockUser.firstName)
+        .replace(/\{\{user\.last_name\}\}/g, mockUser.lastName)
+        .replace(/\{\{user\.email\}\}/g, mockUser.email)
+        .replace(/\{\{user\.address\}\}/g, address)
+    : null
+  const fallback = filledBody && req && tpl
+    ? `À : ${req.brokerUrl}\nObjet : ${tpl.subject}\n\n${filledBody}`
     : '[Aperçu non disponible]'
   return request<string>(`/requests/${requestId}/preview`, {}, fallback)
 }

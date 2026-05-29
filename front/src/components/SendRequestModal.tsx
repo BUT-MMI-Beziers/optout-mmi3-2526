@@ -14,6 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Send, User, Mail, MapPin, CheckCircle2, Loader2 } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { getMe, getContacts, getTemplates, sendBatch } from '@/lib/api'
 import {
   type Broker, type User as UserType, type UserContact, type EmailTemplate,
@@ -36,6 +37,8 @@ export default function SendRequestModal({ open, onClose, selectedBrokers, onSuc
   const [contacts, setContacts] = useState<UserContact[]>([])
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
+  const [selectedEmailIds, setSelectedEmailIds] = useState<Set<string>>(new Set())
+  const [selectedAddressIds, setSelectedAddressIds] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -50,18 +53,21 @@ export default function SendRequestModal({ open, onClose, selectedBrokers, onSuc
       setTemplates(t)
       const defaultTpl = t.find((tpl) => tpl.isDefault && tpl.language === 'fr') ?? t[0]
       if (defaultTpl) setSelectedTemplateId(defaultTpl.id)
+      setSelectedEmailIds(new Set(c.filter((x) => x.type === 'email').map((x) => x.id)))
+      setSelectedAddressIds(new Set(c.filter((x) => x.type === 'address').map((x) => x.id)))
       setLoading(false)
     })
   }, [open])
 
-  const primaryEmail = contacts.find((c) => c.type === 'email' && c.isPrimary)?.value
-    ?? contacts.find((c) => c.type === 'email')?.value
-    ?? user?.email
-    ?? ''
+  const emailContacts = contacts.filter((c) => c.type === 'email')
+  const addressContacts = contacts.filter((c) => c.type === 'address')
 
-  const primaryAddress = contacts.find((c) => c.type === 'address' && c.isPrimary)?.value
-    ?? contacts.find((c) => c.type === 'address')?.value
-    ?? ''
+  const toggleId = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, id: string, checked: boolean) => {
+    setter((prev) => { const next = new Set(prev); checked ? next.add(id) : next.delete(id); return next })
+  }
+
+  const selectedEmailsStr = emailContacts.filter((c) => selectedEmailIds.has(c.id)).map((c) => c.value).join(', ')
+  const selectedAddressesStr = addressContacts.filter((c) => selectedAddressIds.has(c.id)).map((c) => c.value).join(' | ')
 
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId)
 
@@ -70,8 +76,8 @@ export default function SendRequestModal({ open, onClose, selectedBrokers, onSuc
   const interpolationVars: Record<string, string> = {
     'user.first_name': user?.firstName ?? '',
     'user.last_name': user?.lastName ?? '',
-    'user.email': primaryEmail,
-    'user.address': primaryAddress,
+    'user.email': selectedEmailsStr,
+    'user.address': selectedAddressesStr,
     'broker.name': previewBroker?.name ?? '',
     'broker.email_contact': previewBroker?.emailContact ?? '',
     'request.date': new Date().toLocaleDateString('fr-FR'),
@@ -159,36 +165,64 @@ export default function SendRequestModal({ open, onClose, selectedBrokers, onSuc
 
             <Separator />
 
-            {/* Données profil pré-remplies */}
-            <div>
-              <p className="text-sm font-medium mb-2 flex items-center gap-1.5">
+            {/* Données profil — sélection par cases à cocher */}
+            <div className="space-y-3">
+              <p className="text-sm font-medium flex items-center gap-1.5">
                 <User className="w-4 h-4 text-[#FC7E34]" />
-                Vos données (depuis votre profil)
+                Vos données incluses dans l'email
               </p>
-              <div className="grid grid-cols-2 gap-3 p-3 bg-muted/50 rounded-lg text-sm">
-                <div className="flex items-center gap-2">
-                  <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  <span className="text-muted-foreground">Identité :</span>
-                  <span className="font-medium">{user?.firstName} {user?.lastName}</span>
+
+              {/* Identité — statique, une seule valeur dans l'API actuelle */}
+              <div className="flex items-center gap-3 px-3 py-2.5 bg-muted/50 rounded-lg">
+                <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <span className="text-xs text-muted-foreground w-20 shrink-0">Identité</span>
+                <span className="text-sm font-medium">{user?.firstName} {user?.lastName}</span>
+                <span className="text-xs text-muted-foreground ml-auto">Profil</span>
+              </div>
+
+              {/* Emails — case à cocher par contact */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 px-1">
+                  <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Adresses email</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  <span className="text-muted-foreground">Email :</span>
-                  <span className="font-medium truncate">{primaryEmail}</span>
-                </div>
-                {primaryAddress && (
-                  <div className="col-span-2 flex items-start gap-2">
-                    <MapPin className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                    <span className="text-muted-foreground">Adresse :</span>
-                    <span className="font-medium">{primaryAddress}</span>
-                  </div>
+                {emailContacts.map((c) => (
+                  <label key={c.id} className="flex items-center gap-3 px-3 py-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                    <Checkbox
+                      checked={selectedEmailIds.has(c.id)}
+                      onCheckedChange={(v) => toggleId(setSelectedEmailIds, c.id, !!v)}
+                      className="data-[state=checked]:bg-[#FC7E34] data-[state=checked]:border-[#FC7E34]"
+                    />
+                    <span className="text-sm font-medium flex-1">{c.value}</span>
+                    {c.label && <span className="text-xs text-muted-foreground">{c.label}</span>}
+                  </label>
+                ))}
+                {emailContacts.length === 0 && (
+                  <p className="text-xs text-amber-600 px-1">Aucun email — ajoutez-en un dans votre profil.</p>
                 )}
               </div>
-              {!primaryAddress && (
-                <p className="text-xs text-amber-600 mt-1.5">
-                  ⚠ Adresse manquante dans votre profil — ajoutez-la pour une demande plus complète.
-                </p>
-              )}
+
+              {/* Adresses — case à cocher par contact */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 px-1">
+                  <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Adresses postales</span>
+                </div>
+                {addressContacts.map((c) => (
+                  <label key={c.id} className="flex items-center gap-3 px-3 py-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                    <Checkbox
+                      checked={selectedAddressIds.has(c.id)}
+                      onCheckedChange={(v) => toggleId(setSelectedAddressIds, c.id, !!v)}
+                      className="data-[state=checked]:bg-[#FC7E34] data-[state=checked]:border-[#FC7E34]"
+                    />
+                    <span className="text-sm font-medium flex-1">{c.value}</span>
+                    {c.label && <span className="text-xs text-muted-foreground">{c.label}</span>}
+                  </label>
+                ))}
+                {addressContacts.length === 0 && (
+                  <p className="text-xs text-amber-600 px-1">Aucune adresse — ajoutez-en une dans votre profil.</p>
+                )}
+              </div>
             </div>
 
             <Separator />

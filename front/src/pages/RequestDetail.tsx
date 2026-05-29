@@ -5,7 +5,7 @@ import { motion, type Variants } from 'framer-motion'
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
 const fadeUp: Variants = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } }
 const fadeLeft: Variants = { hidden: { opacity: 0, x: -12 }, show: { opacity: 1, x: 0, transition: { duration: 0.24 } } }
-import { ArrowLeft, Send, RefreshCw, FileText, CheckCircle2, XCircle, AlertTriangle, Loader2, X } from 'lucide-react'
+import { ArrowLeft, Send, RefreshCw, FileText, CheckCircle2, XCircle, AlertTriangle, Loader2, X, Clock, AlertCircle, Flag, Archive, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -18,6 +18,17 @@ import {
 } from '@/lib/mock-data'
 
 const STATUS_STEPS: RequestStatus[] = ['DRAFT', 'SENT', 'ACKNOWLEDGED', 'COMPLETED']
+
+const statusIcons: Record<RequestStatus, LucideIcon> = {
+  DRAFT:        FileText,
+  SENT:         Send,
+  ACKNOWLEDGED: Clock,
+  COMPLETED:    CheckCircle2,
+  REFUSED:      XCircle,
+  NO_RESPONSE:  AlertCircle,
+  COMPLAINT:    Flag,
+  SUPPRESSED:   Archive,
+}
 
 const EVENT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   created:        FileText,
@@ -35,10 +46,23 @@ const EVENT_LABELS: Record<string, string> = {
   note_added:     'Note ajoutée',
 }
 
+const legalBasisLabels: Record<string, string> = {
+  gdpr_art17: 'Art. 17 RGPD — Droit à l\'effacement',
+  gdpr_art15: 'Art. 15 RGPD — Droit d\'accès',
+  ccpa:       'CCPA (Californie)',
+  pipeda:     'PIPEDA (Canada)',
+  other:      'Autre base légale',
+}
+
+const languageLabels: Record<string, string> = {
+  fr: 'Français',
+  en: 'Anglais',
+}
+
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { request, events, loading, error } = useRequestDetail(id ?? '')
+  const { request, events, template, loading, error } = useRequestDetail(id ?? '')
 
   const [sendingReminder, setSendingReminder] = useState(false)
   const [reminderSent, setReminderSent] = useState(false)
@@ -94,7 +118,7 @@ export default function RequestDetail() {
         <span>›</span>
         <Link to="/requests" className="hover:text-foreground">Mes demandes</Link>
         <span>›</span>
-        <span className="text-foreground">Détail</span>
+        <span className="text-foreground">{request.brokerName}</span>
       </nav>
 
       {/* Header */}
@@ -113,255 +137,265 @@ export default function RequestDetail() {
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">Réf. {request.id}</p>
         </div>
-        {cfg && (
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${cfg.bg}`}>
-            <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-            <span className={cfg.color}>{cfg.label}</span>
-          </div>
-        )}
+        {cfg && (() => {
+          const StatusIcon = statusIcons[request.status]
+          return (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-medium text-muted-foreground">
+              <StatusIcon className="w-4 h-4 shrink-0" />
+              <span>{cfg.label}</span>
+            </div>
+          )
+        })()}
       </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6">
-        {/* Colonne principale — 2/3 */}
-        <motion.div
-          className="lg:col-span-2 space-y-5"
-          variants={stagger}
-          initial="hidden"
-          animate="show"
-        >
-          {/* Broker */}
-          <motion.div variants={fadeUp}>
-            <Card>
-              <CardHeader className="px-6 pt-5 pb-3">
-                <CardTitle className="text-xl font-medium">Broker ciblé</CardTitle>
-              </CardHeader>
-              <CardContent className="px-6 pb-5">
-                {broker ? (
-                  <div className="flex items-center gap-4">
-                    <img
-                      src={`https://www.google.com/s2/favicons?domain=${broker.website}&sz=64`}
-                      alt={broker.name}
-                      className="w-14 h-14 rounded-xl object-contain bg-muted p-2"
-                      onError={(e) => { (e.target as HTMLImageElement).src = '/icon.png' }}
-                    />
-                    <div className="flex-1">
-                      <p className="text-xl font-bold">{broker.name}</p>
-                      <p className="text-sm text-muted-foreground">{broker.website}</p>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {[
-                          categoryLabels[broker.category],
-                          broker.region.toUpperCase(),
-                          `Difficulté : ${difficultyLabels[broker.difficulty]}`,
-                          `Méthode : ${methodLabels[broker.optOutMethod]}`,
-                        ].map((tag) => (
-                          <span key={tag} className="text-xs bg-muted rounded-md px-2 py-0.5 text-foreground/70">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs text-muted-foreground">Contact</p>
-                      <p className="text-sm font-medium">{broker.emailContact}</p>
+      {/* Grid plat 3 colonnes — rangée 1 : Broker + Dates clés / rangée 2 : Suivi + Actions+RGPD */}
+      <motion.div
+        className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6"
+        variants={stagger}
+        initial="hidden"
+        animate="show"
+      >
+        {/* ── Rangée 1 ────────────────────────────────────── */}
+
+        {/* Broker — 2/3 */}
+        <motion.div variants={fadeUp} className="lg:col-span-2">
+          <Card className="h-full">
+            <CardHeader className="px-6 pt-5 pb-3">
+              <CardTitle className="text-xl font-medium">Broker ciblé</CardTitle>
+            </CardHeader>
+            <CardContent className="px-6 pb-5">
+              {broker ? (
+                <div className="flex items-center gap-4">
+                  <img
+                    src={`https://www.google.com/s2/favicons?domain=${broker.website}&sz=64`}
+                    alt={broker.name}
+                    className="w-14 h-14 rounded-xl object-contain bg-muted p-2"
+                    onError={(e) => { (e.target as HTMLImageElement).src = '/icon.png' }}
+                  />
+                  <div className="flex-1">
+                    <p className="text-base font-bold">{broker.name}</p>
+                    <p className="text-sm text-muted-foreground">{broker.website}</p>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {[
+                        categoryLabels[broker.category],
+                        broker.region.toUpperCase(),
+                        `Difficulté : ${difficultyLabels[broker.difficulty]}`,
+                        `Méthode : ${methodLabels[broker.optOutMethod]}`,
+                        ...(template ? [`Email en ${languageLabels[template.language] ?? template.language}`] : []),
+                      ].map((tag) => (
+                        <span key={tag} className="text-xs bg-muted rounded-md px-2 py-0.5 text-foreground/70">
+                          {tag}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Broker introuvable dans le registre.</p>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-muted-foreground">Contact</p>
+                    <p className="text-sm font-medium">{broker.emailContact}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Broker introuvable dans le registre.</p>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
 
-          {/* Progression */}
-          <motion.div variants={fadeUp}>
-            <Card>
-              <CardHeader className="px-6 pt-5 pb-3">
-                <CardTitle className="text-xl font-medium">Progression</CardTitle>
-              </CardHeader>
-              <CardContent className="px-6 pb-5">
-                <div className="flex items-center">
+        {/* Dates clés — 1/3 */}
+        <motion.div variants={fadeUp}>
+          <Card className="h-full">
+            <CardHeader className="px-6 pt-5 pb-3">
+              <CardTitle className="text-xl font-medium">Dates clés</CardTitle>
+            </CardHeader>
+            <CardContent className="px-6 pb-5 space-y-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-0.5">Envoyée le</p>
+                <p className="text-sm font-medium">{formatDate(request.sentAt)}</p>
+              </div>
+              {request.respondedAt && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Réponse reçue le</p>
+                    <p className="text-sm font-medium">{formatDate(request.respondedAt)}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      en {Math.round((new Date(request.respondedAt).getTime() - new Date(request.sentAt).getTime()) / 86_400_000)} jour(s)
+                    </p>
+                  </div>
+                </>
+              )}
+              {request.nextActionAt && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Prochaine action</p>
+                    <p className="text-sm font-medium text-amber-600">{formatDate(request.nextActionAt)}</p>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* ── Rangée 2 ────────────────────────────────────── */}
+
+        {/* Suivi — 2/3 */}
+        <motion.div variants={fadeUp} className="lg:col-span-2">
+          <Card className="h-full">
+            <CardHeader className="px-6 pt-5 pb-3">
+              <CardTitle className="text-xl font-medium">Suivi</CardTitle>
+            </CardHeader>
+            <CardContent className="px-6 pb-5 space-y-5">
+              {/* Stepper */}
+              <div className="relative w-full">
+                {/* Ligne de fond */}
+                <div className="absolute top-[18px] left-[18px] right-[18px] h-0.5 bg-border" />
+                {/* Ligne de progression */}
+                {currentStep > 0 && (
+                  <div
+                    className="absolute top-[18px] left-[18px] h-0.5 bg-[#253550]"
+                    style={{ width: `calc(${(currentStep / (STATUS_STEPS.length - 1)) * 100}% - 36px)` }}
+                  />
+                )}
+                {/* Icônes */}
+                <div className="relative flex justify-between z-[1]">
                   {STATUS_STEPS.map((step, i) => {
                     const stepCfg = statusConfig[step]
                     const isPast = i < currentStep
                     const isCurrent = i === currentStep
                     return (
-                      <div key={step} className="flex items-center flex-1">
-                        <div className="flex flex-col items-center gap-1.5">
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center border-2 ${
-                            isCurrent ? 'bg-[#FC7E34] border-[#FC7E34] text-white'
-                            : isPast   ? 'bg-green-500 border-green-500 text-white'
-                            :            'bg-muted border-border text-muted-foreground'
-                          }`}>
-                            {isPast
-                              ? <CheckCircle2 className="w-4 h-4" />
-                              : <span className="text-xs font-bold">{i + 1}</span>
-                            }
-                          </div>
-                          <span className={`text-xs whitespace-nowrap ${i > currentStep ? 'text-muted-foreground' : 'font-medium'}`}>
-                            {stepCfg.label}
-                          </span>
+                      <div key={step} className="flex flex-col items-center gap-1.5">
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center border-2 ${
+                          isCurrent ? 'bg-[#FC7E34] border-[#FC7E34] text-white'
+                          : isPast   ? 'bg-[#253550] border-[#253550] text-white'
+                          :            'bg-muted border-border text-muted-foreground'
+                        }`}>
+                          {isPast
+                            ? <CheckCircle2 className="w-4 h-4" />
+                            : <span className="text-xs font-bold">{i + 1}</span>
+                          }
                         </div>
-                        {i < STATUS_STEPS.length - 1 && (
-                          <div className={`flex-1 h-0.5 mx-2 ${i < currentStep ? 'bg-green-400' : 'bg-border'}`} />
-                        )}
+                        <span className={`text-xs text-center whitespace-nowrap ${i > currentStep ? 'text-muted-foreground' : 'font-medium'}`}>
+                          {stepCfg.label}
+                        </span>
                       </div>
                     )
                   })}
                 </div>
-                {['REFUSED', 'NO_RESPONSE', 'COMPLAINT', 'SUPPRESSED'].includes(request.status) && cfg && (
-                  <div className={`mt-4 flex items-center gap-2 text-sm p-3 rounded-lg ${cfg.bg}`}>
-                    {request.status === 'REFUSED'     && <XCircle className="w-4 h-4 text-red-600" />}
-                    {request.status === 'NO_RESPONSE' && <AlertTriangle className="w-4 h-4 text-orange-600" />}
-                    {request.status === 'COMPLAINT'   && <AlertTriangle className="w-4 h-4 text-red-800" />}
-                    <span className={`font-medium ${cfg.color}`}>Statut actuel : {cfg.label}</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+              </div>
 
-          {/* Historique */}
-          <motion.div variants={fadeUp}>
-            <Card>
-              <CardHeader className="px-6 pt-5 pb-3">
-                <CardTitle className="text-xl font-medium">Historique des événements</CardTitle>
-              </CardHeader>
-              <CardContent className="px-6 pb-5">
-                {events.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Aucun événement enregistré.</p>
-                ) : (
-                  <motion.div variants={stagger} initial="hidden" animate="show">
-                    {events.map((evt, i) => {
-                      const Icon = EVENT_ICONS[evt.eventType] ?? FileText
-                      return (
-                        <motion.div key={evt.id} variants={fadeLeft} className="flex gap-4">
-                          <div className="flex flex-col items-center">
-                            <div className="w-8 h-8 rounded-full bg-[#FC7E34]/10 flex items-center justify-center shrink-0">
-                              <Icon className="w-3.5 h-3.5 text-[#FC7E34]" />
-                            </div>
-                            {i < events.length - 1 && <div className="w-px flex-1 bg-border my-1.5" />}
-                          </div>
-                          <div className="pb-5 flex-1">
-                            <p className="text-sm font-medium">{EVENT_LABELS[evt.eventType]}</p>
-                            {evt.note && <p className="text-sm text-muted-foreground mt-0.5">{evt.note}</p>}
-                            {evt.oldStatus && evt.newStatus && (
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {statusConfig[evt.oldStatus].label} → {statusConfig[evt.newStatus].label}
-                              </p>
-                            )}
-                            <p className="text-xs text-muted-foreground mt-1">{formatDate(evt.createdAt)}</p>
-                          </div>
-                        </motion.div>
-                      )
-                    })}
-                  </motion.div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-        </motion.div>
-
-        {/* Colonne droite — 1/3 */}
-        <motion.div
-          className="space-y-5"
-          variants={stagger}
-          initial="hidden"
-          animate="show"
-        >
-          <motion.div variants={fadeUp}>
-            <Card>
-              <CardHeader className="px-6 pt-5 pb-3">
-                <CardTitle className="text-xl font-medium">Dates clés</CardTitle>
-              </CardHeader>
-              <CardContent className="px-6 pb-5 space-y-4">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Envoyée le</p>
-                  <p className="text-sm font-medium">{formatDate(request.sentAt)}</p>
+              {/* Alerte statut terminal */}
+              {['REFUSED', 'NO_RESPONSE', 'COMPLAINT', 'SUPPRESSED'].includes(request.status) && cfg && (
+                <div className={`flex items-center gap-2 text-sm p-3 rounded-lg ${cfg.bg}`}>
+                  {request.status === 'REFUSED'     && <XCircle className="w-4 h-4 text-red-600" />}
+                  {request.status === 'NO_RESPONSE' && <AlertTriangle className="w-4 h-4 text-orange-600" />}
+                  {request.status === 'COMPLAINT'   && <AlertTriangle className="w-4 h-4 text-red-800" />}
+                  <span className={`font-medium ${cfg.color}`}>Statut actuel : {cfg.label}</span>
                 </div>
-                {request.respondedAt && (
-                  <>
-                    <Separator />
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-0.5">Réponse reçue le</p>
-                      <p className="text-sm font-medium">{formatDate(request.respondedAt)}</p>
-                    </div>
-                  </>
-                )}
-                {request.nextActionAt && (
-                  <>
-                    <Separator />
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-0.5">Prochaine action</p>
-                      <p className="text-sm font-medium text-amber-600">{formatDate(request.nextActionAt)}</p>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+              )}
 
-          <motion.div variants={fadeUp}>
-            <Card>
-              <CardHeader className="px-6 pt-5 pb-3">
-                <CardTitle className="text-xl font-medium">Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="px-6 pb-5 space-y-2">
-                {!isTerminal && (
-                  <>
-                    <Button
-                      className={`w-full gap-2 h-10 text-white ${reminderSent ? 'bg-green-500 hover:bg-green-500' : 'bg-[#FC7E34] hover:bg-[#e06e28]'}`}
-                      onClick={handleSendReminder}
-                      disabled={sendingReminder || reminderSent}
-                    >
-                      {sendingReminder
-                        ? <Loader2 className="w-4 h-4 animate-spin" />
-                        : reminderSent
-                        ? <CheckCircle2 className="w-4 h-4" />
-                        : <RefreshCw className="w-4 h-4" />
-                      }
-                      {reminderSent ? 'Relance envoyée !' : 'Envoyer une relance'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full gap-2 h-10"
-                      onClick={handleViewEmail}
-                      disabled={loadingPreview}
-                    >
-                      {loadingPreview
-                        ? <Loader2 className="w-4 h-4 animate-spin" />
-                        : <FileText className="w-4 h-4" />
-                      }
-                      Voir l'email envoyé
-                    </Button>
-                  </>
-                )}
-                {(request.status === 'NO_RESPONSE' || request.status === 'REFUSED') && (
-                  <Button variant="outline" className="w-full gap-2 h-10 border-red-200 text-red-600 hover:bg-red-50">
-                    <AlertTriangle className="w-4 h-4" />
-                    Déposer une plainte CNIL
-                  </Button>
-                )}
-                <Button variant="ghost" className="w-full h-10 text-muted-foreground" onClick={() => navigate('/requests')}>
-                  Retour aux demandes
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
+              <Separator />
 
-          <motion.div variants={fadeUp}>
-            <Card className="bg-[#253550]/5 border-[#253550]/20">
-              <CardContent className="px-5 py-4">
-                <p className="text-sm font-semibold text-[#253550] mb-1">Cadre légal (RGPD)</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Cette demande est fondée sur l'article 17 du RGPD (droit à l'effacement). Le broker dispose
-                  de <strong>30 jours</strong> pour répondre (art. 12). Sans réponse, une relance est envoyée
-                  automatiquement. Après 60 jours, vous pouvez saisir la CNIL (art. 77).
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
+              {/* Historique */}
+              {events.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aucun événement enregistré.</p>
+              ) : (
+                <motion.div variants={stagger} initial="hidden" animate="show">
+                  {events.map((evt, i) => {
+                    const Icon = EVENT_ICONS[evt.eventType] ?? FileText
+                    return (
+                      <motion.div key={evt.id} variants={fadeLeft} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="w-7 h-7 rounded-lg bg-[#FC7E34]/10 flex items-center justify-center shrink-0">
+                            <Icon className="w-3.5 h-3.5 text-[#FC7E34]" />
+                          </div>
+                          {i < events.length - 1 && <div className="w-px flex-1 bg-border my-1" />}
+                        </div>
+                        <div className="pb-4 flex-1">
+                          <p className="text-sm font-medium">{EVENT_LABELS[evt.eventType]}</p>
+                          {evt.note && <p className="text-sm text-muted-foreground mt-0.5">{evt.note}</p>}
+                          {evt.oldStatus && evt.newStatus && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {statusConfig[evt.oldStatus].label} → {statusConfig[evt.newStatus].label}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">{formatDate(evt.createdAt)}</p>
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                </motion.div>
+              )}
+            </CardContent>
+          </Card>
         </motion.div>
-      </div>
+
+        {/* Actions + Cadre légal fusionnés — 1/3 */}
+        <motion.div variants={fadeUp}>
+          <Card className="h-full">
+            <CardHeader className="px-6 pt-5 pb-3">
+              <CardTitle className="text-xl font-medium">Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="px-6 pb-5 space-y-2">
+              {!isTerminal && (
+                <>
+                  <Button
+                    className={`w-full gap-2 h-10 text-white ${reminderSent ? 'bg-green-500 hover:bg-green-500' : 'bg-[#FC7E34] hover:bg-[#e06e28]'}`}
+                    onClick={handleSendReminder}
+                    disabled={sendingReminder || reminderSent}
+                  >
+                    {sendingReminder
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : reminderSent
+                      ? <CheckCircle2 className="w-4 h-4" />
+                      : <RefreshCw className="w-4 h-4" />
+                    }
+                    {reminderSent ? 'Relance envoyée !' : 'Envoyer une relance'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2 h-10"
+                    onClick={handleViewEmail}
+                    disabled={loadingPreview}
+                  >
+                    {loadingPreview
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <FileText className="w-4 h-4" />
+                    }
+                    Voir l'email envoyé
+                  </Button>
+                </>
+              )}
+              {(request.status === 'NO_RESPONSE' || request.status === 'REFUSED') && (
+                <Button variant="outline" className="w-full gap-2 h-10 border-red-200 text-red-600 hover:bg-red-50">
+                  <AlertTriangle className="w-4 h-4" />
+                  Déposer une plainte CNIL
+                </Button>
+              )}
+              <Button variant="outline" className="w-full h-10 text-muted-foreground" onClick={() => navigate('/requests')}>
+                Retour aux demandes
+              </Button>
+
+              <Separator className="mt-4" />
+
+              <div className="pt-3 space-y-1">
+                <p className="text-sm font-semibold text-[#253550]">Cadre légal</p>
+                {template && (
+                  <p className="text-xs text-[#253550]/70 font-medium">
+                    {legalBasisLabels[template.legalBasis] ?? template.legalBasis}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Le broker dispose de <strong>30 jours</strong> pour répondre (art. 12 RGPD).
+                  Sans réponse, une relance est envoyée automatiquement. Après 60 jours,
+                  vous pouvez saisir la CNIL (art. 77).
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+      </motion.div>
 
       {/* Modal aperçu email */}
       {emailPreview !== null && (
@@ -374,7 +408,7 @@ export default function RequestDetail() {
             transition={{ duration: 0.18 }}
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
-              <h2 className="text-lg font-medium">Email envoyé</h2>
+              <h2 className="text-xl font-medium">Email envoyé</h2>
               <button onClick={() => setEmailPreview(null)} className="p-1.5 rounded-md hover:bg-accent transition-colors">
                 <X className="w-4 h-4" />
               </button>
