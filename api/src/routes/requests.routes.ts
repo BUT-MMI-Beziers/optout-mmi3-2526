@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { eq, and } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { removalRequests, users, brokers, emailTemplates, userContacts } from '../db/schema.js'
+import { removalRequests, users, brokers, emailTemplates, userContacts, requestEvents } from '../db/schema.js'
 import { renderTemplate } from '../services/template.service.js'
 import { emailQueue } from '../services/queue.service.js'
 
@@ -10,17 +10,164 @@ export const requestsRoutes = new Hono()
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ============================================================================
-// LISTER TOUTES LES DEMANDES
+// FEATURE 11 : LISTER LES DEMANDES AVEC FILTRES ET PAGINATION
 // Route finale : GET /api/v1/requests
 // ============================================================================
+/*
+ * Query params disponibles :
+ *  - status     : filtre par statut (DRAFT, SENT, NO_RESPONSE, RESPONDED, CLOSED)
+ *  - broker_id  : filtre par broker UUID
+ *  - page       : numéro de page (défaut: 1)
+ *  - limit      : nombre de résultats par page (défaut: 10, max: 100)
+ *
+ * Réponse :
+ *  - data       : tableau des demandes
+ *  - total      : nombre total de résultats (avant pagination)
+ *  - page       : page actuelle
+ *  - limit      : limite actuelle
+ *  - totalPages : nombre total de pages
+ */
 requestsRoutes.get('/', async (c) => {
   try {
-    const requestsList = await db.select().from(removalRequests)
-    return c.json({ data: requestsList, count: requestsList.length }, 200)
+    // 1. Récupérer et valider les query params
+    const statusParam = c.req.query('status')
+    const brokerIdParam = c.req.query('broker_id')
+    const pageParam = c.req.query('page')
+    const limitParam = c.req.query('limit')
+
+    // Valider le statut si fourni
+    const validStatuses = ['DRAFT', 'SENT', 'NO_RESPONSE', 'RESPONDED', 'CLOSED']
+    if (statusParam && !validStatuses.includes(statusParam)) {
+      return c.json({
+        error: `Statut invalide. Valeurs acceptées : ${validStatuses.join(', ')}`,
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
+    // Valider le broker_id si fourni
+    if (brokerIdParam && !uuidRegex.test(brokerIdParam)) {
+      return c.json({
+        error: "broker_id doit être un UUID valide.",
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
+    // Parser et valider page + limit
+    const page = Math.max(1, parseInt(pageParam || '1'))
+    const limit = Math.min(100, Math.max(1, parseInt(limitParam || '10')))
+    const offset = (page - 1) * limit
+
+    // 2. Construire les conditions de filtre
+    const conditions = []
+
+    if (statusParam) {
+      conditions.push(eq(removalRequests.status, statusParam as any))
+    }
+
+    if (brokerIdParam) {
+      conditions.push(eq(removalRequests.brokerId, brokerIdParam))
+    }
+
+    // 3. Récupérer les demandes avec filtres + pagination
+    const requestsList = await db
+      .select()
+      .from(removalRequests)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(removalRequests.createdAt)
+      .limit(limit)
+      .offset(offset)
+
+    // 4. Compter le total (pour calculer totalPages)
+    const allRequests = await db
+      .select({ id: removalRequests.id })
+      .from(removalRequests)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+
+    const total = allRequests.length
+    const totalPages = Math.ceil(total / limit)
+
+    return c.json({
+      data: requestsList,
+      total,
+      page,
+      limit,
+      totalPages,
+    }, 200)
+
   } catch (error) {
     console.error("[GET /requests] Erreur critique :", error)
     return c.json({
-      error: "Impossible de récupérer la liste des requêtes.",
+      error: "Impossible de récupérer la liste des demandes.",
+      code: "INTERNAL_SERVER_ERROR"
+    }, 500)
+  }
+})
+
+// ============================================================================
+// FEATURE 12 : DÉTAIL COMPLET D'UNE DEMANDE
+// Route finale : GET /api/v1/requests/:id
+// ============================================================================
+/*
+ * Retourne une demande complète avec :
+ *  - le broker associé
+ *  - le template associé
+ *  - l'historique des événements (request_events)
+ */
+requestsRoutes.get('/:id', async (c) => {
+  try {
+    const requestId = c.req.param('id')
+
+    // SÉCURITÉ : Validation stricte du format UUID
+    if (!uuidRegex.test(requestId)) {
+      return c.json({
+        error: "Format d'identifiant de demande invalide. Un UUID est attendu.",
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
+    // 1. Récupérer la demande avec broker + template (jointures)
+    const rows = await db
+      .select({
+        request: removalRequests,
+        broker: brokers,
+        template: emailTemplates,
+      })
+      .from(removalRequests)
+      .innerJoin(brokers, eq(removalRequests.brokerId, brokers.id))
+      .innerJoin(emailTemplates, eq(removalRequests.templateId, emailTemplates.id))
+      .where(eq(removalRequests.id, requestId))
+      .limit(1)
+
+    if (rows.length === 0) {
+      return c.json({
+        error: "La demande spécifiée est introuvable.",
+        code: "NOT_FOUND"
+      }, 404)
+    }
+
+    const data = rows[0]
+
+    // 2. Récupérer l'historique des événements
+    const events = await db
+      .select()
+      .from(requestEvents)
+      .where(eq(requestEvents.requestId, requestId))
+      .orderBy(requestEvents.createdAt)
+
+    // 3. Retourner le tout assemblé
+    return c.json({
+      data: {
+        ...data.request,
+        broker: data.broker,
+        template: data.template,
+        events,
+      }
+    }, 200)
+
+  } catch (error) {
+    console.error(`[GET /requests/${c.req.param('id')}] Erreur critique :`, error)
+    return c.json({
+      error: "Une erreur interne est survenue lors de la récupération de la demande.",
       code: "INTERNAL_SERVER_ERROR"
     }, 500)
   }
