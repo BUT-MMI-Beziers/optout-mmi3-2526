@@ -11,6 +11,7 @@ import Requests from "@/pages/Requests"
 import RequestDetail from "@/pages/RequestDetail"
 import NewRequest from "@/pages/NewRequest"
 import NewRequestReview from "@/pages/NewRequestReview"
+import ScrollToTop from "@/components/ScrollToTop"
 import AdminBrokers from "@/pages/AdminBrokers"
 import Notifications from "@/pages/Notifications"
 import Settings from "@/pages/Settings"
@@ -19,6 +20,7 @@ import Reminders from "@/pages/Reminders"
 function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         {/* Pages sans layout (landing + auth) */}
         <Route path="/" element={<Landing />} />
