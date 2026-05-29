@@ -46,10 +46,23 @@ const EVENT_LABELS: Record<string, string> = {
   note_added:     'Note ajoutée',
 }
 
+const legalBasisLabels: Record<string, string> = {
+  gdpr_art17: 'Art. 17 RGPD — Droit à l\'effacement',
+  gdpr_art15: 'Art. 15 RGPD — Droit d\'accès',
+  ccpa:       'CCPA (Californie)',
+  pipeda:     'PIPEDA (Canada)',
+  other:      'Autre base légale',
+}
+
+const languageLabels: Record<string, string> = {
+  fr: 'Français',
+  en: 'Anglais',
+}
+
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { request, events, loading, error } = useRequestDetail(id ?? '')
+  const { request, events, template, loading, error } = useRequestDetail(id ?? '')
 
   const [sendingReminder, setSendingReminder] = useState(false)
   const [reminderSent, setReminderSent] = useState(false)
@@ -168,6 +181,7 @@ export default function RequestDetail() {
                         broker.region.toUpperCase(),
                         `Difficulté : ${difficultyLabels[broker.difficulty]}`,
                         `Méthode : ${methodLabels[broker.optOutMethod]}`,
+                        ...(template ? [`Email en ${languageLabels[template.language] ?? template.language}`] : []),
                       ].map((tag) => (
                         <span key={tag} className="text-xs bg-muted rounded-md px-2 py-0.5 text-foreground/70">
                           {tag}
@@ -204,6 +218,9 @@ export default function RequestDetail() {
                   <div>
                     <p className="text-xs text-muted-foreground mb-0.5">Réponse reçue le</p>
                     <p className="text-sm font-medium">{formatDate(request.respondedAt)}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      en {Math.round((new Date(request.respondedAt).getTime() - new Date(request.sentAt).getTime()) / 86_400_000)} jour(s)
+                    </p>
                   </div>
                 </>
               )}
@@ -315,7 +332,7 @@ export default function RequestDetail() {
 
         {/* Actions + Cadre légal fusionnés — 1/3 */}
         <motion.div variants={fadeUp}>
-          <Card>
+          <Card className="h-full">
             <CardHeader className="px-6 pt-5 pb-3">
               <CardTitle className="text-xl font-medium">Actions</CardTitle>
             </CardHeader>
@@ -362,11 +379,16 @@ export default function RequestDetail() {
               <Separator className="mt-4" />
 
               <div className="pt-3 space-y-1">
-                <p className="text-xs font-semibold text-[#253550]">Cadre légal (RGPD)</p>
+                <p className="text-sm font-semibold text-[#253550]">Cadre légal</p>
+                {template && (
+                  <p className="text-xs text-[#253550]/70 font-medium">
+                    {legalBasisLabels[template.legalBasis] ?? template.legalBasis}
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Cette demande est fondée sur l'article 17 du RGPD (droit à l'effacement). Le broker dispose
-                  de <strong>30 jours</strong> pour répondre (art. 12). Sans réponse, une relance est envoyée
-                  automatiquement. Après 60 jours, vous pouvez saisir la CNIL (art. 77).
+                  Le broker dispose de <strong>30 jours</strong> pour répondre (art. 12 RGPD).
+                  Sans réponse, une relance est envoyée automatiquement. Après 60 jours,
+                  vous pouvez saisir la CNIL (art. 77).
                 </p>
               </div>
             </CardContent>
