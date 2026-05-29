@@ -25,6 +25,17 @@ brokersRoute.get('/', async (c) => {
     const search = c.req.query('search')
     const isVerifiedStr = c.req.query('isVerified')
 
+    const pageParam = c.req.query('page')
+    const perPageParam = c.req.query('per_page') || c.req.query('limit')
+
+    const parsedPage = parseInt(pageParam || '1', 10)
+    const page = Math.max(1, isNaN(parsedPage) ? 1 : parsedPage)
+
+    const parsedPerPage = parseInt(perPageParam || '20', 10)
+    const perPage = Math.max(1, isNaN(parsedPerPage) ? 20 : parsedPerPage)
+
+    const offset = (page - 1) * perPage
+
     const conditions = []
 
     if (category) {
@@ -43,12 +54,27 @@ brokersRoute.get('/', async (c) => {
       conditions.push(ilike(brokers.name, `%${search}%`))
     }
 
-    const query = db.select().from(brokers)
-    const results = conditions.length > 0
-      ? await query.where(and(...conditions))
-      : await query
+    // 1. Récupérer le total des éléments correspondants pour calculer la pagination
+    const countQuery = db.select({ id: brokers.id }).from(brokers)
+    const allMatching = conditions.length > 0
+      ? await countQuery.where(and(...conditions))
+      : await countQuery
+    const total = allMatching.length
 
-    return c.json(results)
+    // 2. Récupérer les éléments paginés
+    const dataQuery = db.select().from(brokers)
+    const results = conditions.length > 0
+      ? await dataQuery.where(and(...conditions)).limit(perPage).offset(offset)
+      : await dataQuery.limit(perPage).offset(offset)
+
+    const lastPage = Math.ceil(total / perPage) || 1
+
+    return c.json({
+      data: results,
+      total,
+      currentPage: page,
+      lastPage
+    })
   } catch (error) {
     console.error('Error fetching brokers:', error)
     return c.json({ error: 'Une erreur interne est survenue lors de la récupération des brokers' }, 500)

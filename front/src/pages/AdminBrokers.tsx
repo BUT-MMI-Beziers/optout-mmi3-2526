@@ -51,7 +51,7 @@ export default function AdminBrokers() {
     setTestFormData(null)
 
     try {
-      const response = await fetch(`/api/brokers/${testSlug.trim()}`)
+      const response = await fetch(`/api/v1/brokers/${testSlug.trim()}`)
       if (!response.ok) {
         let errMessage = "Broker introuvable"
         try {
@@ -89,7 +89,7 @@ export default function AdminBrokers() {
     setTestError(null)
 
     try {
-      const response = await fetch(`/api/brokers/${testSlug.trim()}/verify`, {
+      const response = await fetch(`/api/v1/brokers/${testSlug.trim()}/verify`, {
         method: 'PATCH'
       })
       if (!response.ok) {
@@ -125,7 +125,7 @@ export default function AdminBrokers() {
     }
 
     try {
-      const response = await fetch(`/api/brokers/${testSlug.trim()}`, {
+      const response = await fetch(`/api/v1/brokers/${testSlug.trim()}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -163,7 +163,7 @@ export default function AdminBrokers() {
     setTestError(null)
 
     try {
-      const response = await fetch(`/api/brokers/${testSlug.trim()}`, {
+      const response = await fetch(`/api/v1/brokers/${testSlug.trim()}`, {
         method: 'DELETE'
       })
 
@@ -207,7 +207,7 @@ export default function AdminBrokers() {
       const isYaml = file.name.endsWith('.yaml') || file.name.endsWith('.yml')
       const contentType = isYaml ? 'application/yaml' : 'application/json'
 
-      const response = await fetch('/api/brokers/import', {
+      const response = await fetch('/api/v1/brokers/import', {
         method: 'POST',
         headers: {
           'Content-Type': contentType,
@@ -262,7 +262,7 @@ export default function AdminBrokers() {
     }
 
     try {
-      const response = await fetch('/api/brokers', {
+      const response = await fetch('/api/v1/brokers', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
