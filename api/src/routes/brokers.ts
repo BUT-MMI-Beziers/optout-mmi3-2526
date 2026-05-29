@@ -59,7 +59,6 @@ brokersRoute.get('/', async (c) => {
 brokersRoute.post('/', async (c) => {
   const body = await c.req.json()
 
-
   const required = ['name', 'emailContact', 'category',
     'region', 'optOutMethod', 'difficulty', 'legalBasis']
 
@@ -69,26 +68,35 @@ brokersRoute.post('/', async (c) => {
     }
   }
 
-  const [newBroker] = await db
-    .insert(brokers)
-    .values({
-      name: body.name,
-      slug: toSlug(body.name),
-      emailContact: body.emailContact,
-      website: body.website ?? null,
-      optOutUrl: body.optOutUrl ?? null,
-      category: body.category,
-      region: body.region,
-      country: body.country ?? null,
-      optOutMethod: body.optOutMethod,
-      difficulty: body.difficulty,
-      legalBasis: body.legalBasis,
-      notes: body.notes ?? null,
-      isVerified: false,
-    })
-    .returning()
+  try {
+    const [newBroker] = await db
+      .insert(brokers)
+      .values({
+        name:         body.name,
+        slug:         toSlug(body.name),
+        emailContact: body.emailContact,
+        website:      body.website      ?? null,
+        optOutUrl:    body.optOutUrl    ?? null,
+        category:     body.category,
+        region:       body.region,
+        country:      body.country      ?? null,
+        optOutMethod: body.optOutMethod,
+        difficulty:   body.difficulty,
+        legalBasis:   body.legalBasis,
+        notes:        body.notes        ?? null,
+        isVerified:   false,
+      })
+      .returning()
 
-  return c.json(newBroker, 201)
+    return c.json(newBroker, 201)
+
+  } catch (err: any) {
+    if (err.code === '23505') {
+      return c.json({ error: `Un broker avec le nom "${body.name}" existe déjà` }, 409)
+    }
+    console.error('Erreur POST /brokers:', err)
+    return c.json({ error: 'Erreur interne lors de la création du broker' }, 500)
+  }
 })
 
 // ─── GET /brokers/export ─────────────────────────────────
