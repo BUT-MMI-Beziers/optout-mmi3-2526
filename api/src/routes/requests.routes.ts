@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
 import { eq, and } from 'drizzle-orm'
-import { db } from '../db' 
-import { removalRequests, users, brokers, emailTemplates, userContacts } from '../db/schema'
-import { renderTemplate } from '../services/template.service'
-import { emailQueue } from '../services/queue.service'
+import { db } from '../db/index.js'
+import { removalRequests, users, brokers, emailTemplates, userContacts } from '../db/schema.js'
+import { renderTemplate } from '../services/template.service.js'
+import { emailQueue } from '../services/queue.service.js'
 
 export const requestsRoutes = new Hono()
 
@@ -195,6 +195,145 @@ requestsRoutes.post('/:id/send', async (c) => {
     console.error(`[POST /requests/${c.req.param('id')}/send] Erreur critique :`, error)
     return c.json({
       error: "Erreur serveur lors de la mise en file d'attente de la demande.",
+      code: "INTERNAL_SERVER_ERROR"
+    }, 500)
+  }
+})
+
+// ============================================================================
+// FEATURE 10 : ENVOI EN MASSE (BATCH)
+// Route finale : POST /api/v1/requests/batch
+// ============================================================================
+/*
+ * Utilité : Crée et envoie des demandes à plusieurs brokers en une seule requête.
+ * Body attendu : { userId, templateId, brokerIds: string[] }
+ * Comportement partiel : si un broker est invalide, on continue avec les autres
+ * et on signale l'échec dans le résultat.
+ */
+requestsRoutes.post('/batch', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { userId, templateId, brokerIds } = body
+
+    // 1. Validation du body
+    if (!userId || !templateId || !Array.isArray(brokerIds) || brokerIds.length === 0) {
+      return c.json({
+        error: "userId, templateId et brokerIds (tableau non vide) sont requis.",
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
+    if (!uuidRegex.test(userId) || !uuidRegex.test(templateId)) {
+      return c.json({
+        error: "userId et templateId doivent être des UUIDs valides.",
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
+    // 2. Vérifier que l'utilisateur existe
+    const userRows = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+
+    if (userRows.length === 0) {
+      return c.json({
+        error: "Utilisateur introuvable.",
+        code: "NOT_FOUND"
+      }, 404)
+    }
+
+    // 3. Vérifier que le template existe
+    const templateRows = await db
+      .select()
+      .from(emailTemplates)
+      .where(eq(emailTemplates.id, templateId))
+      .limit(1)
+
+    if (templateRows.length === 0) {
+      return c.json({
+        error: "Template introuvable.",
+        code: "NOT_FOUND"
+      }, 404)
+    }
+
+    // 4. Traiter chaque broker un par un
+    const created = []
+    const failed = []
+
+    for (const brokerId of brokerIds) {
+      // Valider le format UUID du brokerId
+      if (!uuidRegex.test(brokerId)) {
+        failed.push({ brokerId, reason: "Format UUID invalide" })
+        continue
+      }
+
+      // Vérifier que le broker existe
+      const brokerRows = await db
+        .select()
+        .from(brokers)
+        .where(eq(brokers.id, brokerId))
+        .limit(1)
+
+      if (brokerRows.length === 0) {
+        failed.push({ brokerId, reason: "Broker introuvable" })
+        continue
+      }
+
+      try {
+        // Créer la demande en DRAFT
+        const [newRequest] = await db
+          .insert(removalRequests)
+          .values({
+            userId,
+            brokerId,
+            templateId,
+            emailBody: "Généré automatiquement par le batch.",
+          })
+          .returning()
+
+        // Ajouter dans la queue
+        await emailQueue.add('send-request', {
+          requestId: newRequest.id
+        })
+
+        console.log(`[POST /batch] Job ajouté pour la demande : ${newRequest.id}`)
+
+        // Mettre à jour le statut SENT (cohérent avec POST /:id/send de Fabien)
+        const [updatedRequest] = await db
+          .update(removalRequests)
+          .set({
+            status: 'SENT',
+            sentAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(removalRequests.id, newRequest.id))
+          .returning()
+
+        created.push(updatedRequest)
+
+      } catch (brokerError) {
+        console.error(`[POST /batch] Erreur pour le broker ${brokerId} :`, brokerError)
+        failed.push({ brokerId, reason: "Erreur lors de la création de la demande" })
+      }
+    }
+
+    // 5. Réponse avec le récap complet
+    return c.json({
+      message: `${created.length} demande(s) créée(s) et mise(s) en file d'attente.`,
+      data: {
+        created: created.length,
+        failed: failed.length,
+        requests: created,
+        errors: failed.length > 0 ? failed : undefined,
+      }
+    }, 201)
+
+  } catch (error) {
+    console.error("[POST /requests/batch] Erreur critique :", error)
+    return c.json({
+      error: "Erreur serveur lors du traitement du batch.",
       code: "INTERNAL_SERVER_ERROR"
     }, 500)
   }
