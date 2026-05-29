@@ -224,7 +224,7 @@ export default function RequestDetail() {
 
         {/* Suivi — 2/3 */}
         <motion.div variants={fadeUp} className="lg:col-span-2">
-          <Card>
+          <Card className="h-full">
             <CardHeader className="px-6 pt-5 pb-3">
               <CardTitle className="text-xl font-medium">Suivi</CardTitle>
             </CardHeader>
@@ -313,8 +313,8 @@ export default function RequestDetail() {
           </Card>
         </motion.div>
 
-        {/* Actions + RGPD — 1/3 */}
-        <motion.div variants={fadeUp} className="space-y-5">
+        {/* Actions + Cadre légal fusionnés — 1/3 */}
+        <motion.div variants={fadeUp}>
           <Card>
             <CardHeader className="px-6 pt-5 pb-3">
               <CardTitle className="text-xl font-medium">Actions</CardTitle>
@@ -358,19 +358,17 @@ export default function RequestDetail() {
               <Button variant="outline" className="w-full h-10 text-muted-foreground" onClick={() => navigate('/requests')}>
                 Retour aux demandes
               </Button>
-            </CardContent>
-          </Card>
 
-          <Card className="bg-[#253550]/5 border-[#253550]/20">
-            <CardHeader className="px-6 pt-5 pb-3">
-              <CardTitle className="text-xl font-medium text-[#253550]">Cadre légal (RGPD)</CardTitle>
-            </CardHeader>
-            <CardContent className="px-6 pb-5">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Cette demande est fondée sur l'article 17 du RGPD (droit à l'effacement). Le broker dispose
-                de <strong>30 jours</strong> pour répondre (art. 12). Sans réponse, une relance est envoyée
-                automatiquement. Après 60 jours, vous pouvez saisir la CNIL (art. 77).
-              </p>
+              <Separator className="mt-4" />
+
+              <div className="pt-3 space-y-1">
+                <p className="text-xs font-semibold text-[#253550]">Cadre légal (RGPD)</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Cette demande est fondée sur l'article 17 du RGPD (droit à l'effacement). Le broker dispose
+                  de <strong>30 jours</strong> pour répondre (art. 12). Sans réponse, une relance est envoyée
+                  automatiquement. Après 60 jours, vous pouvez saisir la CNIL (art. 77).
+                </p>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
