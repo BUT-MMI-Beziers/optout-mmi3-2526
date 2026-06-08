@@ -115,16 +115,16 @@ export default function Settings() {
   ].slice(0, maxRelances + 1)
 
   return (
-    <div className="min-h-screen bg-[#f5f5f4]">
-      <div className="w-full px-8 py-10">
+    <div className="p-4 md:p-8 space-y-5">
+      <div>
 
         {/* ── Header ── */}
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mb-10">
-          <p className="text-xs text-muted-foreground mb-1.5">
-            <span className="text-[#253550] font-semibold">FLOAT</span>
-            <span className="mx-2 text-muted-foreground/40"></span>
-            <span>Paramètres</span>
-          </p>
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mb-6">
+          <nav className="text-sm text-muted-foreground flex items-center gap-1 mb-4">
+            <span className="text-[#253550] font-medium hover:text-foreground cursor-pointer">FLOAT</span>
+            <span>›</span>
+            <span className="text-foreground">Paramètres</span>
+          </nav>
           <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: "'Squada One', sans-serif" }}>PARAMÈTRES</h1>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
             Configurez vos notifications, vos relances automatiques et votre sécurité. Les modifications sont enregistrées dès qu'elles sont confirmées.
@@ -144,7 +144,6 @@ export default function Settings() {
           <div>
             {notifications.map((notif, i) => (
               <div key={notif.id} className={`flex items-center gap-5 px-8 py-5 ${i < notifications.length - 1 ? 'border-b border-border' : ''} hover:bg-gray-50/60 transition-colors`}>
-                <div className="w-4 h-4 rounded border border-border flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2.5 mb-1">
                     <span className="text-sm font-semibold text-[#253550]">{notif.title}</span>
@@ -275,7 +274,6 @@ export default function Settings() {
               <div className="space-y-0">
                 {sessions.map((session, i) => (
                   <div key={session.id} className={`flex items-center gap-5 py-4 ${i < sessions.length - 1 ? 'border-b border-border' : ''}`}>
-                    <div className="w-4 h-4 rounded border border-border flex-shrink-0" />
                     <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
                       <DeviceIcon device={session.device} />
                     </div>
