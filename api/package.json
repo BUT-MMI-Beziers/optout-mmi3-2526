@@ -8,7 +8,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:studio": "drizzle-kit studio",
-    "worker": "tsx watch src/workers/email.worker.ts"
+    "worker": "tsx watch src/workers/email.worker.ts",
+    "scheduler": "tsx watch src/schedulers/index.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.14",

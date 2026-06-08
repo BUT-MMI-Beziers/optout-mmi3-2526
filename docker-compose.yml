@@ -36,6 +36,22 @@ services:
       mailpit:
         condition: service_started
 
+  scheduler:
+    build: ./api
+    command: npm run scheduler
+    volumes:
+      - ./api:/app
+      - /app/node_modules
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-float}:${POSTGRES_PASSWORD:-float}@db:5432/${POSTGRES_DB:-float}
+    depends_on:
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+
   front:
     build: ./front
     ports:
