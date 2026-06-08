@@ -499,63 +499,46 @@ const TRANSITIONS: Record<string, string[]> = {
 }
 
 requestsRoutes.patch('/:id/status', async (c) => {
-// FEATURE 13 : HISTORIQUE DES ÉVÉNEMENTS D'UNE DEMANDE
-// Route finale : GET /api/v1/requests/:id/events
-// ============================================================================
-requestsRoutes.get('/:id/events', async (c) => {
   try {
     const requestId = c.req.param('id')
 
     if (!uuidRegex.test(requestId)) {
-      return c.json({
-        error: "Format d'identifiant invalide. Un UUID est attendu.",
-        code: "BAD_REQUEST"
-      }, 400)
+      return c.json({ error: 'UUID invalide', code: 'BAD_REQUEST' }, 400)
     }
 
-    let body: { status?: string }
+    let body: any
     try {
       body = await c.req.json()
     } catch {
-      return c.json({
-        error: "Corps de requête JSON invalide ou manquant.",
-        code: "BAD_REQUEST"
-      }, 400)
+      return c.json({ error: 'Body JSON invalide', code: 'BAD_REQUEST' }, 400)
     }
 
-    const { status: newStatus } = body
+    const newStatus = body?.status
 
     if (!newStatus) {
-      return c.json({
-        error: "Le champ 'status' est requis.",
-        code: "BAD_REQUEST"
-      }, 400)
+      return c.json({ error: 'status requis', code: 'BAD_REQUEST' }, 400)
     }
 
-    const rows = await db
+    const [request] = await db
       .select()
-    const request = await db
-      .select({ id: removalRequests.id })
       .from(removalRequests)
       .where(eq(removalRequests.id, requestId))
       .limit(1)
 
-    if (rows.length === 0) {
-    if (request.length === 0) {
-      return c.json({
-        error: "La demande spécifiée est introuvable.",
-        code: "NOT_FOUND"
-      }, 404)
+    if (!request) {
+      return c.json({ error: 'Request introuvable', code: 'NOT_FOUND' }, 404)
     }
 
-    const request = rows[0]
+    // ✅ IMPORTANT : oldStatus doit être défini ici
     const oldStatus = request.status
+
+    // ✅ règle métier : transitions autorisées
     const allowed = TRANSITIONS[oldStatus] ?? []
 
     if (!allowed.includes(newStatus)) {
       return c.json({
-        error: `Transition invalide : ${oldStatus} → ${newStatus}. Transitions autorisées : ${allowed.join(', ') || 'aucune'}.`,
-        code: "BAD_REQUEST"
+        error: `Transition invalide ${oldStatus} → ${newStatus}`,
+        code: 'BAD_REQUEST'
       }, 400)
     }
 
@@ -563,7 +546,9 @@ requestsRoutes.get('/:id/events', async (c) => {
       .update(removalRequests)
       .set({
         status: newStatus,
-        respondedAt: ['ACKNOWLEDGED', 'COMPLETED', 'REFUSED'].includes(newStatus) ? new Date() : request.respondedAt,
+        respondedAt: ['ACKNOWLEDGED', 'COMPLETED', 'REFUSED'].includes(newStatus)
+          ? new Date()
+          : request.respondedAt,
         updatedAt: new Date(),
       })
       .where(eq(removalRequests.id, requestId))
@@ -576,26 +561,30 @@ requestsRoutes.get('/:id/events', async (c) => {
       newStatus,
     })
 
-    return c.json({ data: updated }, 200)
+    return c.json({ data: updated })
 
-  } catch (error) {
-    console.error(`[PATCH /requests/${c.req.param('id')}/status] Erreur :`, error)
-    return c.json({
-      error: "Erreur interne lors de la mise à jour du statut.",
+  } catch (e) {
+    return c.json({ error: 'server error' }, 500)
+  }
+})
+
+requestsRoutes.get('/:id/events', async (c) => {
+  try {
+    const requestId = c.req.param('id')
+
+    if (!uuidRegex.test(requestId)) {
+      return c.json({ error: 'UUID invalide' }, 400)
+    }
+
     const events = await db
       .select()
       .from(requestEvents)
       .where(eq(requestEvents.requestId, requestId))
       .orderBy(requestEvents.createdAt)
 
-    return c.json({ data: events }, 200)
-
-  } catch (error) {
-    console.error(`[GET /requests/${c.req.param('id')}/events] Erreur :`, error)
-    return c.json({
-      error: "Erreur interne lors de la récupération des événements.",
-      code: "INTERNAL_SERVER_ERROR"
-    }, 500)
+    return c.json({ data: events })
+  } catch (e) {
+    return c.json({ error: 'server error' }, 500)
   }
 })
 
