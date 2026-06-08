@@ -19,7 +19,6 @@ import {
   Mail,
 } from "lucide-react"
 import type { Notification, NotificationType } from "@/lib/mock-data"
-import { mockBrokers } from "@/lib/mock-data"
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -230,15 +229,11 @@ export default function Notifications() {
     if (notif.relatedRequestId) {
       navigate("/requests/" + notif.relatedRequestId)
     } else if (notif.relatedBrokerId) {
-      const broker = mockBrokers.find((b) => b.id === notif.relatedBrokerId)
-      if (broker) navigate("/brokers/" + broker.slug)
+      navigate("/brokers")
     }
   }
 
-  const getBroker = (brokerId?: string) => {
-    if (!brokerId) return null
-    return mockBrokers.find((b) => b.id === brokerId) || null
-  }
+  const getBroker = (_brokerId?: string) => null
 
   return (
     <div className="p-4 md:p-8 space-y-6">

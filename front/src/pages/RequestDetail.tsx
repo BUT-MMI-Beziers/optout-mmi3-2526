@@ -14,7 +14,7 @@ import { useRequestDetail } from '@/hooks/useRequestDetail'
 import { sendReminder, getEmailPreview } from '@/lib/api'
 import {
   statusConfig, categoryLabels, difficultyLabels, methodLabels,
-  mockBrokers, type RequestStatus,
+  type RequestStatus,
 } from '@/lib/mock-data'
 
 const STATUS_STEPS: RequestStatus[] = ['DRAFT', 'SENT', 'ACKNOWLEDGED', 'COMPLETED']
@@ -69,7 +69,7 @@ export default function RequestDetail() {
   const [emailPreview, setEmailPreview] = useState<string | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
 
-  const broker = request ? mockBrokers.find((b) => b.id === request.brokerId) : null
+  const broker = request?.broker ?? null
   const cfg = request ? statusConfig[request.status] : null
 
   const handleSendReminder = async () => {
