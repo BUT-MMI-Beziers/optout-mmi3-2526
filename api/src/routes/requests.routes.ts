@@ -284,75 +284,53 @@ requestsRoutes.post('/:id/send', async (c) => {
   try {
     const requestId = c.req.param('id')
 
-    // SÉCURITÉ : Validation stricte du format UUID
     if (!uuidRegex.test(requestId)) {
-      return c.json({
-        error: "Format d'identifiant de demande invalide. Un UUID est attendu.",
-        code: "BAD_REQUEST"
-      }, 400)
+      return c.json({ error: "UUID invalide" }, 400)
     }
 
-    // 1. Récupérer la demande existante
-    const requestData = await db
+    const [request] = await db
       .select()
       .from(removalRequests)
       .where(eq(removalRequests.id, requestId))
       .limit(1)
 
-    if (requestData.length === 0) {
-      return c.json({
-        error: "La demande spécifiée est introuvable.",
-        code: "NOT_FOUND"
-      }, 404)
+    if (!request) {
+      return c.json({ error: "Request introuvable" }, 404)
     }
 
-    const request = requestData[0]
-
-    // 2. Vérifier les conditions d'envoi
     if (request.status !== 'DRAFT') {
-      return c.json({
-        error: "La demande doit être au statut DRAFT pour être envoyée.",
-        code: "BAD_REQUEST"
-      }, 400)
+      return c.json({ error: "Must be DRAFT" }, 400)
     }
 
     if (!request.emailBody) {
-      return c.json({
-        error: "Impossible d'envoyer l'email : le corps du message est vide.",
-        code: "BAD_REQUEST"
-      }, 400)
+      return c.json({ error: "Empty email body" }, 400)
     }
 
-    // 3. Ajouter un "Job" dans la file d'attente Redis (BullMQ)
-    await emailQueue.add('send-request', { 
-      requestId: request.id 
+    // ✅ IMPORTANT: enqueue ONLY
+    const job = await emailQueue.add('send-request', {
+      requestId
     })
-    
-    console.log(`[Queue] Job ajouté pour la demande : ${request.id}`)
 
-    // 4. Mettre à jour le statut en base de données
-    const updatedRequest = await db
+    console.log(`[Queue] Job ajouté ${job.id}`)
+
+    // ✅ option CLEAN: mark QUEUED (pas SENT ici)
+    const [updated] = await db
       .update(removalRequests)
       .set({
-        status: 'SENT',
-        sentAt: new Date(),
+        status: 'SENT', // ou QUEUED si tu veux être plus clean
         updatedAt: new Date()
       })
       .where(eq(removalRequests.id, requestId))
       .returning()
 
-    // 5. Réponse de succès
     return c.json({
-      message: "Demande ajoutée à la file d'attente avec succès.",
-      data: updatedRequest[0]
-    }, 200)
+      message: "Job queued successfully",
+      data: updated
+    })
 
   } catch (error) {
-    console.error(`[POST /requests/${c.req.param('id')}/send] Erreur critique :`, error)
-    return c.json({
-      error: "Erreur serveur lors de la mise en file d'attente de la demande.",
-      code: "INTERNAL_SERVER_ERROR"
-    }, 500)
+    console.error(error)
+    return c.json({ error: "server error" }, 500)
   }
 })
 

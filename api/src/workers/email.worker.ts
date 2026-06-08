@@ -16,6 +16,8 @@ import { renderTemplate } from '../services/template.service.js'
 // CONNEXION REDIS (mÃªme config que queue.service.ts cÃ´tÃ© API)
 // ============================================================
 
+
+
 const redisUrl = new URL(process.env.REDIS_URL || 'redis://redis:6379')
 const connection = {
   host: redisUrl.hostname,
@@ -53,14 +55,13 @@ const smtpFrom = process.env.SMTP_FROM || 'noreply@float.local'
 type SendEmailJobData = {
   requestId: string
 }
-
-const worker = new Worker<SendEmailJobData>(
+const worker = new Worker(
   'emailQueue',
-  async (job: Job<SendEmailJobData>) => {
+  async (job: Job) => {
     const { requestId } = job.data
-    console.log(`[worker] Job ${job.id} - traitement de la demande ${requestId}`)
 
-    // 1. RÃ©cupÃ©rer la demande + user + broker + template
+    console.log(`[worker] Processing ${requestId}`)
+
     const rows = await db
       .select({
         request: removalRequests,
@@ -76,12 +77,11 @@ const worker = new Worker<SendEmailJobData>(
       .limit(1)
 
     if (rows.length === 0) {
-      throw new Error(`Request ${requestId} introuvable en base`)
+      throw new Error(`Request ${requestId} not found`)
     }
 
     const data = rows[0]
 
-    // 2. RÃ©cupÃ©rer l'adresse principale
     const addressRows = await db
       .select()
       .from(userContacts)
@@ -94,11 +94,9 @@ const worker = new Worker<SendEmailJobData>(
       )
       .limit(1)
 
-    const userAddress = addressRows.length > 0
-      ? addressRows[0].value
-      : '[Adresse non renseignÃ©e]'
+    const userAddress =
+      addressRows[0]?.value ?? '[Adresse non renseignée]'
 
-    // 3. Construire le contexte attendu par renderTemplate()
     const context = {
       user: {
         firstName: data.user.firstName,
@@ -116,26 +114,24 @@ const worker = new Worker<SendEmailJobData>(
       },
     }
 
-    // 4. Interpoler subject + body via le service partagÃ©
     const subject = renderTemplate(data.template.subject, context)
     const body = renderTemplate(data.template.body, context)
 
-    // 5. Envoi SMTP
     const info = await transporter.sendMail({
       from: smtpFrom,
       to: data.broker.emailContact,
       subject,
       text: body,
     })
-    console.log(`[worker] Email envoyÃ© Ã  ${data.broker.emailContact} (messageId: ${info.messageId})`)
 
-    // 6. Log d'Ã©vÃ©nement pour la traÃ§abilitÃ© (audit RGPD)
+    console.log(`[worker] sent ${info.messageId}`)
+
     await db.insert(requestEvents).values({
       requestId,
       eventType: 'sent',
       oldStatus: 'DRAFT',
       newStatus: 'SENT',
-      note: `Email envoyÃ© Ã  ${data.broker.emailContact}`,
+      note: `Email sent`,
     })
 
     return { requestId, messageId: info.messageId }
@@ -145,21 +141,7 @@ const worker = new Worker<SendEmailJobData>(
     concurrency: 1,
     limiter: {
       max: 1,
-      duration: 2000,  // 1 envoi max toutes les 2000ms (CDC Â§4.4.4)
+      duration: 2000, // OK rate limit
     },
   }
 )
-
-worker.on('completed', (job, result) => {
-  console.log(`[worker] âœ… Job ${job.id} terminÃ© (request ${result?.requestId})`)
-})
-
-worker.on('failed', (job, err) => {
-  console.error(`[worker] âŒ Job ${job?.id} Ã©chouÃ© :`, err.message)
-})
-
-worker.on('error', (err) => {
-  console.error('[worker] Erreur worker :', err)
-})
-
-console.log('[worker] Worker emailQueue dÃ©marrÃ©, en attente de jobs...')
