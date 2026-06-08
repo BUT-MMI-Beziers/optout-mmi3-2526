@@ -36,7 +36,7 @@ requestsRoutes.get('/', async (c) => {
     const limitParam = c.req.query('limit')
 
     // Valider le statut si fourni
-    const validStatuses = ['DRAFT', 'SENT', 'NO_RESPONSE', 'RESPONDED', 'CLOSED']
+    const validStatuses = ['DRAFT', 'SENT', 'ACKNOWLEDGED', 'COMPLETED', 'REFUSED', 'NO_RESPONSE', 'COMPLAINT', 'SUPPRESSED']
     if (statusParam && !validStatuses.includes(statusParam)) {
       return c.json({
         error: `Statut invalide. Valeurs acceptées : ${validStatuses.join(', ')}`,
@@ -485,5 +485,108 @@ requestsRoutes.post('/batch', async (c) => {
     }, 500)
   }
 })
+
+// ============================================================================
+// FEATURE 14 : MISE À JOUR MANUELLE DU STATUT
+// Route finale : PATCH /api/v1/requests/:id/status
+// ============================================================================
+const TRANSITIONS: Record<string, string[]> = {
+  DRAFT:        ['SENT'],
+  SENT:         ['ACKNOWLEDGED', 'NO_RESPONSE'],
+  ACKNOWLEDGED: ['COMPLETED', 'REFUSED', 'SUPPRESSED'],
+  REFUSED:      ['COMPLAINT'],
+  NO_RESPONSE:  ['SENT', 'COMPLAINT'],
+}
+
+requestsRoutes.patch('/:id/status', async (c) => {
+  try {
+    const requestId = c.req.param('id')
+
+    if (!uuidRegex.test(requestId)) {
+      return c.json({ error: 'UUID invalide', code: 'BAD_REQUEST' }, 400)
+    }
+
+    let body: any
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'Body JSON invalide', code: 'BAD_REQUEST' }, 400)
+    }
+
+    const newStatus = body?.status
+
+    if (!newStatus) {
+      return c.json({ error: 'status requis', code: 'BAD_REQUEST' }, 400)
+    }
+
+    const [request] = await db
+      .select()
+      .from(removalRequests)
+      .where(eq(removalRequests.id, requestId))
+      .limit(1)
+
+    if (!request) {
+      return c.json({ error: 'Request introuvable', code: 'NOT_FOUND' }, 404)
+    }
+
+    // ✅ IMPORTANT : oldStatus doit être défini ici
+    const oldStatus = request.status
+
+    // ✅ règle métier : transitions autorisées
+    const allowed = TRANSITIONS[oldStatus] ?? []
+
+    if (!allowed.includes(newStatus)) {
+      return c.json({
+        error: `Transition invalide ${oldStatus} → ${newStatus}`,
+        code: 'BAD_REQUEST'
+      }, 400)
+    }
+
+    const [updated] = await db
+      .update(removalRequests)
+      .set({
+        status: newStatus,
+        respondedAt: ['ACKNOWLEDGED', 'COMPLETED', 'REFUSED'].includes(newStatus)
+          ? new Date()
+          : request.respondedAt,
+        updatedAt: new Date(),
+      })
+      .where(eq(removalRequests.id, requestId))
+      .returning()
+
+    await db.insert(requestEvents).values({
+      requestId,
+      eventType: 'status_changed',
+      oldStatus,
+      newStatus,
+    })
+
+    return c.json({ data: updated })
+
+  } catch (e) {
+    return c.json({ error: 'server error' }, 500)
+  }
+})
+
+requestsRoutes.get('/:id/events', async (c) => {
+  try {
+    const requestId = c.req.param('id')
+
+    if (!uuidRegex.test(requestId)) {
+      return c.json({ error: 'UUID invalide' }, 400)
+    }
+
+    const events = await db
+      .select()
+      .from(requestEvents)
+      .where(eq(requestEvents.requestId, requestId))
+      .orderBy(requestEvents.createdAt)
+
+    return c.json({ data: events })
+  } catch (e) {
+    return c.json({ error: 'server error' }, 500)
+  }
+})
+
 
 export default requestsRoutes
