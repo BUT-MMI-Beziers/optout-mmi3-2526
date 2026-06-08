@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Mail, MapPin, Phone, Plus, Trash2, Pencil, Download } from 'lucide-react'
@@ -83,22 +83,35 @@ function EditableRow({ label, value, type = 'text', onSave }: {
 
 // ─── ContactCard ──────────────────────────────────────────────────────────────
 
-function ContactCard({ title, subtitle, icon: Icon, items, placeholder, type = 'text', limit, onAdd, onRemove }: {
+function ContactCard({ title, subtitle, icon: Icon, items, placeholder, type = 'text', pattern, limit, onAdd, onRemove }: {
   title: string
   subtitle: string
   icon: React.ElementType
   items: Contact[]
   placeholder: string
   type?: string
+  pattern?: string
   limit: number
   onAdd: (value: string) => void
   onRemove: (id: string) => void
 }) {
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
+  const [inputError, setInputError] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const addItem = () => {
     if (!draft.trim()) return
+    if (inputRef.current && !inputRef.current.checkValidity()) {
+      const msg = type === 'email'
+        ? 'Adresse email invalide'
+        : type === 'tel'
+        ? 'Numéro invalide (ex : +33 6 12 34 56 78)'
+        : 'Valeur invalide'
+      setInputError(msg)
+      return
+    }
+    setInputError('')
     onAdd(draft.trim())
     setDraft('')
     setAdding(false)
@@ -149,11 +162,14 @@ function ContactCard({ title, subtitle, icon: Icon, items, placeholder, type = '
         ))}
 
         {adding && (
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex flex-col gap-1.5 pt-1">
+          <div className="flex items-center gap-2">
             <input
+              ref={inputRef}
               type={type}
+              pattern={pattern}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => { setDraft(e.target.value); setInputError('') }}
               placeholder={placeholder}
               autoFocus
               onKeyDown={(e) => e.key === 'Enter' && addItem()}
@@ -162,9 +178,11 @@ function ContactCard({ title, subtitle, icon: Icon, items, placeholder, type = '
             <button onClick={addItem} className="h-9 px-3 rounded-lg bg-[#FC7E34] text-white text-sm font-semibold hover:bg-[#e06e28] transition-colors">
               Ajouter
             </button>
-            <button onClick={() => { setAdding(false); setDraft('') }} className="h-9 px-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+            <button onClick={() => { setAdding(false); setDraft(''); setInputError('') }} className="h-9 px-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
               Annuler
             </button>
+          </div>
+          {inputError && <p className="text-xs text-red-500 px-1">{inputError}</p>}
           </div>
         )}
       </div>
@@ -200,7 +218,7 @@ export default function Profile() {
     })
     const data = await res.json()
     if (!res.ok) { setContactError(data.error ?? 'Erreur'); return }
-    setProfil((p) => (p ? { ...p, contacts: [...p.contacts, data.contact] } : p))
+    setProfil((p) => (p ? { ...p, contacts: [...p.contacts, data] } : p))
   }
 
   async function deleteContact(id: string) {
@@ -316,7 +334,7 @@ export default function Profile() {
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.18 }}>
             <ContactCard
               title="Numéros de téléphone" subtitle="Numéros actuels et passés"
-              icon={Phone} placeholder="+33 6 12 34 56 78" type="tel"
+              icon={Phone} placeholder="+33 6 12 34 56 78" type="tel" pattern="^\+?[0-9\s\-\(\)]{7,20}$"
               limit={3} items={phones}
               onAdd={(v) => addContact('phone', v)} onRemove={deleteContact}
             />
