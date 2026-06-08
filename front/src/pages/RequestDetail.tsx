@@ -5,7 +5,7 @@ import { motion, type Variants } from 'framer-motion'
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
 const fadeUp: Variants = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } }
 const fadeLeft: Variants = { hidden: { opacity: 0, x: -12 }, show: { opacity: 1, x: 0, transition: { duration: 0.24 } } }
-import { ArrowLeft, Send, RefreshCw, FileText, CheckCircle2, XCircle, AlertTriangle, Loader2, X, Clock, AlertCircle, Flag, Archive, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Send, RefreshCw, FileText, CheckCircle2, XCircle, AlertTriangle, Loader2, X, Clock, AlertCircle, Flag, Archive, Calendar, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -59,26 +59,42 @@ const languageLabels: Record<string, string> = {
   en: 'Anglais',
 }
 
+// Options de délai pour la relance
+const REMINDER_DELAYS = [3, 7, 15, 30] as const
+type ReminderDelay = typeof REMINDER_DELAYS[number]
+
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { request, events, template, loading, error } = useRequestDetail(id ?? '')
 
   const [sendingReminder, setSendingReminder] = useState(false)
-  const [reminderSent, setReminderSent] = useState(false)
   const [emailPreview, setEmailPreview] = useState<string | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
+
+  // États de la modal de relance
+  const [reminderModalOpen, setReminderModalOpen] = useState(false)
+  const [selectedDelay, setSelectedDelay] = useState<ReminderDelay>(7)
+  const [scheduledReminderDate, setScheduledReminderDate] = useState<Date | null>(null)
 
   const broker = request?.broker ?? null
   const cfg = request ? statusConfig[request.status] : null
 
-  const handleSendReminder = async () => {
+  // Calculer la date d'envoi en fonction du délai choisi
+  const computeReminderDate = (delayDays: number): Date => {
+    const date = new Date()
+    date.setDate(date.getDate() + delayDays)
+    return date
+  }
+
+  // Confirmation de programmation de relance
+  const handleConfirmReminder = async () => {
     if (!request) return
     setSendingReminder(true)
     await sendReminder(request.id)
     setSendingReminder(false)
-    setReminderSent(true)
-    setTimeout(() => setReminderSent(false), 3000)
+    setScheduledReminderDate(computeReminderDate(selectedDelay))
+    setReminderModalOpen(false)
   }
 
   const handleViewEmail = async () => {
@@ -99,6 +115,9 @@ export default function RequestDetail() {
       day: 'numeric', month: 'long', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     })
+
+  const formatShortDate = (date: Date) =>
+    date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 
   if (loading) return <LoadingSkeleton />
   if (error || !request) return (
@@ -122,19 +141,12 @@ export default function RequestDetail() {
       </nav>
 
       {/* Header */}
-      <motion.div
-        className="flex items-center gap-4"
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.22 }}
-      >
+      <motion.div className="flex items-center gap-4" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
         <Button variant="outline" size="icon" className="w-9 h-9 shrink-0" onClick={() => navigate(-1)}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: "'Squada One', sans-serif" }}>
-            DÉTAIL DEMANDE
-          </h1>
+          <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: "'Squada One', sans-serif" }}>DÉTAIL DEMANDE</h1>
           <p className="text-xs text-muted-foreground mt-0.5">Réf. {request.id}</p>
         </div>
         {cfg && (() => {
@@ -148,14 +160,8 @@ export default function RequestDetail() {
         })()}
       </motion.div>
 
-      {/* Grid plat 3 colonnes — rangée 1 : Broker + Dates clés / rangée 2 : Suivi + Actions+RGPD */}
-      <motion.div
-        className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6"
-        variants={stagger}
-        initial="hidden"
-        animate="show"
-      >
-        {/* ── Rangée 1 ────────────────────────────────────── */}
+      {/* Grid plat 3 colonnes */}
+      <motion.div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6" variants={stagger} initial="hidden" animate="show">
 
         {/* Broker — 2/3 */}
         <motion.div variants={fadeUp} className="lg:col-span-2">
@@ -166,12 +172,7 @@ export default function RequestDetail() {
             <CardContent className="px-6 pb-5">
               {broker ? (
                 <div className="flex items-center gap-4">
-                  <img
-                    src={`https://www.google.com/s2/favicons?domain=${broker.website}&sz=64`}
-                    alt={broker.name}
-                    className="w-14 h-14 rounded-xl object-contain bg-muted p-2"
-                    onError={(e) => { (e.target as HTMLImageElement).src = '/icon.png' }}
-                  />
+                  <img src={`https://www.google.com/s2/favicons?domain=${broker.website}&sz=64`} alt={broker.name} className="w-14 h-14 rounded-xl object-contain bg-muted p-2" onError={(e) => { (e.target as HTMLImageElement).src = '/icon.png' }} />
                   <div className="flex-1">
                     <p className="text-base font-bold">{broker.name}</p>
                     <p className="text-sm text-muted-foreground">{broker.website}</p>
@@ -183,9 +184,7 @@ export default function RequestDetail() {
                         `Méthode : ${methodLabels[broker.optOutMethod]}`,
                         ...(template ? [`Email en ${languageLabels[template.language] ?? template.language}`] : []),
                       ].map((tag) => (
-                        <span key={tag} className="text-xs bg-muted rounded-md px-2 py-0.5 text-foreground/70">
-                          {tag}
-                        </span>
+                        <span key={tag} className="text-xs bg-muted rounded-md px-2 py-0.5 text-foreground/70">{tag}</span>
                       ))}
                     </div>
                   </div>
@@ -237,8 +236,6 @@ export default function RequestDetail() {
           </Card>
         </motion.div>
 
-        {/* ── Rangée 2 ────────────────────────────────────── */}
-
         {/* Suivi — 2/3 */}
         <motion.div variants={fadeUp} className="lg:col-span-2">
           <Card className="h-full">
@@ -246,18 +243,11 @@ export default function RequestDetail() {
               <CardTitle className="text-xl font-medium">Suivi</CardTitle>
             </CardHeader>
             <CardContent className="px-6 pb-5 space-y-5">
-              {/* Stepper */}
               <div className="relative w-full">
-                {/* Ligne de fond */}
                 <div className="absolute top-[18px] left-[18px] right-[18px] h-0.5 bg-border" />
-                {/* Ligne de progression */}
                 {currentStep > 0 && (
-                  <div
-                    className="absolute top-[18px] left-[18px] h-0.5 bg-[#253550]"
-                    style={{ width: `calc(${(currentStep / (STATUS_STEPS.length - 1)) * 100}% - 36px)` }}
-                  />
+                  <div className="absolute top-[18px] left-[18px] h-0.5 bg-[#253550]" style={{ width: `calc(${(currentStep / (STATUS_STEPS.length - 1)) * 100}% - 36px)` }} />
                 )}
-                {/* Icônes */}
                 <div className="relative flex justify-between z-[1]">
                   {STATUS_STEPS.map((step, i) => {
                     const stepCfg = statusConfig[step]
@@ -270,10 +260,7 @@ export default function RequestDetail() {
                           : isPast   ? 'bg-[#253550] border-[#253550] text-white'
                           :            'bg-muted border-border text-muted-foreground'
                         }`}>
-                          {isPast
-                            ? <CheckCircle2 className="w-4 h-4" />
-                            : <span className="text-xs font-bold">{i + 1}</span>
-                          }
+                          {isPast ? <CheckCircle2 className="w-4 h-4" /> : <span className="text-xs font-bold">{i + 1}</span>}
                         </div>
                         <span className={`text-xs text-center whitespace-nowrap ${i > currentStep ? 'text-muted-foreground' : 'font-medium'}`}>
                           {stepCfg.label}
@@ -284,7 +271,6 @@ export default function RequestDetail() {
                 </div>
               </div>
 
-              {/* Alerte statut terminal */}
               {['REFUSED', 'NO_RESPONSE', 'COMPLAINT', 'SUPPRESSED'].includes(request.status) && cfg && (
                 <div className={`flex items-center gap-2 text-sm p-3 rounded-lg ${cfg.bg}`}>
                   {request.status === 'REFUSED'     && <XCircle className="w-4 h-4 text-red-600" />}
@@ -296,7 +282,6 @@ export default function RequestDetail() {
 
               <Separator />
 
-              {/* Historique */}
               {events.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Aucun événement enregistré.</p>
               ) : (
@@ -330,7 +315,7 @@ export default function RequestDetail() {
           </Card>
         </motion.div>
 
-        {/* Actions + Cadre légal fusionnés — 1/3 */}
+        {/* Actions + Cadre légal — 1/3 */}
         <motion.div variants={fadeUp}>
           <Card className="h-full">
             <CardHeader className="px-6 pt-5 pb-3">
@@ -339,29 +324,22 @@ export default function RequestDetail() {
             <CardContent className="px-6 pb-5 space-y-2">
               {!isTerminal && (
                 <>
-                  <Button
-                    className={`w-full gap-2 h-10 text-white ${reminderSent ? 'bg-green-500 hover:bg-green-500' : 'bg-[#FC7E34] hover:bg-[#e06e28]'}`}
-                    onClick={handleSendReminder}
-                    disabled={sendingReminder || reminderSent}
-                  >
-                    {sendingReminder
-                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : reminderSent
-                      ? <CheckCircle2 className="w-4 h-4" />
-                      : <RefreshCw className="w-4 h-4" />
-                    }
-                    {reminderSent ? 'Relance envoyée !' : 'Envoyer une relance'}
+                  {/* Bouton Envoyer une relance → ouvre la modal */}
+                  <Button className="w-full gap-2 h-10 text-white bg-[#FC7E34] hover:bg-[#e06e28]" onClick={() => setReminderModalOpen(true)} disabled={!!scheduledReminderDate}>
+                    <RefreshCw className="w-4 h-4" />
+                    {scheduledReminderDate ? 'Relance programmée' : 'Envoyer une relance'}
                   </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full gap-2 h-10"
-                    onClick={handleViewEmail}
-                    disabled={loadingPreview}
-                  >
-                    {loadingPreview
-                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : <FileText className="w-4 h-4" />
-                    }
+
+                  {/* Affichage de la date prévue après programmation */}
+                  {scheduledReminderDate && (
+                    <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 text-xs text-muted-foreground bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                      <Calendar className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Relance prévue le <strong className="text-amber-700">{formatShortDate(scheduledReminderDate)}</strong></span>
+                    </motion.div>
+                  )}
+
+                  <Button variant="outline" className="w-full gap-2 h-10" onClick={handleViewEmail} disabled={loadingPreview}>
+                    {loadingPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                     Voir l'email envoyé
                   </Button>
                 </>
@@ -401,12 +379,7 @@ export default function RequestDetail() {
       {emailPreview !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEmailPreview(null)} />
-          <motion.div
-            className="relative bg-popover rounded-xl border border-border shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col"
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.18 }}
-          >
+          <motion.div className="relative bg-popover rounded-xl border border-border shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.18 }}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
               <h2 className="text-xl font-medium">Email envoyé</h2>
               <button onClick={() => setEmailPreview(null)} className="p-1.5 rounded-md hover:bg-accent transition-colors">
@@ -414,10 +387,65 @@ export default function RequestDetail() {
               </button>
             </div>
             <div className="overflow-y-auto flex-1 p-6">
-              <pre className="whitespace-pre-wrap text-sm font-sans leading-relaxed text-foreground">
-                {emailPreview}
-              </pre>
+              <pre className="whitespace-pre-wrap text-sm font-sans leading-relaxed text-foreground">{emailPreview}</pre>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal programmation de relance */}
+      {reminderModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !sendingReminder && setReminderModalOpen(false)} />
+          <motion.div className="relative bg-popover rounded-xl border border-border shadow-2xl w-full max-w-md flex flex-col" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.18 }}>
+
+            {/* Header de la modal */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-[#FC7E34]/10 flex items-center justify-center">
+                  <Calendar className="w-4 h-4 text-[#FC7E34]" />
+                </div>
+                <h2 className="text-lg font-semibold">Programmer une relance</h2>
+              </div>
+              <button onClick={() => !sendingReminder && setReminderModalOpen(false)} className="p-1.5 rounded-md hover:bg-accent transition-colors" disabled={sendingReminder}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body de la modal */}
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Choisissez quand envoyer la relance{broker ? ` à ${broker.name}` : ''} :
+              </p>
+
+              <div className="space-y-2">
+                {REMINDER_DELAYS.map((delay) => {
+                  const date = computeReminderDate(delay)
+                  const isSelected = selectedDelay === delay
+                  return (
+                    <label key={delay} className={`flex items-center justify-between gap-3 px-4 py-3 rounded-lg border-2 cursor-pointer transition-colors ${isSelected ? 'border-[#FC7E34] bg-[#FC7E34]/5' : 'border-border hover:border-[#FC7E34]/50'}`}>
+                      <div className="flex items-center gap-3">
+                        <input type="radio" name="reminder-delay" checked={isSelected} onChange={() => setSelectedDelay(delay)} className="w-4 h-4 accent-[#FC7E34]" />
+                        <span className="text-sm font-medium">Dans {delay} jours</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">le {formatShortDate(date)}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Footer de la modal */}
+            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border">
+              <Button variant="outline" onClick={() => setReminderModalOpen(false)} disabled={sendingReminder}>
+                Annuler
+              </Button>
+              <Button className="gap-2 bg-[#FC7E34] hover:bg-[#e06e28] text-white" onClick={handleConfirmReminder} disabled={sendingReminder}>
+                {sendingReminder ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
+                Programmer
+              </Button>
+            </div>
+
           </motion.div>
         </div>
       )}
