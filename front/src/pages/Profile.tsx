@@ -12,9 +12,19 @@ interface ContactItem {
   principal: boolean
 }
 
+// ─── FieldStatus ──────────────────────────────────────────────────────────────
+// Petit composant réutilisable : étoile rouge si obligatoire, "(Optionnel)" gris sinon
+
+function FieldStatus({ required }: { required: boolean }) {
+  if (required) {
+    return <span className="ml-1 text-red-500 font-bold" title="Champ obligatoire">*</span>
+  }
+  return <span className="ml-2 text-xs font-normal normal-case text-muted-foreground">(Optionnel)</span>
+}
+
 // ─── EditableRow ──────────────────────────────────────────────────────────────
 
-function EditableRow({ label, value, type = 'text' }: { label: string; value: string; type?: string }) {
+function EditableRow({ label, value, type = 'text', required = false }: { label: string; value: string; type?: string; required?: boolean }) {
   const [editing, setEditing] = useState(false)
   const [current, setCurrent] = useState(value)
   const [draft, setDraft] = useState(value)
@@ -26,22 +36,13 @@ function EditableRow({ label, value, type = 'text' }: { label: string; value: st
     <div className="py-4 border-b border-border last:border-0">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
         {label}
+        <FieldStatus required={required} />
       </p>
       {editing ? (
         <div className="flex items-center gap-2">
-          <input
-            type={type}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            autoFocus
-            className="flex-1 h-9 px-3 rounded-lg border border-[#FC7E34] bg-muted/40 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 transition-colors"
-          />
-          <button onClick={save} className="h-9 px-3 rounded-lg bg-[#FC7E34] text-white text-sm font-semibold hover:bg-[#e06e28] transition-colors whitespace-nowrap">
-            Sauvegarder
-          </button>
-          <button onClick={cancel} className="h-9 px-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-            Annuler
-          </button>
+          <input type={type} value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus className="flex-1 h-9 px-3 rounded-lg border border-[#FC7E34] bg-muted/40 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 transition-colors" />
+          <button onClick={save} className="h-9 px-3 rounded-lg bg-[#FC7E34] text-white text-sm font-semibold hover:bg-[#e06e28] transition-colors whitespace-nowrap">Sauvegarder</button>
+          <button onClick={cancel} className="h-9 px-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Annuler</button>
         </div>
       ) : (
         <div className="flex items-center justify-between">
@@ -60,13 +61,14 @@ function EditableRow({ label, value, type = 'text' }: { label: string; value: st
 
 // ─── ContactCard ──────────────────────────────────────────────────────────────
 
-function ContactCard({ title, subtitle, icon: Icon, items: initialItems, placeholder, type = 'text' }: {
+function ContactCard({ title, subtitle, icon: Icon, items: initialItems, placeholder, type = 'text', required = false }: {
   title: string
   subtitle: string
   icon: React.ElementType
   items: ContactItem[]
   placeholder: string
   type?: string
+  required?: boolean
 }) {
   const [items, setItems] = useState<ContactItem[]>(initialItems)
   const [adding, setAdding] = useState(false)
@@ -90,14 +92,14 @@ function ContactCard({ title, subtitle, icon: Icon, items: initialItems, placeho
             <Icon className="w-4 h-4 text-[#253550]" />
           </div>
           <div>
-            <p className="text-base font-semibold text-[#253550] leading-tight">{title}</p>
+            <p className="text-base font-semibold text-[#253550] leading-tight inline-flex items-baseline">
+              {title}
+              <FieldStatus required={required} />
+            </p>
             <p className="text-sm text-muted-foreground leading-tight">{subtitle}</p>
           </div>
         </div>
-        <button
-          onClick={() => setAdding(true)}
-          className="flex items-center gap-1.5 text-sm font-medium text-[#253550] border border-border rounded-lg px-3 py-1.5 hover:border-[#FC7E34] hover:text-[#FC7E34] transition-colors whitespace-nowrap"
-        >
+        <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 text-sm font-medium text-[#253550] border border-border rounded-lg px-3 py-1.5 hover:border-[#FC7E34] hover:text-[#FC7E34] transition-colors whitespace-nowrap">
           <Plus className="w-3.5 h-3.5" />
           Ajouter
         </button>
@@ -109,13 +111,9 @@ function ContactCard({ title, subtitle, icon: Icon, items: initialItems, placeho
             <span className="text-sm text-foreground flex-1 truncate">{item.value}</span>
             <div className="flex items-center gap-2 shrink-0">
               {item.principal ? (
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#FC7E34] text-white">
-                  Principal
-                </span>
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#FC7E34] text-white">Principal</span>
               ) : (
-                <button onClick={() => setPrincipal(item.id)} className="text-sm font-medium text-muted-foreground hover:text-[#FC7E34] transition-colors whitespace-nowrap">
-                  Définir principal
-                </button>
+                <button onClick={() => setPrincipal(item.id)} className="text-sm font-medium text-muted-foreground hover:text-[#FC7E34] transition-colors whitespace-nowrap">Définir principal</button>
               )}
               <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-red-500 transition-colors">
                 <Trash2 className="w-4 h-4" />
@@ -126,21 +124,9 @@ function ContactCard({ title, subtitle, icon: Icon, items: initialItems, placeho
 
         {adding && (
           <div className="flex items-center gap-2 pt-1">
-            <input
-              type={type}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder={placeholder}
-              autoFocus
-              onKeyDown={(e) => e.key === 'Enter' && addItem()}
-              className="flex-1 h-9 px-3 rounded-lg border border-[#FC7E34] bg-muted/40 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 transition-colors"
-            />
-            <button onClick={addItem} className="h-9 px-3 rounded-lg bg-[#FC7E34] text-white text-sm font-semibold hover:bg-[#e06e28] transition-colors">
-              Ajouter
-            </button>
-            <button onClick={() => { setAdding(false); setDraft('') }} className="h-9 px-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-              Annuler
-            </button>
+            <input type={type} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={placeholder} autoFocus onKeyDown={(e) => e.key === 'Enter' && addItem()} className="flex-1 h-9 px-3 rounded-lg border border-[#FC7E34] bg-muted/40 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 transition-colors" />
+            <button onClick={addItem} className="h-9 px-3 rounded-lg bg-[#FC7E34] text-white text-sm font-semibold hover:bg-[#e06e28] transition-colors">Ajouter</button>
+            <button onClick={() => { setAdding(false); setDraft('') }} className="h-9 px-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Annuler</button>
           </div>
         )}
       </div>
@@ -173,11 +159,7 @@ export default function Profile() {
 
       {/* Bannière */}
       <div className="relative rounded-2xl bg-[#253550] overflow-hidden" style={{ height: '160px' }}>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="absolute top-4 right-4 h-9 gap-2 text-white/80 hover:text-white hover:bg-white/10 border border-white/20 text-sm font-medium"
-        >
+        <Button variant="ghost" size="sm" className="absolute top-4 right-4 h-9 gap-2 text-white/80 hover:text-white hover:bg-white/10 border border-white/20 text-sm font-medium">
           <Download className="w-4 h-4" />
           Exporter mes données
         </Button>
@@ -197,19 +179,12 @@ export default function Profile() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
         {/* Identité */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="rounded-xl border border-border bg-card p-6"
-        >
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">
-            Identité
-          </p>
-          <EditableRow label="Prénom" value="Léo" />
-          <EditableRow label="Nom" value="Martin" />
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="rounded-xl border border-border bg-card p-6">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">Identité</p>
+          <EditableRow label="Prénom" value="Léo" required />
+          <EditableRow label="Nom" value="Martin" required />
           <EditableRow label="Date de naissance" value="15/03/1990" />
-          <EditableRow label="Mot de passe" value="password" type="password" />
+          <EditableRow label="Mot de passe" value="password" type="password" required />
         </motion.div>
 
         {/* Contacts */}
@@ -221,6 +196,7 @@ export default function Profile() {
               icon={Mail}
               placeholder="nouvelle@email.com"
               type="email"
+              required
               items={[
                 { id: 1, value: 'leo.martin@gmail.com', principal: true },
                 { id: 2, value: 'leo.martin.pro@gmail.com', principal: false },
@@ -257,6 +233,13 @@ export default function Profile() {
         </div>
 
       </div>
+
+      {/* Légende des champs obligatoires (en bas) */}
+      <p className="text-xs text-muted-foreground mt-4 flex items-center gap-1.5">
+        <span className="text-red-500 font-bold">*</span>
+        <span>Les champs marqués d'un astérisque sont obligatoires pour envoyer des demandes RGPD.</span>
+      </p>
+
     </div>
   )
 }
