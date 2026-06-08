@@ -5,7 +5,6 @@ import {
   varchar,
   text,
   boolean,
-  date,
   timestamp,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
@@ -28,7 +27,7 @@ export const brokerCategoryEnum = pgEnum('broker_category', [
 
 export const brokerRegionEnum = pgEnum('broker_region', ['eu', 'us', 'global'])
 
-export const optOutMethodEnum = pgEnum('opt_out_method', ['email', 'form', 'postal', 'mixed'])
+export const optOutMethodEnum = pgEnum('opt_out_method', ['email', 'form', 'mixed'])
 
 export const brokerDifficultyEnum = pgEnum('broker_difficulty', ['easy', 'medium', 'hard'])
 
@@ -69,9 +68,10 @@ export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: varchar('email', { length: 255 }).notNull().unique(),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
-  firstName: varchar('first_name', { length: 100 }).notNull(),
-  lastName: varchar('last_name', { length: 100 }).notNull(),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
   role: userRoleEnum('role').notNull().default('user'),
+  refreshTokenHash: varchar('refresh_token_hash', { length: 255 }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -228,3 +228,4 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
   user: one(users, { fields: [notifications.userId], references: [users.id] }),
   request: one(removalRequests, { fields: [notifications.requestId], references: [removalRequests.id] }),
 }))
+

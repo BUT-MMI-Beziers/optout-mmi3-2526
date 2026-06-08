@@ -7,7 +7,7 @@ import { seedBrokers } from './seeds/brokers_seed.js'
 import { seedMockData } from './seeds/mock_seed.js'; // <-- Import de ton script
 
 // Charge l'environnement depuis le fichier de configuration racine
-dotenv.config({ path: '../.env' })
+dotenv.config({ path: '../../.env' })
 
 const databaseUrl = process.env.DATABASE_URL!
 if (!databaseUrl) {

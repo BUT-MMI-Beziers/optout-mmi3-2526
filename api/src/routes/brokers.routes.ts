@@ -3,6 +3,7 @@ import { db } from '../db/index.js'
 import { brokers } from '../db/schema.js'
 import { and, eq, ilike } from 'drizzle-orm'
 import * as yaml from 'js-yaml'
+import { authMiddleware, adminGuard } from './auth/auth.middleware.js'
 
 const brokersRoute = new Hono()
 
@@ -25,6 +26,17 @@ brokersRoute.get('/', async (c) => {
     const search = c.req.query('search')
     const isVerifiedStr = c.req.query('isVerified')
 
+    const pageParam = c.req.query('page')
+    const perPageParam = c.req.query('per_page') || c.req.query('limit')
+
+    const parsedPage = parseInt(pageParam || '1', 10)
+    const page = Math.max(1, isNaN(parsedPage) ? 1 : parsedPage)
+
+    const parsedPerPage = parseInt(perPageParam || '20', 10)
+    const perPage = Math.max(1, isNaN(parsedPerPage) ? 20 : parsedPerPage)
+
+    const offset = (page - 1) * perPage
+
     const conditions = []
 
     if (category) {
@@ -43,12 +55,27 @@ brokersRoute.get('/', async (c) => {
       conditions.push(ilike(brokers.name, `%${search}%`))
     }
 
-    const query = db.select().from(brokers)
-    const results = conditions.length > 0
-      ? await query.where(and(...conditions))
-      : await query
+    // 1. Récupérer le total des éléments correspondants pour calculer la pagination
+    const countQuery = db.select({ id: brokers.id }).from(brokers)
+    const allMatching = conditions.length > 0
+      ? await countQuery.where(and(...conditions))
+      : await countQuery
+    const total = allMatching.length
 
-    return c.json(results)
+    // 2. Récupérer les éléments paginés
+    const dataQuery = db.select().from(brokers)
+    const results = conditions.length > 0
+      ? await dataQuery.where(and(...conditions)).limit(perPage).offset(offset)
+      : await dataQuery.limit(perPage).offset(offset)
+
+    const lastPage = Math.ceil(total / perPage) || 1
+
+    return c.json({
+      data: results,
+      total,
+      currentPage: page,
+      lastPage
+    })
   } catch (error) {
     console.error('Error fetching brokers:', error)
     return c.json({ error: 'Une erreur interne est survenue lors de la récupération des brokers' }, 500)
@@ -59,7 +86,6 @@ brokersRoute.get('/', async (c) => {
 brokersRoute.post('/', async (c) => {
   const body = await c.req.json()
 
-
   const required = ['name', 'emailContact', 'category',
     'region', 'optOutMethod', 'difficulty', 'legalBasis']
 
@@ -69,26 +95,35 @@ brokersRoute.post('/', async (c) => {
     }
   }
 
-  const [newBroker] = await db
-    .insert(brokers)
-    .values({
-      name: body.name,
-      slug: toSlug(body.name),
-      emailContact: body.emailContact,
-      website: body.website ?? null,
-      optOutUrl: body.optOutUrl ?? null,
-      category: body.category,
-      region: body.region,
-      country: body.country ?? null,
-      optOutMethod: body.optOutMethod,
-      difficulty: body.difficulty,
-      legalBasis: body.legalBasis,
-      notes: body.notes ?? null,
-      isVerified: false,
-    })
-    .returning()
+  try {
+    const [newBroker] = await db
+      .insert(brokers)
+      .values({
+        name:         body.name,
+        slug:         toSlug(body.name),
+        emailContact: body.emailContact,
+        website:      body.website      ?? null,
+        optOutUrl:    body.optOutUrl    ?? null,
+        category:     body.category,
+        region:       body.region,
+        country:      body.country      ?? null,
+        optOutMethod: body.optOutMethod,
+        difficulty:   body.difficulty,
+        legalBasis:   body.legalBasis,
+        notes:        body.notes        ?? null,
+        isVerified:   false,
+      })
+      .returning()
 
-  return c.json(newBroker, 201)
+    return c.json(newBroker, 201)
+
+  } catch (err: any) {
+    if (err.code === '23505' || err.cause?.code === '23505') {
+      return c.json({ error: `Un broker avec le nom "${body.name}" existe déjà` }, 409)
+    }
+    console.error('Erreur POST /brokers:', err)
+    return c.json({ error: 'Erreur interne lors de la création du broker' }, 500)
+  }
 })
 
 // ─── GET /brokers/export ─────────────────────────────────
@@ -176,8 +211,26 @@ brokersRoute.post('/import', async (c) => {
   }
 })
 
+// ─── GET /brokers/:slug ────────────────────────────────
+brokersRoute.get('/:slug', async (c) => {
+  const slug = c.req.param('slug')
+
+  const [broker] = await db
+    .select()
+    .from(brokers)
+    .where(eq(brokers.slug, slug))
+    .limit(1)
+
+  if (!broker) {
+    return c.json({ error: 'Broker introuvable' }, 404)
+  }
+
+  return c.json(broker)
+})
+
+
 // ─── PUT /brokers/:slug ──────────────────────────────────
-brokersRoute.put('/:slug', async (c) => {
+brokersRoute.put('/:slug', authMiddleware, adminGuard, async (c) => {
   const slug = c.req.param('slug')
   const body = await c.req.json()
 
@@ -216,7 +269,7 @@ brokersRoute.put('/:slug', async (c) => {
 })
 
 // ─── DELETE /brokers/:slug ────────────────────────────────
-brokersRoute.delete('/:slug', async (c) => {
+brokersRoute.delete('/:slug', authMiddleware, adminGuard, async (c) => {
   const slug = c.req.param('slug')
 
   const [deletedBroker] = await db
@@ -232,7 +285,7 @@ brokersRoute.delete('/:slug', async (c) => {
 })
 
 // ─── PATCH /brokers/:slug/verify ─────────────────────────
-brokersRoute.patch('/:slug/verify', async (c) => {
+brokersRoute.patch('/:slug/verify', authMiddleware, adminGuard, async (c) => {
   const slug = c.req.param('slug')
 
   const [verifiedBroker] = await db
