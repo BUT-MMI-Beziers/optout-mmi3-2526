@@ -19,6 +19,7 @@ import {
   type RequestStatus,
   type BrokerCategory,
   type BrokerRegion,
+  type Difficulty,
 } from '@/lib/mock-data'
 
 const BASE = '/api/v1'
@@ -73,6 +74,7 @@ export interface BrokersParams {
   perPage?: number
   category?: BrokerCategory | 'all'
   region?: BrokerRegion | 'all'
+  difficulty?: Difficulty | 'all'
   search?: string
 }
 
@@ -85,13 +87,14 @@ function buildQuery(params: Record<string, string | number | undefined>) {
 }
 
 export async function getBrokers(params: BrokersParams = {}): Promise<Paginated<Broker>> {
-  const { page = 1, perPage = 12, category, region, search } = params
+  const { page = 1, perPage = 12, category, region, difficulty, search } = params
 
   const filtered = mockBrokers.filter((b) => {
     const okCat = !category || category === 'all' || b.category === category
     const okReg = !region || region === 'all' || b.region === region
+    const okDiff = !difficulty || difficulty === 'all' || b.difficulty === difficulty
     const okSearch = !search || b.name.toLowerCase().includes(search.toLowerCase())
-    return okCat && okReg && okSearch
+    return okCat && okReg && okDiff && okSearch
   })
   const fallback: Paginated<Broker> = {
     data: filtered.slice((page - 1) * perPage, page * perPage),
@@ -100,7 +103,7 @@ export async function getBrokers(params: BrokersParams = {}): Promise<Paginated<
     lastPage: Math.max(1, Math.ceil(filtered.length / perPage)),
   }
 
-  const q = buildQuery({ page, per_page: perPage, category, region, search })
+  const q = buildQuery({ page, per_page: perPage, category, region, difficulty, search })
   return request<Paginated<Broker>>(`/brokers?${q}`, {}, fallback)
 }
 

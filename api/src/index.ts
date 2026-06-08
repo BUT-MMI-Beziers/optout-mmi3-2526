@@ -4,6 +4,7 @@ import { cors } from 'hono/cors'
 import brokersRoute from './routes/brokers.js'
 import authRouter from './routes/auth/auth.router.js'
 import profilRouter from './routes/profil/profil.router.js'
+import brokersRoute from './routes/brokers.routes.js'
 import templatesRoutes from './routes/templates.routes.js'
 import requestsRoutes from './routes/requests.routes.js'
 

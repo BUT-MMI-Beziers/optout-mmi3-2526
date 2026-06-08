@@ -27,7 +27,7 @@ export const brokerCategoryEnum = pgEnum('broker_category', [
 
 export const brokerRegionEnum = pgEnum('broker_region', ['eu', 'us', 'global'])
 
-export const optOutMethodEnum = pgEnum('opt_out_method', ['email', 'form', 'postal', 'mixed'])
+export const optOutMethodEnum = pgEnum('opt_out_method', ['email', 'form', 'mixed'])
 
 export const brokerDifficultyEnum = pgEnum('broker_difficulty', ['easy', 'medium', 'hard'])
 
