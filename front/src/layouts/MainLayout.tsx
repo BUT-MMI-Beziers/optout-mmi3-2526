@@ -119,7 +119,15 @@ export default function MainLayout() {
               <DropdownMenuContent align="end" className="w-40">
                 <DropdownMenuItem onClick={() => navigate("/profile")}>Mon profil</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/settings")}>Paramètres</DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive">Déconnexion</DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={async () => {
+                    await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' })
+                    navigate('/login')
+                  }}
+                >
+                  Déconnexion
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

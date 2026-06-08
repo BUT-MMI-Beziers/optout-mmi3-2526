@@ -1,15 +1,8 @@
 /**
  * Couche API — tous les appels passent ici.
- * Si l'API n'est pas encore disponible, on retombe sur les données mockées.
- * Quand le backend répond, le fallback est ignoré automatiquement.
+ * Les fallbacks sont vides ([], null) — sans API qui tourne, les pages seront vides.
  */
 import {
-  mockUser,
-  mockContacts,
-  mockBrokers,
-  mockRequests,
-  mockEvents,
-  mockTemplates,
   type User,
   type UserContact,
   type Broker,
@@ -59,12 +52,12 @@ export type PaginatedRequests = Paginated<RemovalRequest>
 
 // ─── Utilisateur ──────────────────────────────────────────────────────────────
 
-export async function getMe(): Promise<User> {
-  return request<User>('/users/me', {}, mockUser)
+export async function getMe(): Promise<User | null> {
+  return request<User | null>('/users/me', {}, null)
 }
 
 export async function getContacts(): Promise<UserContact[]> {
-  return request<UserContact[]>('/users/me/contacts', {}, mockContacts)
+  return request<UserContact[]>('/users/me/contacts', {}, [])
 }
 
 // ─── Brokers ──────────────────────────────────────────────────────────────────
@@ -88,39 +81,34 @@ function buildQuery(params: Record<string, string | number | undefined>) {
 
 export async function getBrokers(params: BrokersParams = {}): Promise<Paginated<Broker>> {
   const { page = 1, perPage = 12, category, region, difficulty, search } = params
-
-  const filtered = mockBrokers.filter((b) => {
-    const okCat = !category || category === 'all' || b.category === category
-    const okReg = !region || region === 'all' || b.region === region
-    const okDiff = !difficulty || difficulty === 'all' || b.difficulty === difficulty
-    const okSearch = !search || b.name.toLowerCase().includes(search.toLowerCase())
-    return okCat && okReg && okDiff && okSearch
-  })
-  const fallback: Paginated<Broker> = {
-    data: filtered.slice((page - 1) * perPage, page * perPage),
-    total: filtered.length,
-    page,
-    lastPage: Math.max(1, Math.ceil(filtered.length / perPage)),
-  }
+  const fallback: Paginated<Broker> = { data: [], total: 0, page, lastPage: 1 }
 
   const q = buildQuery({ page, per_page: perPage, category, region, difficulty, search })
-  return request<Paginated<Broker>>(`/brokers?${q}`, {}, fallback)
+  // API réelle retourne { data, total, currentPage, lastPage }
+  const raw = await request<{ data: Broker[]; total: number; currentPage: number; lastPage: number }>(
+    `/brokers?${q}`, {}, { data: [], total: 0, currentPage: page, lastPage: 1 }
+  )
+  return { data: raw.data, total: raw.total, page: raw.currentPage, lastPage: raw.lastPage }
 }
 
 export async function getBroker(slug: string): Promise<Broker | null> {
-  const fallback = mockBrokers.find((b) => b.slug === slug) ?? null
-  return request<Broker | null>(`/brokers/${slug}`, {}, fallback)
+  return request<Broker | null>(`/brokers/${slug}`, {}, null)
 }
 
 // ─── Templates ────────────────────────────────────────────────────────────────
 
 export async function getTemplates(): Promise<EmailTemplate[]> {
-  return request<EmailTemplate[]>('/templates', {}, mockTemplates)
+  // API réelle retourne { data: EmailTemplate[], count }
+  const raw = await request<{ data: EmailTemplate[]; count: number }>(
+    '/templates', {}, { data: [], count: 0 }
+  )
+  return raw.data
 }
 
 export async function getTemplate(id: string): Promise<EmailTemplate | null> {
-  const fallback = mockTemplates.find((t) => t.id === id) ?? null
-  return request<EmailTemplate | null>(`/templates/${id}`, {}, fallback)
+  // API réelle retourne { data: EmailTemplate }
+  const raw = await request<{ data: EmailTemplate } | null>(`/templates/${id}`, {}, null)
+  return raw?.data ?? null
 }
 
 // ─── Demandes ─────────────────────────────────────────────────────────────────
@@ -130,59 +118,47 @@ export interface RequestsParams {
   perPage?: number
   status?: RequestStatus | 'all'
   search?: string
+  brokerId?: string
 }
 
 export async function getRequests(params: RequestsParams = {}): Promise<Paginated<RemovalRequest>> {
-  const { page = 1, perPage = 12, status, search } = params
+  const { page = 1, perPage = 12, status, search, brokerId } = params
+  const fallback = { data: [], total: 0, page, limit: perPage, totalPages: 1 }
 
-  const filtered = mockRequests.filter((r) => {
-    const okStatus = !status || status === 'all' || r.status === status
-    const okSearch = !search || r.brokerName.toLowerCase().includes(search.toLowerCase())
-    return okStatus && okSearch
-  })
-  const fallback: Paginated<RemovalRequest> = {
-    data: filtered.slice((page - 1) * perPage, page * perPage),
-    total: filtered.length,
-    page,
-    lastPage: Math.max(1, Math.ceil(filtered.length / perPage)),
-  }
-
-  const q = buildQuery({ page, per_page: perPage, status, search })
-  return request<Paginated<RemovalRequest>>(`/requests?${q}`, {}, fallback)
+  const q = buildQuery({ page, per_page: perPage, status, search, broker_id: brokerId })
+  // API réelle retourne { data, total, page, limit, totalPages }
+  const raw = await request<{ data: RemovalRequest[]; total: number; page: number; limit: number; totalPages: number }>(
+    `/requests?${q}`, {}, fallback
+  )
+  return { data: raw.data, total: raw.total, page: raw.page, lastPage: raw.totalPages }
 }
 
 export async function getRequest(id: string): Promise<RemovalRequest | null> {
-  const fallback = mockRequests.find((r) => r.id === id) ?? null
-  return request<RemovalRequest | null>(`/requests/${id}`, {}, fallback)
+  // API réelle retourne { data: { ...request, broker, template, events } }
+  const raw = await request<{ data: RemovalRequest } | null>(`/requests/${id}`, {}, null)
+  return raw?.data ?? null
 }
 
 export async function getRequestEvents(id: string): Promise<RequestEvent[]> {
-  const fallback = mockEvents.filter((e) => e.requestId === id)
-  return request<RequestEvent[]>(`/requests/${id}/events`, {}, fallback)
+  return request<RequestEvent[]>(`/requests/${id}/events`, {}, [])
 }
 
 export async function getEmailPreview(requestId: string): Promise<string> {
-  const req = mockRequests.find((r) => r.id === requestId)
-  const tpl = req ? mockTemplates.find((t) => t.id === req.templateId) : null
-  const address = mockContacts.find((c) => c.type === 'address' && c.userId === mockUser.id)?.value ?? ''
-  const filledBody = tpl
-    ? tpl.body
-        .replace(/\{\{user\.first_name\}\}/g, mockUser.firstName)
-        .replace(/\{\{user\.last_name\}\}/g, mockUser.lastName)
-        .replace(/\{\{user\.email\}\}/g, mockUser.email)
-        .replace(/\{\{user\.address\}\}/g, address)
-    : null
-  const fallback = filledBody && req && tpl
-    ? `À : ${req.brokerUrl}\nObjet : ${tpl.subject}\n\n${filledBody}`
-    : '[Aperçu non disponible]'
-  return request<string>(`/requests/${requestId}/preview`, {}, fallback)
+  // API réelle retourne { data: { subject, body } }
+  const raw = await request<{ data: { subject: string; body: string } }>(
+    `/requests/${requestId}/preview`,
+    {},
+    { data: { subject: '', body: '[Aperçu non disponible]' } }
+  )
+  if (!raw.data.subject && !raw.data.body) return '[Aperçu non disponible]'
+  return `Objet : ${raw.data.subject}\n\n${raw.data.body}`
 }
 
 export async function sendReminder(requestId: string): Promise<{ success: boolean }> {
   return request<{ success: boolean }>(
     `/requests/${requestId}/remind`,
     { method: 'POST' },
-    { success: true }
+    { success: false }
   )
 }
 
@@ -199,43 +175,41 @@ export interface AppNotification {
 }
 
 export async function getNotifications(): Promise<AppNotification[]> {
-  const fallback: AppNotification[] = mockRequests
-    .filter((r) => r.status === 'NO_RESPONSE' || r.status === 'REFUSED')
-    .map((r, i) => ({
-      id: `notif-${i}`,
-      title: r.status === 'NO_RESPONSE' ? 'Relance requise' : 'Demande refusée',
-      message: r.status === 'NO_RESPONSE'
-        ? `${r.brokerName} n'a pas répondu depuis 30 jours.`
-        : `${r.brokerName} a refusé votre demande de suppression.`,
-      type: r.status === 'NO_RESPONSE' ? 'warning' : 'info',
-      read: false,
-      requestId: r.id,
-      createdAt: r.nextActionAt ?? r.sentAt,
-    }))
-  return request<AppNotification[]>('/notifications', {}, fallback)
+  return request<AppNotification[]>('/notifications', {}, [])
 }
 
-// Crée un brouillon puis l'envoie immédiatement (flow batch)
+// Crée et envoie les demandes en batch
 export async function sendBatch(payload: {
   brokerIds: string[]
   templateId: string
 }): Promise<{ success: boolean }> {
-  return request<{ success: boolean }>(
+  // API réelle attend { userId, templateId, brokerIds } en camelCase
+  const user = await getMe()
+  if (!user) return { success: false }
+
+  const raw = await request<{ message: string; data: { created: number; failed: number } } | null>(
     '/requests/batch',
-    { method: 'POST', body: JSON.stringify({ broker_ids: payload.brokerIds, template_id: payload.templateId }) },
-    { success: true } // mock : on simule toujours le succès
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: user.id,
+        templateId: payload.templateId,
+        brokerIds: payload.brokerIds,
+      }),
+    },
+    null
   )
+  return { success: raw !== null && raw.data.failed === 0 }
 }
 
 export async function updateRequestStatus(
   id: string,
   status: RequestStatus
 ): Promise<RemovalRequest | null> {
-  const fallback = mockRequests.find((r) => r.id === id) ?? null
   return request<RemovalRequest | null>(
     `/requests/${id}/status`,
     { method: 'PATCH', body: JSON.stringify({ status }) },
-    fallback
+    null
   )
 }
 
@@ -252,16 +226,8 @@ export interface DashboardStats {
 }
 
 export async function getStats(): Promise<DashboardStats> {
-  const total = mockRequests.length
-  const completed = mockRequests.filter((r) => r.status === 'COMPLETED').length
-  const fallback: DashboardStats = {
-    total,
-    sent: mockRequests.filter((r) => r.status === 'SENT').length,
-    acknowledged: mockRequests.filter((r) => r.status === 'ACKNOWLEDGED').length,
-    completed,
-    noResponse: mockRequests.filter((r) => r.status === 'NO_RESPONSE').length,
-    refused: mockRequests.filter((r) => r.status === 'REFUSED').length,
-    responseRate: Math.round((completed / total) * 100),
-  }
-  return request<DashboardStats>('/stats', {}, fallback)
+  return request<DashboardStats>('/stats', {}, {
+    total: 0, sent: 0, acknowledged: 0, completed: 0,
+    noResponse: 0, refused: 0, responseRate: 0,
+  })
 }
