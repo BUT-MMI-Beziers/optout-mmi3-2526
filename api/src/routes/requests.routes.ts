@@ -486,4 +486,50 @@ requestsRoutes.post('/batch', async (c) => {
   }
 })
 
+// ============================================================================
+// FEATURE 13 : HISTORIQUE DES ÉVÉNEMENTS D'UNE DEMANDE
+// Route finale : GET /api/v1/requests/:id/events
+// ============================================================================
+requestsRoutes.get('/:id/events', async (c) => {
+  try {
+    const requestId = c.req.param('id')
+
+    if (!uuidRegex.test(requestId)) {
+      return c.json({
+        error: "Format d'identifiant invalide. Un UUID est attendu.",
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
+    const request = await db
+      .select({ id: removalRequests.id })
+      .from(removalRequests)
+      .where(eq(removalRequests.id, requestId))
+      .limit(1)
+
+    if (request.length === 0) {
+      return c.json({
+        error: "La demande spécifiée est introuvable.",
+        code: "NOT_FOUND"
+      }, 404)
+    }
+
+    const events = await db
+      .select()
+      .from(requestEvents)
+      .where(eq(requestEvents.requestId, requestId))
+      .orderBy(requestEvents.createdAt)
+
+    return c.json({ data: events }, 200)
+
+  } catch (error) {
+    console.error(`[GET /requests/${c.req.param('id')}/events] Erreur :`, error)
+    return c.json({
+      error: "Erreur interne lors de la récupération des événements.",
+      code: "INTERNAL_SERVER_ERROR"
+    }, 500)
+  }
+})
+
+
 export default requestsRoutes
