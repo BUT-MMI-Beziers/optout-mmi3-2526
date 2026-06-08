@@ -22,7 +22,6 @@ import {
 } from '@/lib/mock-data'
 
 const BASE = '/api/v1'
-const token = () => localStorage.getItem('token') ?? ''
 
 async function request<T>(
   path: string,
@@ -32,9 +31,9 @@ async function request<T>(
   try {
     const res = await fetch(`${BASE}${path}`, {
       ...options,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token()}`,
         ...options.headers,
       },
     })
