@@ -7,29 +7,39 @@ import Dashboard from "@/pages/Dashboard"
 import Profile from "@/pages/Profile"
 import Brokers from "@/pages/Brokers"
 import BrokerDetail from "@/pages/BrokerDetail"
+import Requests from "@/pages/Requests"
 import RequestDetail from "@/pages/RequestDetail"
 import NewRequest from "@/pages/NewRequest"
+import NewRequestReview from "@/pages/NewRequestReview"
+import ScrollToTop from "@/components/ScrollToTop"
 import AdminBrokers from "@/pages/AdminBrokers"
 import Notifications from "@/pages/Notifications"
 import Settings from "@/pages/Settings"
+import Reminders from "@/pages/Reminders"
 
 function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
+        {/* Pages sans layout (landing + auth) */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
         <Route element={<MainLayout />}>
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/brokers" element={<Brokers />} />
           <Route path="/brokers/:slug" element={<BrokerDetail />} />
+          <Route path="/requests" element={<Requests />} />
           <Route path="/requests/new" element={<NewRequest />} />
+          <Route path="/requests/new/review" element={<NewRequestReview />} />
           <Route path="/requests/:id" element={<RequestDetail />} />
           <Route path="/admin/brokers" element={<AdminBrokers />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/reminders" element={<Reminders />} />
         </Route>
       </Routes>
     </BrowserRouter>
