@@ -5,7 +5,8 @@ import { Mail, Eye, EyeOff, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function Register() {
-  const [name, setName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -20,9 +21,6 @@ export default function Register() {
     setError('')
     setLoading(true)
     try {
-      const [firstName, ...rest] = name.trim().split(/\s+/)
-      const lastName = rest.join(' ') || firstName
-
       const res = await fetch('/api/v1/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -77,26 +75,49 @@ export default function Register() {
           transition={{ duration: 0.3, delay: 0.16 }}
           className="mt-10 space-y-5"
         >
-          {/* Prénom et Nom */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Prénom et Nom
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Toto"
-                required
-                className="
-                  w-full h-11 pl-4 pr-10 rounded-lg border border-border
-                  bg-muted/40 text-sm text-foreground placeholder:text-muted-foreground
-                  focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 focus:border-[#FC7E34]
-                  transition-colors
-                "
-              />
-              <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          {/* Prénom + Nom */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Prénom
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="Léo"
+                  required
+                  className="
+                    w-full h-11 pl-4 pr-10 rounded-lg border border-border
+                    bg-muted/40 text-sm text-foreground placeholder:text-muted-foreground
+                    focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 focus:border-[#FC7E34]
+                    transition-colors
+                  "
+                />
+                <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Nom
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Dupont"
+                  required
+                  className="
+                    w-full h-11 pl-4 pr-10 rounded-lg border border-border
+                    bg-muted/40 text-sm text-foreground placeholder:text-muted-foreground
+                    focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 focus:border-[#FC7E34]
+                    transition-colors
+                  "
+                />
+                <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </div>
             </div>
           </div>
 
