@@ -3,6 +3,7 @@ import { db } from '../db/index.js'
 import { brokers } from '../db/schema.js'
 import { and, eq, ilike } from 'drizzle-orm'
 import * as yaml from 'js-yaml'
+import { authMiddleware, adminGuard } from './auth/auth.middleware.js'
 
 const brokersRoute = new Hono()
 
@@ -229,7 +230,7 @@ brokersRoute.get('/:slug', async (c) => {
 
 
 // ─── PUT /brokers/:slug ──────────────────────────────────
-brokersRoute.put('/:slug', async (c) => {
+brokersRoute.put('/:slug', authMiddleware, adminGuard, async (c) => {
   const slug = c.req.param('slug')
   const body = await c.req.json()
 
@@ -268,7 +269,7 @@ brokersRoute.put('/:slug', async (c) => {
 })
 
 // ─── DELETE /brokers/:slug ────────────────────────────────
-brokersRoute.delete('/:slug', async (c) => {
+brokersRoute.delete('/:slug', authMiddleware, adminGuard, async (c) => {
   const slug = c.req.param('slug')
 
   const [deletedBroker] = await db
@@ -284,7 +285,7 @@ brokersRoute.delete('/:slug', async (c) => {
 })
 
 // ─── PATCH /brokers/:slug/verify ─────────────────────────
-brokersRoute.patch('/:slug/verify', async (c) => {
+brokersRoute.patch('/:slug/verify', authMiddleware, adminGuard, async (c) => {
   const slug = c.req.param('slug')
 
   const [verifiedBroker] = await db

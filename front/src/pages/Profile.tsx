@@ -1,14 +1,33 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Mail, MapPin, Phone, Plus, Trash2, Pencil, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
+const API = '/api/v1'
+
+function authFetch(url: string, options: RequestInit = {}) {
+  return fetch(url, { ...options, credentials: 'include' })
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface ContactItem {
-  id: number
+type ContactType = 'email' | 'phone' | 'address'
+
+interface Contact {
+  id: string
+  type: ContactType
   value: string
-  principal: boolean
+  isPrimary: boolean
+  label: string | null
+}
+
+interface Profil {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  role: string
+  contacts: Contact[]
 }
 
 // ─── EditableRow ──────────────────────────────────────────────────────────────
@@ -17,17 +36,21 @@ function EditableRow({
   label,
   value,
   type = 'text',
+  onSave,
 }: {
   label: string
   value: string
   type?: string
+  onSave?: (value: string) => void
 }) {
   const [editing, setEditing] = useState(false)
-  const [current, setCurrent] = useState(value)
   const [draft, setDraft] = useState(value)
 
-  const save = () => { setCurrent(draft); setEditing(false) }
-  const cancel = () => { setDraft(current); setEditing(false) }
+  const save = () => {
+    onSave?.(draft)
+    setEditing(false)
+  }
+  const cancel = () => { setDraft(value); setEditing(false) }
 
   return (
     <div className="py-4 border-b border-border last:border-0">
@@ -64,10 +87,10 @@ function EditableRow({
       ) : (
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-[#253550]">
-            {type === 'password' ? '••••••••••••' : current}
+            {type === 'password' ? '••••••••••••' : value}
           </span>
           <button
-            onClick={() => setEditing(true)}
+            onClick={() => { setDraft(value); setEditing(true) }}
             className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-[#FC7E34] transition-colors"
           >
             <Pencil className="w-3 h-3" />
@@ -85,32 +108,32 @@ function ContactCard({
   title,
   subtitle,
   icon: Icon,
-  items: initialItems,
+  items,
   placeholder,
   type = 'text',
+  limit,
+  onAdd,
+  onRemove,
 }: {
   title: string
   subtitle: string
   icon: React.ElementType
-  items: ContactItem[]
+  items: Contact[]
   placeholder: string
   type?: string
+  limit: number
+  onAdd: (value: string) => void
+  onRemove: (id: string) => void
 }) {
-  const [items, setItems] = useState<ContactItem[]>(initialItems)
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
 
   const addItem = () => {
     if (!draft.trim()) return
-    setItems([...items, { id: Date.now(), value: draft.trim(), principal: false }])
+    onAdd(draft.trim())
     setDraft('')
     setAdding(false)
   }
-
-  const removeItem = (id: number) => setItems(items.filter((i) => i.id !== id))
-
-  const setPrincipal = (id: number) =>
-    setItems(items.map((i) => ({ ...i, principal: i.id === id })))
 
   return (
     <div className="rounded-xl border border-border bg-white p-5">
@@ -121,13 +144,16 @@ function ContactCard({
             <Icon className="w-4 h-4 text-[#253550]" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-[#253550] leading-tight">{title}</p>
+            <p className="text-sm font-semibold text-[#253550] leading-tight">
+              {title} ({items.length}/{limit})
+            </p>
             <p className="text-xs text-muted-foreground leading-tight">{subtitle}</p>
           </div>
         </div>
         <button
           onClick={() => setAdding(true)}
-          className="flex items-center gap-1 text-xs font-medium text-[#253550] border border-border rounded-lg px-2.5 py-1.5 hover:border-[#FC7E34] hover:text-[#FC7E34] transition-colors whitespace-nowrap"
+          disabled={items.length >= limit}
+          className="flex items-center gap-1 text-xs font-medium text-[#253550] border border-border rounded-lg px-2.5 py-1.5 hover:border-[#FC7E34] hover:text-[#FC7E34] transition-colors whitespace-nowrap disabled:opacity-40 disabled:hover:border-border disabled:hover:text-[#253550]"
         >
           <Plus className="w-3 h-3" />
           Ajouter
@@ -138,22 +164,17 @@ function ContactCard({
       <div className="space-y-2.5">
         {items.map((item) => (
           <div key={item.id} className="flex items-center justify-between gap-3">
-            <span className="text-sm text-foreground flex-1 truncate">{item.value}</span>
+            <span className="text-sm text-foreground flex-1 truncate">
+              {item.value} {item.label && <span className="text-xs text-muted-foreground">({item.label})</span>}
+            </span>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {item.principal ? (
+              {item.isPrimary && (
                 <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-[#FC7E34] text-white">
                   Principal
                 </span>
-              ) : (
-                <button
-                  onClick={() => setPrincipal(item.id)}
-                  className="text-xs font-medium text-muted-foreground hover:text-[#FC7E34] transition-colors whitespace-nowrap"
-                >
-                  Définir principal
-                </button>
               )}
               <button
-                onClick={() => removeItem(item.id)}
+                onClick={() => onRemove(item.id)}
                 className="text-muted-foreground hover:text-red-500 transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -199,7 +220,7 @@ function ContactCard({
 
 // ─── Initials Avatar ──────────────────────────────────────────────────────────
 
-function InitialsAvatar() {
+function InitialsAvatar({ initials }: { initials: string }) {
   return (
     <div
       style={{
@@ -222,7 +243,7 @@ function InitialsAvatar() {
           fontFamily: 'system-ui, sans-serif',
         }}
       >
-        LM
+        {initials}
       </span>
     </div>
   )
@@ -231,6 +252,67 @@ function InitialsAvatar() {
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 export default function Profile() {
+  const [profil, setProfil] = useState<Profil | null>(null)
+  const [contactError, setContactError] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    authFetch(`${API}/users/me`)
+      .then((r) => r.json())
+      .then((data: Profil) => setProfil(data))
+  }, [])
+
+  async function updateField(field: 'firstName' | 'lastName', value: string) {
+    if (!profil) return
+    const payload = { firstName: profil.firstName, lastName: profil.lastName, [field]: value }
+    const res = await authFetch(`${API}/users/me`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setProfil(data)
+    }
+  }
+
+  async function addContact(type: ContactType, value: string) {
+    setContactError('')
+    const res = await authFetch(`${API}/users/me/contacts`, {
+      method: 'POST',
+      body: JSON.stringify({ type, value, label: null }),
+    })
+    const data = await res.json()
+    if (!res.ok) { setContactError(data.error ?? 'Erreur'); return }
+    setProfil((p) => (p ? { ...p, contacts: [...p.contacts, data.contact] } : p))
+  }
+
+  async function deleteContact(id: string) {
+    const res = await authFetch(`${API}/users/me/contacts/${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setProfil((p) => (p ? { ...p, contacts: p.contacts.filter((c) => c.id !== id) } : p))
+    }
+  }
+
+  async function deleteAccount() {
+    if (!window.confirm('Supprimer définitivement votre compte ? Cette action est irréversible.')) return
+    setDeleting(true)
+    const res = await authFetch(`${API}/users/me`, { method: 'DELETE' })
+    if (res.ok) {
+      await authFetch(`${API}/auth/logout`, { method: 'POST' })
+      window.location.href = '/'
+    } else {
+      setDeleting(false)
+    }
+  }
+
+  if (!profil) return <div className="p-8">Chargement...</div>
+
+  const emails    = profil.contacts.filter((c) => c.type === 'email')
+  const addresses = profil.contacts.filter((c) => c.type === 'address')
+  const phones    = profil.contacts.filter((c) => c.type === 'phone')
+  const initials  = `${profil.firstName[0] ?? ''}${profil.lastName[0] ?? ''}`.toUpperCase()
+  const fullName  = `${profil.firstName} ${profil.lastName}`
+
   return (
     <div className="min-h-screen bg-[#f5f5f4]">
 
@@ -257,11 +339,11 @@ export default function Profile() {
         {/* Avatar + nom — alignés en bas de la bannière */}
         <div className="absolute bottom-5 left-6 flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl border-2 border-white/20 overflow-hidden shadow-lg">
-            <InitialsAvatar />
+            <InitialsAvatar initials={initials || '?'} />
           </div>
           <div>
-            <p className="text-lg font-bold text-white leading-tight">Léo Martin</p>
-            <p className="text-sm text-white/50">Léo.martin@gmail.com</p>
+            <p className="text-lg font-bold text-white leading-tight">{fullName}</p>
+            <p className="text-sm text-white/50">{profil.email}</p>
           </div>
         </div>
       </div>
@@ -280,10 +362,9 @@ export default function Profile() {
             <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
               Identité
             </p>
-            <EditableRow label="Prénom" value="Léo" />
-            <EditableRow label="Nom" value="Martin" />
-            <EditableRow label="Date de naissance" value="15/03/1990" />
-            <EditableRow label="Mot de passe" value="password" type="password" />
+            <EditableRow label="Prénom" value={profil.firstName} onSave={(v) => updateField('firstName', v)} />
+            <EditableRow label="Nom" value={profil.lastName} onSave={(v) => updateField('lastName', v)} />
+            <EditableRow label="Email du compte" value={profil.email} type="email" />
           </motion.div>
 
           {/* Colonne droite : Cards contact */}
@@ -299,10 +380,10 @@ export default function Profile() {
                 icon={Mail}
                 placeholder="nouvelle@email.com"
                 type="email"
-                items={[
-                  { id: 1, value: 'Léo.martin@gmail.com', principal: true },
-                  { id: 2, value: 'Léo.martin123@gmail.com', principal: false },
-                ]}
+                limit={5}
+                items={emails}
+                onAdd={(value) => addContact('email', value)}
+                onRemove={deleteContact}
               />
             </motion.div>
 
@@ -316,10 +397,10 @@ export default function Profile() {
                 subtitle="Adresses actuelles et passées"
                 icon={MapPin}
                 placeholder="12 rue de la Paix, 75001 Paris"
-                items={[
-                  { id: 1, value: '12 rue de la Paix, 75002 Paris', principal: true },
-                  { id: 2, value: '5 avenue Victor Hugo, 34500 Béziers', principal: false },
-                ]}
+                limit={5}
+                items={addresses}
+                onAdd={(value) => addContact('address', value)}
+                onRemove={deleteContact}
               />
             </motion.div>
 
@@ -334,14 +415,31 @@ export default function Profile() {
                 icon={Phone}
                 placeholder="+33 6 12 34 56 78"
                 type="tel"
-                items={[
-                  { id: 1, value: '+33 6 12 34 56 78', principal: true },
-                  { id: 2, value: '+33 4 67 11 22 33', principal: false },
-                ]}
+                limit={3}
+                items={phones}
+                onAdd={(value) => addContact('phone', value)}
+                onRemove={deleteContact}
               />
             </motion.div>
+
+            {contactError && <p className="text-sm text-red-600 px-1">{contactError}</p>}
           </div>
 
+        </div>
+
+        {/* Supprimer le compte */}
+        <div className="mt-5 rounded-xl border border-border bg-white p-6">
+          <h2 className="font-semibold mb-2 text-red-600">Zone dangereuse</h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            La suppression de votre compte est définitive et irréversible.
+          </p>
+          <button
+            onClick={deleteAccount}
+            disabled={deleting}
+            className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
+          >
+            {deleting ? '...' : 'Supprimer mon compte'}
+          </button>
         </div>
       </div>
     </div>

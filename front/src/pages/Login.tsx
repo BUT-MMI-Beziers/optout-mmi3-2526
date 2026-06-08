@@ -8,18 +8,26 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError('')
     setLoading(true)
     try {
-      // TODO: appeler l'API d'authentification
-      // await login({ email, password })
+      const res = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Erreur'); return }
       navigate('/dashboard')
-    } catch (err) {
-      console.error(err)
+    } catch {
+      setError('Impossible de contacter le serveur')
     } finally {
       setLoading(false)
     }
@@ -111,6 +119,8 @@ export default function Login() {
               </button>
             </div>
           </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
 
           {/* Bouton Se connecter */}
           <div className="pt-2">
