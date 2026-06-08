@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import MainLayout from "@/layouts/MainLayout"
 import Landing from "@/pages/Landing"
 import Login from "@/pages/Login"
@@ -19,8 +19,13 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Pages sans layout (landing + auth) */}
-        <Route path="/" element={<Landing />} />
+        {/* Redirect racine vers dashboard */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
+
+        {/* Landing toujours accessible */}
+        <Route path="/landing" element={<Landing />} />
+
+        {/* Auth sans layout */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
