@@ -4,6 +4,7 @@ import { db } from '../db/index.js'
 import { removalRequests, users, brokers, emailTemplates, userContacts, requestEvents } from '../db/schema.js'
 import { renderTemplate } from '../services/template.service.js'
 import { emailQueue } from '../services/queue.service.js'
+import { authMiddleware } from './auth/auth.middleware.js'
 
 export const requestsRoutes = new Hono()
 
@@ -357,18 +358,11 @@ requestsRoutes.post('/:id/send', async (c) => {
  * Comportement partiel : si un broker est invalide, on continue avec les autres
  * et on signale l'échec dans le résultat.
  */
-requestsRoutes.post('/batch', async (c) => {
+requestsRoutes.post('/batch', authMiddleware, async (c) => {
   try {
     const body = await c.req.json()
-    const { userId, templateId, brokerIds } = body
-
-    // 1. Validation du body
-    if (!userId || !templateId || !Array.isArray(brokerIds) || brokerIds.length === 0) {
-      return c.json({
-        error: "userId, templateId et brokerIds (tableau non vide) sont requis.",
-        code: "BAD_REQUEST"
-      }, 400)
-    }
+    const { templateId, brokerIds } = body
+    const userId = c.get('userId') as string
 
     if (!uuidRegex.test(userId) || !uuidRegex.test(templateId)) {
       return c.json({

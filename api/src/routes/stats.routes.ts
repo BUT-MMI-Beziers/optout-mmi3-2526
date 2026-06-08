@@ -2,6 +2,8 @@ import { Hono } from 'hono'
 import { eq, and, isNotNull, sql } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { removalRequests } from '../db/schema.js'
+import { authMiddleware } from '../routes/auth/auth.middleware.js'
+
 
 // ============================================================================
 // FEATURE 15 : STATISTIQUES GLOBALES
@@ -16,17 +18,10 @@ import { removalRequests } from '../db/schema.js'
 
 export const statsRoutes = new Hono()
 
-statsRoutes.get('/', async (c) => {
+statsRoutes.get('/', authMiddleware, async (c) => {
   try {
-    // TODO : remplacer par c.get('userId') quand auth Bleu est dispo
-    const userId = c.req.query('userId')
-
-    if (!userId) {
-      return c.json({
-        error: "userId requis en attendant l'auth JWT (query param ?userId=...)",
-        code: "BAD_REQUEST"
-      }, 400)
-    }
+    // Auth Bleu — userId extrait du cookie JWT
+    const userId = c.get('userId') as string
 
     // 1. Compter les demandes par statut
     const allRequests = await db
