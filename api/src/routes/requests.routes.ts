@@ -36,7 +36,7 @@ requestsRoutes.get('/', async (c) => {
     const limitParam = c.req.query('limit')
 
     // Valider le statut si fourni
-    const validStatuses = ['DRAFT', 'SENT', 'NO_RESPONSE', 'RESPONDED', 'CLOSED']
+    const validStatuses = ['DRAFT', 'SENT', 'ACKNOWLEDGED', 'COMPLETED', 'REFUSED', 'NO_RESPONSE', 'COMPLAINT', 'SUPPRESSED']
     if (statusParam && !validStatuses.includes(statusParam)) {
       return c.json({
         error: `Statut invalide. Valeurs acceptées : ${validStatuses.join(', ')}`,
