@@ -12,8 +12,15 @@ import {
   Plus, Send, CheckCircle2, AlertCircle, Clock,
   XCircle, FileText, Flag, Archive, Info,
 } from 'lucide-react'
-import { getStats, getRequests, getMe, type DashboardStats } from '@/lib/api'
+import { getStats, getRequests, getMe, getNotifications, type DashboardStats, type AppNotification } from '@/lib/api'
 import { statusConfig, type RemovalRequest, type RequestStatus } from '@/lib/mock-data'
+
+// Icon per notification type
+const notifIcons: Record<AppNotification['type'], React.ComponentType<{ className?: string }>> = {
+  warning: AlertCircle,
+  info: Info,
+  success: CheckCircle2,
+}
 
 // Icon per status — replaces colored dots
 const statusIcons: Record<RequestStatus, React.ComponentType<{ className?: string }>> = {
@@ -34,6 +41,8 @@ const BLUE = '#253550'
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentRequests, setRecentRequests] = useState<RemovalRequest[]>([])
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const [reminders, setReminders] = useState<RemovalRequest[]>([])
   const [userName, setUserName] = useState('...')
   const [loading, setLoading] = useState(true)
 
@@ -42,10 +51,19 @@ export default function Dashboard() {
       getStats(),
       getRequests({ page: 1, perPage: 5 }),
       getMe(),
-    ]).then(([s, r, u]) => {
+      getNotifications(),
+      getRequests({ page: 1, perPage: 50 }),
+    ]).then(([s, r, u, notifs, all]) => {
       setStats(s)
       setRecentRequests(r.data)
-      setUserName(u.firstName)
+      setUserName(u?.firstName ?? '')
+      setNotifications(notifs.slice(0, 3))
+      setReminders(
+        all.data
+          .filter((req) => req.nextActionAt)
+          .sort((a, b) => +new Date(a.nextActionAt!) - +new Date(b.nextActionAt!))
+          .slice(0, 3)
+      )
       setLoading(false)
     })
   }, [])
@@ -198,28 +216,38 @@ export default function Dashboard() {
                 <CardTitle className="text-xl font-bold">Relances à venir</CardTitle>
               </CardHeader>
               <CardContent className="px-6 pb-2 pt-4">
-                {[
-                  { broker: 'Acxiom', url: 'acxiom.com', date: 'Demain, 09:00', id: 'req-5' },
-                  { broker: 'Acxiom', url: 'acxiom.com', date: 'Demain, 09:00', id: 'req-6' },
-                ].map((r) => (
-                  <div key={r.id} className="flex items-center justify-between py-3 border-b border-border last:border-0">
-                    <div className="flex items-center gap-2.5">
-                      <img
-                        src={`https://www.google.com/s2/favicons?domain=${r.url}&sz=32`}
-                        alt={r.broker}
-                        className="w-7 h-7 rounded-md object-contain bg-muted p-0.5 shrink-0"
-                        onError={(e) => { (e.target as HTMLImageElement).src = '/icon.png' }}
-                      />
-                      <div>
-                        <p className="text-sm font-medium">{r.broker}</p>
-                        <p className="text-xs text-muted-foreground">{r.date}</p>
+                {loading ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">Chargement...</div>
+                ) : reminders.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">Aucune relance prévue.</div>
+                ) : (
+                  reminders.map((r) => {
+                    const date = new Date(r.nextActionAt!).toLocaleDateString('fr-FR', {
+                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                    })
+                    return (
+                      <div key={r.id} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={`https://www.google.com/s2/favicons?domain=${r.brokerUrl}&sz=32`}
+                            alt={r.brokerName}
+                            className="w-7 h-7 rounded-md object-contain bg-muted p-0.5 shrink-0"
+                            onError={(e) => { (e.target as HTMLImageElement).src = '/icon.png' }}
+                          />
+                          <div>
+                            <p className="text-sm font-medium">{r.brokerName}</p>
+                            <p className="text-xs text-muted-foreground">{date}</p>
+                          </div>
+                        </div>
+                        <Link to={`/requests/${r.id}`}>
+                          <Button size="sm" variant="outline" className="h-7 w-20 text-xs text-muted-foreground hover:text-[#FC7E34] hover:border-[#FC7E34] shrink-0">
+                            Voir
+                          </Button>
+                        </Link>
                       </div>
-                    </div>
-                    <Button size="sm" variant="outline" className="h-7 w-20 text-xs text-muted-foreground hover:text-red-600 hover:border-red-200 shrink-0">
-                      Annuler
-                    </Button>
-                  </div>
-                ))}
+                    )
+                  })
+                )}
               </CardContent>
             </Card>
           </motion.div>
@@ -230,21 +258,30 @@ export default function Dashboard() {
                 <CardTitle className="text-xl font-bold">Actions recommandées</CardTitle>
               </CardHeader>
               <CardContent className="px-6 pb-2 pt-4">
-                {[
-                  { label: 'Relancer Acxiom (30j sans réponse)', icon: AlertCircle, action: 'Relancer' },
-                  { label: 'Confirmer la réponse de Spokeo',     icon: Info,         action: 'Voir' },
-                  { label: 'Vérifier statut LexisNexis',         icon: CheckCircle2, action: 'Voir' },
-                ].map((a, i) => (
-                  <div key={i} className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
-                    <div className="flex items-center gap-2.5">
-                      <a.icon className="w-4 h-4 shrink-0 text-muted-foreground" />
-                      <p className="text-sm">{a.label}</p>
-                    </div>
-                    <Button size="sm" variant="outline" className="h-7 w-20 text-xs text-[#FC7E34] border-[#FC7E34] hover:bg-[#FC7E34] hover:text-white shrink-0">
-                      {a.action}
-                    </Button>
-                  </div>
-                ))}
+                {loading ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">Chargement...</div>
+                ) : notifications.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">Aucune action recommandée.</div>
+                ) : (
+                  notifications.map((n) => {
+                    const NotifIcon = notifIcons[n.type]
+                    return (
+                      <div key={n.id} className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
+                        <div className="flex items-center gap-2.5">
+                          <NotifIcon className="w-4 h-4 shrink-0 text-muted-foreground" />
+                          <p className="text-sm">{n.title}</p>
+                        </div>
+                        {n.requestId && (
+                          <Link to={`/requests/${n.requestId}`}>
+                            <Button size="sm" variant="outline" className="h-7 w-20 text-xs text-[#FC7E34] border-[#FC7E34] hover:bg-[#FC7E34] hover:text-white shrink-0">
+                              Voir
+                            </Button>
+                          </Link>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
               </CardContent>
             </Card>
           </motion.div>
