@@ -8,6 +8,20 @@
       "when": 1779873822187,
       "tag": "0000_sturdy_gambit",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779882083776,
+      "tag": "0002_clever_shaman",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780058715764,
+      "tag": "0003_open_lockjaw",
+      "breakpoints": true
     }
   ]
 }
