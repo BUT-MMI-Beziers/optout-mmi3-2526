@@ -20,4 +20,3 @@ app.route('/api/v1/requests', requestsRoutes)
 const port = Number(process.env.API_PORT_INTERNAL) || 3000
 
 serve({ fetch: app.fetch, port })
-console.log(`API démarrée sur http://localhost:${port}`)
