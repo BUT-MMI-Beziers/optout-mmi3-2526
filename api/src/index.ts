@@ -1,17 +1,17 @@
-import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
+import { Hono } from 'hono'
+import brokersRoute from './routes/brokers.routes.js'
+import templatesRoutes from './routes/templates.routes.js'
+import requestsRoutes from './routes/requests.routes.js'
 
 const app = new Hono()
 
-app.use('/*', cors())
+app.route('/api/v1/brokers', brokersRoute)
+app.route('/api/v1/templates', templatesRoutes)
+app.route('/api/v1/requests', requestsRoutes)
 
-app.get('/', (c) => {
-  return c.json({ message: 'Float API is running' })
-})
 
-serve({
-  fetch: app.fetch,
-  port: Number(process.env.PORT) || 3000,
-  hostname: '0.0.0.0'
-})
+const port = Number(process.env.API_PORT_INTERNAL) || 3000
+
+serve({ fetch: app.fetch, port })
+console.log(`API démarrée sur http://localhost:${port}`)

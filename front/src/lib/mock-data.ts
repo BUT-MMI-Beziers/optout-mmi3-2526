@@ -10,7 +10,7 @@ export type RequestStatus =
   | 'COMPLAINT'
   | 'SUPPRESSED'
 
-export type BrokerCategory = 'people-search' | 'marketing' | 'risk-mitigation' | 'recruitment'
+export type BrokerCategory = 'people-search' | 'marketing' | 'risk-mitigation' | 'recruitment' | 'other'
 export type BrokerRegion = 'eu' | 'us' | 'global'
 export type OptOutMethod = 'email' | 'form' | 'postal' | 'mixed'
 export type Difficulty = 'easy' | 'medium' | 'hard'
@@ -430,6 +430,7 @@ export const categoryLabels: Record<BrokerCategory, string> = {
   'marketing': 'Marketing',
   'risk-mitigation': 'Risk-mitigation',
   'recruitment': 'Recruitment',
+  'other': 'Autre',
 }
 
 export const difficultyLabels: Record<Difficulty, string> = {

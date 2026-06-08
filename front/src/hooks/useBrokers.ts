@@ -17,7 +17,7 @@ export function useBrokers(params: BrokersParams) {
     } finally {
       setLoading(false)
     }
-  }, [params.page, params.perPage, params.category, params.region, params.search])
+  }, [params.page, params.perPage, params.category, params.region, params.difficulty, params.search])
 
   useEffect(() => { fetch() }, [fetch])
 
