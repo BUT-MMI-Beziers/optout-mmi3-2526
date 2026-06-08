@@ -83,7 +83,7 @@ function EditableRow({ label, value, type = 'text', onSave }: {
 
 // ─── ContactCard ──────────────────────────────────────────────────────────────
 
-function ContactCard({ title, subtitle, icon: Icon, items, placeholder, type = 'text', pattern, limit, onAdd, onRemove }: {
+function ContactCard({ title, subtitle, icon: Icon, items, placeholder, type = 'text', pattern, limit, minItems = 0, onAdd, onRemove }: {
   title: string
   subtitle: string
   icon: React.ElementType
@@ -92,6 +92,7 @@ function ContactCard({ title, subtitle, icon: Icon, items, placeholder, type = '
   type?: string
   pattern?: string
   limit: number
+  minItems?: number
   onAdd: (value: string) => void
   onRemove: (id: string) => void
 }) {
@@ -154,7 +155,12 @@ function ContactCard({ title, subtitle, icon: Icon, items, placeholder, type = '
                   Principal
                 </span>
               )}
-              <button onClick={() => onRemove(item.id)} className="text-muted-foreground hover:text-red-500 transition-colors">
+              <button
+                onClick={() => onRemove(item.id)}
+                disabled={items.length <= minItems}
+                title={items.length <= minItems ? `Minimum ${minItems} requis` : 'Supprimer'}
+                className="text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+              >
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
@@ -212,6 +218,12 @@ export default function Profile() {
 
   async function addContact(type: ContactType, value: string) {
     setContactError('')
+    const normalized = value.trim().toLowerCase()
+    const alreadyExists = profil!.contacts.some(
+      (c) => c.type === type && c.value.trim().toLowerCase() === normalized
+    )
+    if (alreadyExists) { setContactError('Cette valeur est déjà enregistrée.'); return }
+
     const res = await authFetch(`${API}/users/me/contacts`, {
       method: 'POST',
       body: JSON.stringify({ type, value, label: null }),
@@ -317,7 +329,7 @@ export default function Profile() {
             <ContactCard
               title="Adresses email" subtitle="Emails à retirer des bases des data brokers"
               icon={Mail} placeholder="nouvelle@email.com" type="email"
-              limit={5} items={emails}
+              limit={5} minItems={1} items={emails}
               onAdd={(v) => addContact('email', v)} onRemove={deleteContact}
             />
           </motion.div>
@@ -326,7 +338,7 @@ export default function Profile() {
             <ContactCard
               title="Adresses postales" subtitle="Adresses actuelles et passées"
               icon={MapPin} placeholder="12 rue de la Paix, 75001 Paris"
-              limit={5} items={addresses}
+              limit={5} minItems={1} items={addresses}
               onAdd={(v) => addContact('address', v)} onRemove={deleteContact}
             />
           </motion.div>
