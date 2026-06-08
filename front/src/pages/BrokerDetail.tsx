@@ -1,11 +1,32 @@
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, ExternalLink, Mail, FileText, Send, Shuffle, CheckCircle2, AlertTriangle, Scale, Globe } from "lucide-react"
-import { mockBrokers, mockRequests, categoryLabels, regionLabels, difficultyLabels, methodLabels, statusConfig } from "@/lib/mock-data"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  ArrowLeft,
+  ExternalLink,
+  Mail,
+  FileText,
+  Send,
+  Shuffle,
+  CheckCircle2,
+  AlertTriangle,
+  Scale,
+  Globe,
+} from "lucide-react"
+import {
+  categoryLabels,
+  regionLabels,
+  difficultyLabels,
+  methodLabels,
+  statusConfig,
+  type Broker,
+  type RemovalRequest,
+} from "@/lib/mock-data"
+import { getBroker, getRequests } from "@/lib/api"
 
 const legalLabel: Record<string, string> = {
   gdpr_art17: "RGPD Art. 17",
@@ -38,14 +59,48 @@ export default function BrokerDetail() {
   const slug = params.slug
   const navigate = useNavigate()
 
-  const broker = useMemo(() => mockBrokers.find((b) => b.slug === slug), [slug])
+  const [broker, setBroker] = useState<Broker | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [requestHistory, setRequestHistory] = useState<RemovalRequest[]>([])
 
-  const requestHistory = useMemo(() => {
-    if (!broker) return []
-    return mockRequests
-      .filter((r) => r.brokerId === broker.id)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  }, [broker])
+  useEffect(() => {
+    if (!slug) return
+    setLoading(true)
+    getBroker(slug).then((b) => {
+      setBroker(b)
+      setLoading(false)
+      if (b) {
+        getRequests({ brokerId: b.id, perPage: 50 }).then((res) =>
+          setRequestHistory([...res.data].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
+        )
+      }
+    })
+  }, [slug])
+
+  if (loading) {
+    return (
+      <div className="p-8 space-y-6 max-w-7xl mx-auto">
+        <Skeleton className="h-4 w-32" />
+        <div className="space-y-3">
+          <Skeleton className="h-12 w-64" />
+          <Skeleton className="h-4 w-40" />
+          <div className="flex gap-2">
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <Skeleton className="h-6 w-20 rounded-full" />
+            <Skeleton className="h-6 w-16 rounded-full" />
+          </div>
+        </div>
+        <Skeleton className="h-px w-full" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <Skeleton className="h-40 rounded-xl" />
+            <Skeleton className="h-48 rounded-xl" />
+          </div>
+          <Skeleton className="h-64 rounded-xl" />
+        </div>
+      </div>
+    )
+  }
 
   if (!broker) {
     return (
