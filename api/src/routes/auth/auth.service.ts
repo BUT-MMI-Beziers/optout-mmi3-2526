@@ -6,9 +6,9 @@ import bcrypt from 'bcryptjs'
 import { randomBytes } from 'node:crypto'
 import { sign } from 'hono/jwt'
 import { eq } from 'drizzle-orm'
-import { db } from '../db/index.js'
-import { users } from '../db/schema.js'
-import { encrypt } from '../utils/crypto.util.js'
+import { db } from '../../db/index.js'
+import { users } from '../../db/schema.js'
+import { encrypt } from '../../utils/crypto.util.js'
 
 // 12 rounds bcrypt = bon équilibre sécurité / performance (~300ms par hash)
 const BCRYPT_ROUNDS = 12

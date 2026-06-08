@@ -6,9 +6,9 @@
 // Logique métier du profil : lecture/écriture en base, chiffrement/déchiffrement,
 // validation des limites de contacts, export RGPD, gestion des notifications.
 import { eq, and } from 'drizzle-orm'
-import { db } from '../db/index.js'
-import { users, userContacts, notifications, removalRequests } from '../db/schema.js'
-import { encrypt, decrypt } from '../utils/crypto.util.js'
+import { db } from '../../db/index.js'
+import { users, userContacts, notifications, removalRequests } from '../../db/schema.js'
+import { encrypt, decrypt } from '../../utils/crypto.util.js'
 import type {
   ProfilDto,
   ContactDto,
