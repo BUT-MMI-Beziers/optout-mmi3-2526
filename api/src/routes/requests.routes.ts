@@ -486,4 +486,99 @@ requestsRoutes.post('/batch', async (c) => {
   }
 })
 
+// ============================================================================
+// FEATURE 14 : MISE À JOUR MANUELLE DU STATUT
+// Route finale : PATCH /api/v1/requests/:id/status
+// ============================================================================
+const TRANSITIONS: Record<string, string[]> = {
+  DRAFT:        ['SENT'],
+  SENT:         ['ACKNOWLEDGED', 'NO_RESPONSE'],
+  ACKNOWLEDGED: ['COMPLETED', 'REFUSED', 'SUPPRESSED'],
+  REFUSED:      ['COMPLAINT'],
+  NO_RESPONSE:  ['SENT', 'COMPLAINT'],
+}
+
+requestsRoutes.patch('/:id/status', async (c) => {
+  try {
+    const requestId = c.req.param('id')
+
+    if (!uuidRegex.test(requestId)) {
+      return c.json({
+        error: "Format d'identifiant invalide. Un UUID est attendu.",
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
+    let body: { status?: string }
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({
+        error: "Corps de requête JSON invalide ou manquant.",
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
+    const { status: newStatus } = body
+
+    if (!newStatus) {
+      return c.json({
+        error: "Le champ 'status' est requis.",
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
+    const rows = await db
+      .select()
+      .from(removalRequests)
+      .where(eq(removalRequests.id, requestId))
+      .limit(1)
+
+    if (rows.length === 0) {
+      return c.json({
+        error: "La demande spécifiée est introuvable.",
+        code: "NOT_FOUND"
+      }, 404)
+    }
+
+    const request = rows[0]
+    const oldStatus = request.status
+    const allowed = TRANSITIONS[oldStatus] ?? []
+
+    if (!allowed.includes(newStatus)) {
+      return c.json({
+        error: `Transition invalide : ${oldStatus} → ${newStatus}. Transitions autorisées : ${allowed.join(', ') || 'aucune'}.`,
+        code: "BAD_REQUEST"
+      }, 400)
+    }
+
+    const [updated] = await db
+      .update(removalRequests)
+      .set({
+        status: newStatus,
+        respondedAt: ['ACKNOWLEDGED', 'COMPLETED', 'REFUSED'].includes(newStatus) ? new Date() : request.respondedAt,
+        updatedAt: new Date(),
+      })
+      .where(eq(removalRequests.id, requestId))
+      .returning()
+
+    await db.insert(requestEvents).values({
+      requestId,
+      eventType: 'status_changed',
+      oldStatus,
+      newStatus,
+    })
+
+    return c.json({ data: updated }, 200)
+
+  } catch (error) {
+    console.error(`[PATCH /requests/${c.req.param('id')}/status] Erreur :`, error)
+    return c.json({
+      error: "Erreur interne lors de la mise à jour du statut.",
+      code: "INTERNAL_SERVER_ERROR"
+    }, 500)
+  }
+})
+
+
 export default requestsRoutes
