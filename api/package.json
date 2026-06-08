@@ -8,11 +8,14 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:studio": "drizzle-kit studio",
-    "worker": "tsx watch src/workers/email.worker.ts"
+    "worker": "tsx watch src/workers/email.worker.ts",
+    "scheduler": "tsx watch src/schedulers/index.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.14",
-    "bullmq": "^5.77.6",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^3.0.3",
+    "bullmq": "^5.78.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.23",
     "ioredis": "^5.11.0",
@@ -26,7 +29,7 @@
     "@types/nodemailer": "^8.0.0",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
-    "tsx": "^4.7.1",
+    "tsx": "^4.22.3",
     "typescript": "^5.8.3"
   }
 }

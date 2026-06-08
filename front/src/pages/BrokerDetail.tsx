@@ -105,9 +105,7 @@ export default function BrokerDetail() {
   if (!broker) {
     return (
       <div className="p-8 max-w-2xl mx-auto text-center space-y-4">
-        <h1 className="text-3xl font-bold uppercase" style={{ color: "#000401" }}>
-          Broker introuvable
-        </h1>
+        <h1 className="text-3xl font-bold uppercase" style={{ color: "#000401" }}>Broker introuvable</h1>
         <p className="text-muted-foreground">Le broker que vous cherchez n'existe pas dans le registre.</p>
         <Button onClick={() => navigate("/brokers")} className="font-semibold text-white inline-flex items-center gap-2" style={{ backgroundColor: "#FC7E34" }}>
           <ArrowLeft className="w-4 h-4" />
@@ -133,9 +131,7 @@ export default function BrokerDetail() {
       <div className="flex items-start justify-between gap-6 flex-wrap">
         <div className="flex-1 min-w-0 space-y-3">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-5xl font-bold uppercase tracking-wide" style={{ color: "#000401" }}>
-              {broker.name}
-            </h1>
+            <h1 className="text-5xl font-bold uppercase tracking-wide" style={{ color: "#000401" }}>{broker.name}</h1>
             {broker.isVerified ? (
               <span className="text-sm font-semibold px-3 py-1 rounded-full inline-flex items-center gap-1.5" style={{ backgroundColor: "#dcfce7", color: "#15803d" }}>
                 <CheckCircle2 className="w-4 h-4" strokeWidth={2.5} />
@@ -155,16 +151,12 @@ export default function BrokerDetail() {
           </a>
 
           <div className="flex items-center gap-2 flex-wrap pt-1">
-            <Badge className="text-xs uppercase shrink-0 text-white border-0" style={{ backgroundColor: "#253550" }}>
-              {categoryLabels[broker.category]}
-            </Badge>
+            <Badge className="text-xs uppercase shrink-0 text-white border-0" style={{ backgroundColor: "#253550" }}>{categoryLabels[broker.category]}</Badge>
             <Badge variant="outline" className="text-xs uppercase border-border inline-flex items-center gap-1">
               <Globe className="w-3 h-3" />
               {regionLabels[broker.region]}
             </Badge>
-            <Badge className="text-xs uppercase border-0" style={{ backgroundColor: diffStyle.bg, color: diffStyle.text }}>
-              {difficultyLabels[broker.difficulty]}
-            </Badge>
+            <Badge className="text-xs uppercase border-0" style={{ backgroundColor: diffStyle.bg, color: diffStyle.text }}>{difficultyLabels[broker.difficulty]}</Badge>
             <Badge variant="outline" className="text-xs uppercase border-border inline-flex items-center gap-1">
               <Scale className="w-3 h-3" />
               {legalLabel[broker.legalBasis]}
@@ -181,9 +173,7 @@ export default function BrokerDetail() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl uppercase" style={{ color: "#000401" }}>
-                À propos
-              </CardTitle>
+              <CardTitle className="text-2xl uppercase" style={{ color: "#000401" }}>À propos</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground leading-relaxed">
@@ -194,9 +184,7 @@ export default function BrokerDetail() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl uppercase" style={{ color: "#000401" }}>
-                Coordonnées
-              </CardTitle>
+              <CardTitle className="text-2xl uppercase" style={{ color: "#000401" }}>Coordonnées</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="flex items-start gap-3">
@@ -244,15 +232,11 @@ export default function BrokerDetail() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl uppercase" style={{ color: "#000401" }}>
-                Historique de vos demandes
-              </CardTitle>
+              <CardTitle className="text-2xl uppercase" style={{ color: "#000401" }}>Historique de vos demandes</CardTitle>
             </CardHeader>
             <CardContent>
               {requestHistory.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">
-                  Vous n'avez pas encore fait de demande de suppression auprès de ce broker.
-                </p>
+                <p className="text-sm text-muted-foreground italic">Vous n'avez pas encore fait de demande de suppression auprès de ce broker.</p>
               ) : (
                 <div className="space-y-3">
                   {requestHistory.map((req) => {
@@ -270,9 +254,7 @@ export default function BrokerDetail() {
                             </p>
                           </div>
                         </div>
-                        <span className={"text-xs font-semibold px-2 py-1 rounded-full " + status.bg + " " + status.color}>
-                          {status.label}
-                        </span>
+                        <span className={"text-xs font-semibold px-2 py-1 rounded-full " + status.bg + " " + status.color}>{status.label}</span>
                       </Link>
                     )
                   })}
@@ -288,36 +270,33 @@ export default function BrokerDetail() {
 
             <Card style={{ borderColor: "#FC7E34", borderWidth: 2 }}>
               <CardHeader>
-                <CardTitle className="text-xl uppercase" style={{ color: "#000401" }}>
-                  Action
-                </CardTitle>
+                <CardTitle className="text-xl uppercase" style={{ color: "#000401" }}>Action</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Envoyez une demande de suppression de vos données personnelles à {broker.name}.
-                </p>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">Envoyez une demande de suppression de vos données personnelles à {broker.name}.</p>
+
                 <Button className="w-full font-semibold text-white inline-flex items-center justify-center gap-2" style={{ backgroundColor: "#FC7E34" }} onClick={() => navigate("/requests/new?broker=" + broker.slug)}>
                   <Mail className="w-4 h-4" />
                   Demander la suppression
                 </Button>
-                <p className="text-xs text-muted-foreground italic">
-                  Le broker a 30 jours pour répondre, conformément à l'article 12 du RGPD.
-                </p>
+
+                <Button className="w-full font-semibold text-white inline-flex items-center justify-center gap-2" style={{ backgroundColor: "#253550" }} onClick={() => window.open(websiteUrl, "_blank", "noopener,noreferrer")}>
+                  <ExternalLink className="w-4 h-4" />
+                  Voir la page du broker
+                </Button>
+
+                <p className="text-xs text-muted-foreground italic">Le broker a 30 jours pour répondre, conformément à l'article 12 du RGPD.</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base uppercase" style={{ color: "#000401" }}>
-                  En bref
-                </CardTitle>
+                <CardTitle className="text-base uppercase" style={{ color: "#000401" }}>En bref</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Difficulté</span>
-                  <span className="font-semibold px-2 py-0.5 rounded text-xs" style={{ backgroundColor: diffStyle.bg, color: diffStyle.text }}>
-                    {difficultyLabels[broker.difficulty]}
-                  </span>
+                  <span className="font-semibold px-2 py-0.5 rounded text-xs" style={{ backgroundColor: diffStyle.bg, color: diffStyle.text }}>{difficultyLabels[broker.difficulty]}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Méthode</span>
@@ -335,9 +314,7 @@ export default function BrokerDetail() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Vos demandes</span>
-                  <span className="font-bold" style={{ color: "#FC7E34" }}>
-                    {requestHistory.length}
-                  </span>
+                  <span className="font-bold" style={{ color: "#FC7E34" }}>{requestHistory.length}</span>
                 </div>
               </CardContent>
             </Card>

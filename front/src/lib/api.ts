@@ -16,7 +16,6 @@ import {
 } from '@/lib/mock-data'
 
 const BASE = '/api/v1'
-const token = () => localStorage.getItem('token') ?? ''
 
 async function request<T>(
   path: string,
@@ -26,9 +25,9 @@ async function request<T>(
   try {
     const res = await fetch(`${BASE}${path}`, {
       ...options,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token()}`,
         ...options.headers,
       },
     })
@@ -226,9 +225,36 @@ export interface DashboardStats {
   responseRate: number
 }
 
+interface RawStats {
+  total: number
+  byStatus: {
+    DRAFT: number; SENT: number; ACKNOWLEDGED: number; COMPLETED: number
+    REFUSED: number; NO_RESPONSE: number; COMPLAINT: number; SUPPRESSED: number
+  }
+  avgResponseDays: number | null
+}
+
 export async function getStats(): Promise<DashboardStats> {
-  return request<DashboardStats>('/stats', {}, {
-    total: 0, sent: 0, acknowledged: 0, completed: 0,
-    noResponse: 0, refused: 0, responseRate: 0,
-  })
+  const fallback: RawStats = {
+    total: 0,
+    byStatus: {
+      DRAFT: 0, SENT: 0, ACKNOWLEDGED: 0, COMPLETED: 0,
+      REFUSED: 0, NO_RESPONSE: 0, COMPLAINT: 0, SUPPRESSED: 0,
+    },
+    avgResponseDays: null,
+  }
+  // API réelle renvoie { data: { total, byStatus, avgResponseDays } }
+  const raw = await request<{ data: RawStats }>('/stats', {}, { data: fallback })
+  const d = raw.data ?? fallback
+  const b = d.byStatus
+  const responded = b.COMPLETED + b.REFUSED
+  return {
+    total: d.total,
+    sent: b.SENT,
+    acknowledged: b.ACKNOWLEDGED,
+    completed: b.COMPLETED,
+    noResponse: b.NO_RESPONSE,
+    refused: b.REFUSED,
+    responseRate: d.total > 0 ? Math.round((responded / d.total) * 100) : 0,
+  }
 }

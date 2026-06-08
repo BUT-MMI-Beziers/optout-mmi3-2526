@@ -5,24 +5,33 @@ import { Mail, Eye, EyeOff, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function Register() {
-  const [name, setName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [accepted, setAccepted] = useState(false)
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!accepted) return
+    setError('')
     setLoading(true)
     try {
-      // TODO: appeler l'API d'inscription
-      // await register({ name, email, password })
+      const res = await fetch('/api/v1/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password, firstName, lastName }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Erreur'); return }
       navigate('/dashboard')
-    } catch (err) {
-      console.error(err)
+    } catch {
+      setError('Impossible de contacter le serveur')
     } finally {
       setLoading(false)
     }
@@ -66,26 +75,49 @@ export default function Register() {
           transition={{ duration: 0.3, delay: 0.16 }}
           className="mt-10 space-y-5"
         >
-          {/* Prénom et Nom */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Prénom et Nom
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Toto"
-                required
-                className="
-                  w-full h-11 pl-4 pr-10 rounded-lg border border-border
-                  bg-muted/40 text-sm text-foreground placeholder:text-muted-foreground
-                  focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 focus:border-[#FC7E34]
-                  transition-colors
-                "
-              />
-              <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          {/* Prénom + Nom */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Prénom
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="Léo"
+                  required
+                  className="
+                    w-full h-11 pl-4 pr-10 rounded-lg border border-border
+                    bg-muted/40 text-sm text-foreground placeholder:text-muted-foreground
+                    focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 focus:border-[#FC7E34]
+                    transition-colors
+                  "
+                />
+                <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Nom
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Dupont"
+                  required
+                  className="
+                    w-full h-11 pl-4 pr-10 rounded-lg border border-border
+                    bg-muted/40 text-sm text-foreground placeholder:text-muted-foreground
+                    focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 focus:border-[#FC7E34]
+                    transition-colors
+                  "
+                />
+                <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </div>
             </div>
           </div>
 
@@ -122,7 +154,7 @@ export default function Register() {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Au moins 12 caractères"
+                placeholder="Au moins 8 caractères"
                 required
                 className="
                   w-full h-11 pl-4 pr-10 rounded-lg border border-border
@@ -167,6 +199,8 @@ export default function Register() {
               <a href="#" className="text-[#253550] font-medium hover:underline">politique de confidentialité</a>
             </span>
           </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
 
           {/* Bouton S'inscrire */}
           <div className="pt-2">
