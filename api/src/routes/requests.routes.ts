@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, getTableColumns } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { removalRequests, users, brokers, emailTemplates, userContacts, requestEvents } from '../db/schema.js'
 import { renderTemplate } from '../services/template.service.js'
@@ -28,8 +28,11 @@ const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
  *  - limit      : limite actuelle
  *  - totalPages : nombre total de pages
  */
-requestsRoutes.get('/', async (c) => {
+requestsRoutes.get('/', authMiddleware, async (c) => {
   try {
+    // Auth — userId extrait du cookie JWT
+    const userId = c.get('userId') as string
+
     // 1. Récupérer et valider les query params
     const statusParam = c.req.query('status')
     const brokerIdParam = c.req.query('broker_id')
@@ -59,7 +62,7 @@ requestsRoutes.get('/', async (c) => {
     const offset = (page - 1) * limit
 
     // 2. Construire les conditions de filtre
-    const conditions = []
+    const conditions = [eq(removalRequests.userId, userId)]
 
     if (statusParam) {
       conditions.push(eq(removalRequests.status, statusParam as any))
@@ -71,9 +74,14 @@ requestsRoutes.get('/', async (c) => {
 
     // 3. Récupérer les demandes avec filtres + pagination
     const requestsList = await db
-      .select()
+      .select({
+        ...getTableColumns(removalRequests),
+        brokerName: brokers.name,
+        brokerUrl: brokers.website,
+      })
       .from(removalRequests)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .leftJoin(brokers, eq(removalRequests.brokerId, brokers.id))
+      .where(and(...conditions))
       .orderBy(removalRequests.createdAt)
       .limit(limit)
       .offset(offset)
