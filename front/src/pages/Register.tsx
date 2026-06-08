@@ -10,19 +10,30 @@ export default function Register() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [accepted, setAccepted] = useState(false)
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!accepted) return
+    setError('')
     setLoading(true)
     try {
-      // TODO: appeler l'API d'inscription
-      // await register({ name, email, password })
+      const [firstName, ...rest] = name.trim().split(/\s+/)
+      const lastName = rest.join(' ') || firstName
+
+      const res = await fetch('/api/v1/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password, firstName, lastName }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Erreur'); return }
       navigate('/dashboard')
-    } catch (err) {
-      console.error(err)
+    } catch {
+      setError('Impossible de contacter le serveur')
     } finally {
       setLoading(false)
     }
@@ -122,7 +133,7 @@ export default function Register() {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Au moins 12 caractères"
+                placeholder="Au moins 8 caractères"
                 required
                 className="
                   w-full h-11 pl-4 pr-10 rounded-lg border border-border
@@ -167,6 +178,8 @@ export default function Register() {
               <a href="#" className="text-[#253550] font-medium hover:underline">politique de confidentialité</a>
             </span>
           </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
 
           {/* Bouton S'inscrire */}
           <div className="pt-2">
