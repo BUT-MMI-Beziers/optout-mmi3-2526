@@ -16,7 +16,7 @@ import { renderTemplate } from '../services/template.service.js'
 // CONNEXION REDIS (mÃªme config que queue.service.ts cÃ´tÃ© API)
 // ============================================================
 
-
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms))
 
 const redisUrl = new URL(process.env.REDIS_URL || 'redis://redis:6379')
 const connection = {
@@ -82,6 +82,14 @@ const worker = new Worker(
 
     const data = rows[0]
 
+    await db.update(removalRequests)
+    .set({
+      status: 'SENT',
+      sentAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(removalRequests.id, requestId))
+
     const addressRows = await db
       .select()
       .from(userContacts)
@@ -141,7 +149,7 @@ const worker = new Worker(
     concurrency: 1,
     limiter: {
       max: 1,
-      duration: 2000, // OK rate limit
+      duration: 30000, // OK rate limit
     },
   }
 )

@@ -285,7 +285,10 @@ requestsRoutes.post('/:id/send', async (c) => {
     const requestId = c.req.param('id')
 
     if (!uuidRegex.test(requestId)) {
-      return c.json({ error: "UUID invalide" }, 400)
+      return c.json({
+        error: "Format d'identifiant invalide",
+        code: "BAD_REQUEST"
+      }, 400)
     }
 
     const [request] = await db
@@ -295,42 +298,33 @@ requestsRoutes.post('/:id/send', async (c) => {
       .limit(1)
 
     if (!request) {
-      return c.json({ error: "Request introuvable" }, 404)
+      return c.json({
+        error: "Demande introuvable",
+        code: "NOT_FOUND"
+      }, 404)
     }
 
     if (request.status !== 'DRAFT') {
-      return c.json({ error: "Must be DRAFT" }, 400)
+      return c.json({
+        error: "La demande doit être DRAFT",
+        code: "BAD_REQUEST"
+      }, 400)
     }
 
-    if (!request.emailBody) {
-      return c.json({ error: "Empty email body" }, 400)
-    }
-
-    // ✅ IMPORTANT: enqueue ONLY
-    const job = await emailQueue.add('send-request', {
-      requestId
+    await emailQueue.add('send-request', {
+      requestId: request.id
     })
 
-    console.log(`[Queue] Job ajouté ${job.id}`)
-
-    // ✅ option CLEAN: mark QUEUED (pas SENT ici)
-    const [updated] = await db
-      .update(removalRequests)
-      .set({
-        status: 'SENT', // ou QUEUED si tu veux être plus clean
-        updatedAt: new Date()
-      })
-      .where(eq(removalRequests.id, requestId))
-      .returning()
-
     return c.json({
-      message: "Job queued successfully",
-      data: updated
+      message: "Ajouté à la queue",
+      data: request
     })
 
   } catch (error) {
     console.error(error)
-    return c.json({ error: "server error" }, 500)
+    return c.json({
+      error: "server error"
+    }, 500)
   }
 })
 
@@ -344,127 +338,74 @@ requestsRoutes.post('/:id/send', async (c) => {
  * Comportement partiel : si un broker est invalide, on continue avec les autres
  * et on signale l'échec dans le résultat.
  */
+
 requestsRoutes.post('/batch', authMiddleware, async (c) => {
   try {
     const body = await c.req.json()
     const { templateId, brokerIds } = body
     const userId = c.get('userId') as string
 
-    if (!uuidRegex.test(userId) || !uuidRegex.test(templateId)) {
-      return c.json({
-        error: "userId et templateId doivent être des UUIDs valides.",
-        code: "BAD_REQUEST"
-      }, 400)
-    }
-
-    // 2. Vérifier que l'utilisateur existe
-    const userRows = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1)
-
-    if (userRows.length === 0) {
-      return c.json({
-        error: "Utilisateur introuvable.",
-        code: "NOT_FOUND"
-      }, 404)
-    }
-
-    // 3. Vérifier que le template existe
-    const templateRows = await db
-      .select()
-      .from(emailTemplates)
-      .where(eq(emailTemplates.id, templateId))
-      .limit(1)
-
-    if (templateRows.length === 0) {
-      return c.json({
-        error: "Template introuvable.",
-        code: "NOT_FOUND"
-      }, 404)
-    }
-
-    // 4. Traiter chaque broker un par un
     const created = []
     const failed = []
 
     for (const brokerId of brokerIds) {
-      // Valider le format UUID du brokerId
       if (!uuidRegex.test(brokerId)) {
-        failed.push({ brokerId, reason: "Format UUID invalide" })
+        failed.push({ brokerId, reason: "UUID invalide" })
         continue
       }
 
-      // Vérifier que le broker existe
-      const brokerRows = await db
+      const [broker] = await db
         .select()
         .from(brokers)
         .where(eq(brokers.id, brokerId))
         .limit(1)
 
-      if (brokerRows.length === 0) {
+      if (!broker) {
         failed.push({ brokerId, reason: "Broker introuvable" })
         continue
       }
 
-      try {
-        // Créer la demande en DRAFT
-        const [newRequest] = await db
-          .insert(removalRequests)
-          .values({
-            userId,
-            brokerId,
-            templateId,
-            emailBody: "Généré automatiquement par le batch.",
-          })
-          .returning()
-
-        // Ajouter dans la queue
-        await emailQueue.add('send-request', {
-          requestId: newRequest.id
+      const [newRequest] = await db
+        .insert(removalRequests)
+        .values({
+          userId,
+          brokerId,
+          templateId,
+          status: 'DRAFT',
+          emailBody: "generated",
         })
+        .returning()
 
-        console.log(`[POST /batch] Job ajouté pour la demande : ${newRequest.id}`)
+      // ❗ UNIQUEMENT QUEUE (PAS SENT ICI)
+      await emailQueue.add(
+        'send-request',
+        { requestId: newRequest.id },
+        {
+          attempts: 3,
+          removeOnComplete: true,
+          removeOnFail: false,
+        }
+      )
 
-        // Mettre à jour le statut SENT (cohérent avec POST /:id/send de Fabien)
-        const [updatedRequest] = await db
-          .update(removalRequests)
-          .set({
-            status: 'SENT',
-            sentAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(removalRequests.id, newRequest.id))
-          .returning()
+      created.push(newRequest)
 
-        created.push(updatedRequest)
-
-      } catch (brokerError) {
-        console.error(`[POST /batch] Erreur pour le broker ${brokerId} :`, brokerError)
-        failed.push({ brokerId, reason: "Erreur lors de la création de la demande" })
-      }
+      console.log(`[batch] queued ${newRequest.id}`)
     }
 
-    // 5. Réponse avec le récap complet
     return c.json({
-      message: `${created.length} demande(s) créée(s) et mise(s) en file d'attente.`,
+      message: "Batch queued",
       data: {
-        created: created.length,
-        failed: failed.length,
-        requests: created,
-        errors: failed.length > 0 ? failed : undefined,
+        created,
+        failed,
       }
     }, 201)
 
-  } catch (error) {
-    console.error("[POST /requests/batch] Erreur critique :", error)
-    return c.json({
-      error: "Erreur serveur lors du traitement du batch.",
-      code: "INTERNAL_SERVER_ERROR"
-    }, 500)
+  } catch (e) {
+    return c.json({ error: "server error" }, 500)
   }
 })
+
+
 
 // ============================================================================
 // FEATURE 14 : MISE À JOUR MANUELLE DU STATUT
