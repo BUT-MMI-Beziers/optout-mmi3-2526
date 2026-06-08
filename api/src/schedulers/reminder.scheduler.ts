@@ -85,3 +85,69 @@ export async function runReminderScheduler() {
 
   console.log('[scheduler] Scheduler 30j terminé.')
 }
+// ============================================================
+// FEATURE 17 : SCHEDULER — Mise en demeure automatique 60j
+// ============================================================
+/*
+ * Logique :
+ *  - Toutes les 24h, détecte les demandes en statut NO_RESPONSE
+ *    dont nextActionAt est dépassé (= 60j après l'envoi initial)
+ *  - Pour chacune :
+ *    1. Passe le statut à COMPLAINT
+ *    2. Logge un request_event 'status_changed'
+ *    3. Crée une notification de mise en demeure pour l'utilisateur
+ */
+export async function runFormalNoticeScheduler() {
+  console.log('[scheduler] Lancement du scheduler de mise en demeure 60j...')
+
+  const now = new Date()
+
+  // Trouver les demandes NO_RESPONSE dont nextActionAt est dépassé
+  const overdueRequests = await db
+    .select()
+    .from(removalRequests)
+    .where(
+      and(
+        eq(removalRequests.status, 'NO_RESPONSE'),
+        lt(removalRequests.nextActionAt, now)
+      )
+    )
+
+  console.log(`[scheduler] ${overdueRequests.length} demande(s) en mise en demeure détectée(s)`)
+
+  for (const request of overdueRequests) {
+    try {
+      // 1. Passer le statut à COMPLAINT
+      await db
+        .update(removalRequests)
+        .set({
+          status: 'COMPLAINT',
+          updatedAt: now,
+        })
+        .where(eq(removalRequests.id, request.id))
+
+      // 2. Logger l'événement (audit RGPD)
+      await db.insert(requestEvents).values({
+        requestId: request.id,
+        eventType: 'status_changed',
+        oldStatus: 'NO_RESPONSE',
+        newStatus: 'COMPLAINT',
+        note: 'Aucune réponse reçue après 60 jours — mise en demeure déclenchée automatiquement',
+      })
+
+      // 3. Notification de mise en demeure pour l'utilisateur
+      await db.insert(notifications).values({
+        userId: request.userId,
+        requestId: request.id,
+        message: `Votre demande est sans réponse depuis plus de 60 jours. Vous pouvez désormais déposer une plainte auprès de la CNIL (www.cnil.fr).`,
+      })
+
+      console.log(`[scheduler] Mise en demeure créée pour la demande ${request.id}`)
+
+    } catch (error) {
+      console.error(`[scheduler] Erreur pour la demande ${request.id} :`, error)
+    }
+  }
+
+  console.log('[scheduler] Scheduler 60j terminé.')
+}

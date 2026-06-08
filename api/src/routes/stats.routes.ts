@@ -40,11 +40,14 @@ statsRoutes.get('/', async (c) => {
 
     // 2. Calculer les compteurs par statut
     const countsByStatus = {
-      DRAFT: 0,
-      SENT: 0,
-      NO_RESPONSE: 0,
-      RESPONDED: 0,
-      CLOSED: 0,
+    DRAFT: 0,
+    SENT: 0,
+    ACKNOWLEDGED: 0,
+    COMPLETED: 0,
+    REFUSED: 0,
+    NO_RESPONSE: 0,
+    COMPLAINT: 0,
+    SUPPRESSED: 0,
     }
 
     let totalResponseTimeMs = 0

@@ -1,4 +1,5 @@
 import { runReminderScheduler } from './reminder.scheduler.js'
+import { runFormalNoticeScheduler } from './reminder.scheduler.js'
 
 // ============================================================
 // LANCEUR DES SCHEDULERS
@@ -7,7 +8,7 @@ import { runReminderScheduler } from './reminder.scheduler.js'
 // ============================================================
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000
-const STARTUP_DELAY_MS = 10_000 // 10 secondes
+const STARTUP_DELAY_MS = 10_000
 
 async function startSchedulers() {
   console.log('[schedulers] Démarrage dans 10s (attente Postgres)...')
@@ -16,12 +17,14 @@ async function startSchedulers() {
 
   console.log('[schedulers] Démarrage des schedulers...')
 
-  // Lancement immédiat après le délai
-  await runReminderScheduler()
+  // Lancement immédiat au démarrage
+  await runReminderScheduler()       // F16 — 30j
+  await runFormalNoticeScheduler()   // F17 — 60j
 
   // Puis toutes les 24h
   setInterval(async () => {
     await runReminderScheduler()
+    await runFormalNoticeScheduler()
   }, TWENTY_FOUR_HOURS_MS)
 }
 
