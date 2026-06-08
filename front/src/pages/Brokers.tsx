@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -21,8 +22,9 @@ import {
   AlertTriangle,
   Scale,
 } from "lucide-react"
+import { useBrokers } from "@/hooks/useBrokers"
+import { getBrokers } from "@/lib/api"
 import {
-  mockBrokers,
   categoryLabels,
   regionLabels,
   difficultyLabels,
@@ -49,13 +51,6 @@ const methodIconMap = {
   mixed: Shuffle,
 } as const
 
-// Couleur du point de difficulté
-const difficultyDot: Record<Difficulty, string> = {
-  easy: "#22c55e",
-  medium: "#f97316",
-  hard: "#ef4444",
-}
-
 // ─── Composant ────────────────────────────────────────────────────────────────
 
 export default function Brokers() {
@@ -68,30 +63,54 @@ export default function Brokers() {
   const [page, setPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(12)
 
-  const filtered = useMemo(() => {
-    return mockBrokers.filter((b) => {
-      const matchSearch = b.name.toLowerCase().includes(search.toLowerCase())
-      const matchCategory = activeCategory === "tous" || b.category === activeCategory
-      const matchRegion = regionFilter === "tous" || b.region === regionFilter
-      const matchDifficulty = difficultyFilter === "tous" || b.difficulty === difficultyFilter
-      return matchSearch && matchCategory && matchRegion && matchDifficulty
-    })
-  }, [search, activeCategory, regionFilter, difficultyFilter])
+  // ─── Données paginées (filtrage côté serveur) ──────────────
+  const { data, loading, error } = useBrokers({
+    page,
+    perPage: itemsPerPage,
+    category: activeCategory === "tous" ? undefined : activeCategory,
+    region: regionFilter === "tous" ? undefined : regionFilter,
+    difficulty: difficultyFilter === "tous" ? undefined : difficultyFilter,
+    search: search || undefined,
+  })
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage))
+  const paginated = data?.data ?? []
+  const total = data?.total ?? 0
+  const totalPages = data?.lastPage ?? 1
   const safePage = Math.min(page, totalPages)
-  const paginated = filtered.slice(
-    (safePage - 1) * itemsPerPage,
-    safePage * itemsPerPage
-  )
+
+  // ─── Compteurs globaux par catégorie (indépendants des filtres) ──
+  const [counts, setCounts] = useState<{
+    total: number
+    byCategory: Record<BrokerCategory, number>
+  } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadCounts() {
+      const [totalRes, ...catRes] = await Promise.all([
+        getBrokers({ perPage: 1 }),
+        ...CATEGORY_ORDER.map((cat) => getBrokers({ perPage: 1, category: cat })),
+      ])
+      if (cancelled) return
+      const byCategory = {} as Record<BrokerCategory, number>
+      CATEGORY_ORDER.forEach((cat, i) => {
+        byCategory[cat] = catRes[i].total
+      })
+      setCounts({ total: totalRes.total, byCategory })
+    }
+    loadCounts()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const categoryCounts = useMemo(() => {
     return CATEGORY_ORDER.map((cat) => ({
       key: cat,
       label: categoryLabels[cat],
-      count: mockBrokers.filter((b) => b.category === cat).length,
+      count: counts?.byCategory[cat] ?? 0,
     }))
-  }, [])
+  }, [counts])
 
   const hasActiveFilters =
     search !== "" ||
@@ -174,7 +193,7 @@ export default function Brokers() {
         >
           Tous
           <span className="text-xs px-1.5 py-0.5 rounded font-bold" style={activeCategory === "tous" ? { backgroundColor: "rgba(255,255,255,0.2)", color: "white" } : { backgroundColor: "#f0efee", color: "#6b7280" }}>
-            {mockBrokers.length}
+            {counts?.total ?? 0}
           </span>
         </button>
 
@@ -273,9 +292,31 @@ export default function Brokers() {
         </div>
       </div>
 
+      {/* ─── Erreur ─────────────────────────────────────────── */}
+      {error ? (
+        <div className="text-center py-16 text-red-600">
+          <p className="text-base">{error}</p>
+        </div>
+      ) : null}
+
       {/* ─── Grille des brokers ─────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {paginated.map((broker) => {
+        {loading
+          ? Array.from({ length: itemsPerPage }).map((_, i) => (
+              <Card key={"skeleton-" + i} className="bg-white border-border">
+                <CardHeader className="pb-2 space-y-2">
+                  <Skeleton className="h-5 w-2/3" />
+                  <Skeleton className="h-3 w-1/2" />
+                  <Skeleton className="h-4 w-20 rounded-full" />
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Skeleton className="h-[60px] w-full" />
+                  <Skeleton className="h-3 w-3/4" />
+                  <Skeleton className="h-9 w-full rounded-lg" />
+                </CardContent>
+              </Card>
+            ))
+          : paginated.map((broker) => {
           const MethodIcon = methodIconMap[broker.optOutMethod]
           return (
             <Card
@@ -347,7 +388,7 @@ export default function Brokers() {
       </div>
 
       {/* ─── État vide ──────────────────────────────────────── */}
-      {filtered.length === 0 ? (
+      {!loading && !error && paginated.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <p className="text-base mb-2">Aucun broker ne correspond à votre recherche.</p>
           {hasActiveFilters ? (
@@ -359,10 +400,10 @@ export default function Brokers() {
       ) : null}
 
       {/* ─── Pagination ─────────────────────────────────────── */}
-      {filtered.length > 0 ? (
+      {!loading && total > 0 ? (
         <div className="flex items-center justify-between pt-2">
           <p className="text-sm text-muted-foreground">
-            Affichage de {paginated.length} sur {filtered.length} brokers
+            Affichage de {paginated.length} sur {total} brokers
           </p>
           <div className="flex items-center gap-1">
             <button
