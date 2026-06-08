@@ -1,4 +1,4 @@
-import { users, userContacts, brokers, emailTemplates, removalRequests } from '../schema.js';
+import { users, userContacts, brokers, emailTemplates, removalRequests, notifications } from '../schema.js';
 
 /**
  * Injecte des données fictives réalistes dans la base de données à des fins de développement et de test.
@@ -51,6 +51,26 @@ export async function seedMockData(db: any) {
       templateId: firstTemplate.id,
       emailBody: "Ceci est un texte temporaire généré par le mock."
     });
+
+        // 6. Récupération de la demande créée pour la référencer dans les notifications
+    const [mockRequest] = await db.select().from(removalRequests).limit(1);
+
+    // 7. Insertion de notifications fictives pour tester les endpoints F18
+    await db.insert(notifications).values([
+      {
+        userId: mockUser.id,
+        requestId: mockRequest.id,
+        message: `Votre demande auprès de ${firstBroker.name} n'a pas reçu de réponse depuis 30 jours. Une relance automatique a été envoyée.`,
+        isRead: false,
+      },
+      {
+        userId: mockUser.id,
+        requestId: mockRequest.id,
+        message: `Votre demande auprès de ${firstBroker.name} a été complétée avec succès.`,
+        isRead: true,
+      },
+    ]);
+
 
     console.log("Insertion des données fictives terminée avec succès.");
 
