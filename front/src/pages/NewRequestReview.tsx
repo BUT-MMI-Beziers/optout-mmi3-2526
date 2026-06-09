@@ -5,8 +5,9 @@ import { motion, type Variants } from 'framer-motion'
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } }
 const fadeUp: Variants = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.26 } } }
 
-import { Send, User, Mail, MapPin, CheckCircle2, Loader2, ArrowLeft, Clock } from 'lucide-react'
+import { Send, User, Mail, MapPin, CheckCircle2, Loader2, ArrowLeft, Clock, Hash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -33,6 +34,8 @@ export default function NewRequestReview() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [selectedEmailIds, setSelectedEmailIds] = useState<Set<string>>(new Set())
   const [selectedAddressIds, setSelectedAddressIds] = useState<Set<string>>(new Set())
+  const [clientRef, setClientRef] = useState('')          // Référence client (obligatoire)
+  const [contactAddress, setContactAddress] = useState('') // Adresse de contact (pré-remplie)
   const [sending, setSending] = useState(false)
   const [queued, setQueued] = useState<{ created: number; failed: number } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -47,6 +50,10 @@ export default function NewRequestReview() {
       if (defaultTpl) setSelectedTemplateId(defaultTpl.id)
       setSelectedEmailIds(new Set(c.filter((x) => x.type === 'email').map((x) => x.id)))
       setSelectedAddressIds(new Set(c.filter((x) => x.type === 'address').map((x) => x.id)))
+      // Pré-remplir l'adresse de contact avec l'adresse principale (ou la 1ère dispo)
+      const addresses = c.filter((x) => x.type === 'address')
+      const primary = addresses.find((a) => a.isPrimary) ?? addresses[0]
+      if (primary) setContactAddress(primary.value)
       setLoading(false)
     })
   }, [])
@@ -68,7 +75,8 @@ export default function NewRequestReview() {
     'user.first_name': user?.firstName ?? '',
     'user.last_name': user?.lastName ?? '',
     'user.email': selectedEmailsStr,
-    'user.address': selectedAddressesStr,
+    'user.address': contactAddress || selectedAddressesStr,
+    'user.client_ref': clientRef,
     'broker.name': previewBroker?.name ?? '',
     'broker.email_contact': previewBroker?.emailContact ?? '',
     'request.date': new Date().toLocaleDateString('fr-FR'),
@@ -78,8 +86,10 @@ export default function NewRequestReview() {
   const previewSubject = selectedTemplate ? interpolate(selectedTemplate.subject, interpolationVars) : ''
   const previewBody = selectedTemplate ? interpolate(selectedTemplate.body, interpolationVars) : ''
 
+  const canSend = !!selectedTemplateId && clientRef.trim().length > 0
+
   const handleSend = async () => {
-    if (!selectedTemplateId || selectedBrokers.length === 0) return
+    if (!canSend || selectedBrokers.length === 0) return
     setSending(true)
     const result = await sendBatch({ brokerIds: selectedBrokers.map((b) => b.id), templateId: selectedTemplateId })
     setSending(false)
@@ -250,6 +260,43 @@ export default function NewRequestReview() {
                     <span className="text-sm font-medium">{user?.firstName} {user?.lastName}</span>
                   </div>
 
+                  {/* Référence client — OBLIGATOIRE */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Hash className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">
+                        Référence client
+                        <span className="ml-1 text-red-500 font-bold" title="Champ obligatoire">*</span>
+                      </span>
+                    </div>
+                    <Input
+                      value={clientRef}
+                      onChange={(e) => setClientRef(e.target.value)}
+                      placeholder="N° de compte ou identifiant chez ce broker"
+                      className={`bg-muted/50 ${clientRef.trim().length === 0 ? 'border-red-300 focus-visible:ring-red-200' : ''}`}
+                    />
+                    <p className="text-[11px] text-muted-foreground px-1 leading-relaxed">
+                      Aide le broker à retrouver votre dossier. Obligatoire pour envoyer la demande.
+                    </p>
+                  </div>
+
+                  {/* Adresse de contact — pré-remplie depuis le profil */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Adresse de contact</span>
+                    </div>
+                    <Input
+                      value={contactAddress}
+                      onChange={(e) => setContactAddress(e.target.value)}
+                      placeholder="12 rue de la Paix, 75001 Paris"
+                      className="bg-muted/50"
+                    />
+                    <p className="text-[11px] text-muted-foreground px-1 leading-relaxed">
+                      Pré-remplie depuis votre profil — modifiable pour cette demande.
+                    </p>
+                  </div>
+
                   {/* Emails */}
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
@@ -305,7 +352,9 @@ export default function NewRequestReview() {
       {!loading && (
         <div className="fixed bottom-16 lg:bottom-0 left-0 lg:left-[210px] right-0 z-40 bg-card border-t border-border px-6 py-3 flex items-center justify-between">
           <p className="text-xs text-muted-foreground hidden sm:block">
-            Mode dry-run — les emails sont capturés par Mailpit, aucun email réel ne sera envoyé.
+            {clientRef.trim().length === 0
+              ? 'Renseignez la référence client pour pouvoir envoyer.'
+              : 'Mode dry-run — les emails sont capturés par Mailpit, aucun email réel ne sera envoyé.'}
           </p>
           <div className="flex gap-2 ml-auto">
             <Button variant="outline" onClick={() => navigate(-1)} disabled={sending}>
@@ -314,7 +363,7 @@ export default function NewRequestReview() {
             <Button
               className="bg-[#FC7E34] hover:bg-[#e06e28] text-white gap-2"
               onClick={handleSend}
-              disabled={sending || !selectedTemplateId}
+              disabled={sending || !canSend}
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               {sending ? 'Envoi…' : `Envoyer ${selectedBrokers.length} demande${selectedBrokers.length > 1 ? 's' : ''}`}
