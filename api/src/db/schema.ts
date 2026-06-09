@@ -41,6 +41,7 @@ export const legalBasisEnum = pgEnum('legal_basis', [
 
 export const requestStatusEnum = pgEnum('request_status', [
   'DRAFT',
+  'PENDING',
   'SENT',
   'ACKNOWLEDGED',
   'COMPLETED',
@@ -152,10 +153,13 @@ export const removalRequests = pgTable('removal_requests', {
   brokerId: uuid('broker_id').notNull().references(() => brokers.id, { onDelete: 'restrict' }),
   templateId: uuid('template_id').notNull().references(() => emailTemplates.id, { onDelete: 'restrict' }),
   status: requestStatusEnum('status').notNull().default('DRAFT'),
-  sentAt: timestamp('sent_at'),           // date d'envoi effectif
+  // Si renseigné, cette demande est une relance d'une demande initiale (→ template relance)
+  parentRequestId: uuid('parent_request_id'),
+  scheduledAt: timestamp('scheduled_at'),      // date d'envoi planifié (PENDING → SENT)
+  sentAt: timestamp('sent_at'),                // date d'envoi effectif
   respondedAt: timestamp('responded_at'),      // date de réponse du broker
-  nextActionAt: timestamp('next_action_at'),    // prochaine relance (utilisé par le scheduler)
-  emailBody: text('email_body').notNull(),   // corps généré conservé pour traçabilité
+  nextActionAt: timestamp('next_action_at'),   // prochaine relance (utilisé par le scheduler)
+  emailBody: text('email_body').notNull(),     // corps généré conservé pour traçabilité
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
