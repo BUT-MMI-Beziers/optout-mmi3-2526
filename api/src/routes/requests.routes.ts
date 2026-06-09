@@ -509,5 +509,63 @@ requestsRoutes.get('/:id/events', async (c) => {
   }
 })
 
+const ALLOWED_REMINDER_DELAYS = [3, 7, 15, 30]
+
+requestsRoutes.post('/:id/remind', authMiddleware, async (c) => {
+  try {
+    const requestId = c.req.param('id')
+    const userId = c.get('userId') as string
+
+    if (!uuidRegex.test(requestId)) {
+      return c.json({ error: 'UUID invalide', code: 'BAD_REQUEST' }, 400)
+    }
+
+    let body: any
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'Body JSON invalide', code: 'BAD_REQUEST' }, 400)
+    }
+
+    const delayDays = Number(body?.delayDays)
+    if (!ALLOWED_REMINDER_DELAYS.includes(delayDays)) {
+      return c.json({
+        error: `delayDays doit être l'un de ${ALLOWED_REMINDER_DELAYS.join(', ')}`,
+        code: 'BAD_REQUEST',
+      }, 400)
+    }
+
+    const [request] = await db
+      .select()
+      .from(removalRequests)
+      .where(and(eq(removalRequests.id, requestId), eq(removalRequests.userId, userId)))
+      .limit(1)
+
+    if (!request) {
+      return c.json({ error: 'Demande introuvable', code: 'NOT_FOUND' }, 404)
+    }
+
+    const now = new Date()
+    const nextActionAt = new Date(now.getTime() + delayDays * 24 * 60 * 60 * 1000)
+
+    const [updated] = await db
+      .update(removalRequests)
+      .set({ nextActionAt, updatedAt: now })
+      .where(eq(removalRequests.id, requestId))
+      .returning()
+
+    await db.insert(requestEvents).values({
+      requestId,
+      eventType: 'note_added',
+      note: `Relance programmée dans ${delayDays} jours (le ${nextActionAt.toISOString().slice(0, 10)})`,
+    })
+
+    return c.json({ data: updated })
+  } catch (e) {
+    console.error('[POST /requests/:id/remind] Erreur :', e)
+    return c.json({ error: 'Erreur serveur', code: 'INTERNAL_SERVER_ERROR' }, 500)
+  }
+})
+
 
 export default requestsRoutes

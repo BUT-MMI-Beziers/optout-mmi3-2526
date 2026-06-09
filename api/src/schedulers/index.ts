@@ -1,5 +1,6 @@
 import { runReminderScheduler } from './reminder.scheduler.js'
 import { runFormalNoticeScheduler } from './reminder.scheduler.js'
+import { runManualReminderScheduler } from './reminder.scheduler.js'
 
 // ============================================================
 // LANCEUR DES SCHEDULERS
@@ -20,11 +21,13 @@ async function startSchedulers() {
   // Lancement immédiat au démarrage
   await runReminderScheduler()       // F16 — 30j
   await runFormalNoticeScheduler()   // F17 — 60j
+  await runManualReminderScheduler() // F18 — relances manuelles
 
   // Puis toutes les 24h
   setInterval(async () => {
     await runReminderScheduler()
     await runFormalNoticeScheduler()
+    await runManualReminderScheduler()
   }, TWENTY_FOUR_HOURS_MS)
 }
 
