@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, getTableColumns } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { removalRequests, users, brokers, emailTemplates, userContacts, requestEvents } from '../db/schema.js'
 import { renderTemplate } from '../services/template.service.js'
@@ -28,8 +28,11 @@ const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
  *  - limit      : limite actuelle
  *  - totalPages : nombre total de pages
  */
-requestsRoutes.get('/', async (c) => {
+requestsRoutes.get('/', authMiddleware, async (c) => {
   try {
+    // Auth — userId extrait du cookie JWT
+    const userId = c.get('userId') as string
+
     // 1. Récupérer et valider les query params
     const statusParam = c.req.query('status')
     const brokerIdParam = c.req.query('broker_id')
@@ -59,7 +62,7 @@ requestsRoutes.get('/', async (c) => {
     const offset = (page - 1) * limit
 
     // 2. Construire les conditions de filtre
-    const conditions = []
+    const conditions = [eq(removalRequests.userId, userId)]
 
     if (statusParam) {
       conditions.push(eq(removalRequests.status, statusParam as any))
@@ -71,9 +74,14 @@ requestsRoutes.get('/', async (c) => {
 
     // 3. Récupérer les demandes avec filtres + pagination
     const requestsList = await db
-      .select()
+      .select({
+        ...getTableColumns(removalRequests),
+        brokerName: brokers.name,
+        brokerUrl: brokers.website,
+      })
       .from(removalRequests)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .leftJoin(brokers, eq(removalRequests.brokerId, brokers.id))
+      .where(and(...conditions))
       .orderBy(removalRequests.createdAt)
       .limit(limit)
       .offset(offset)
@@ -276,74 +284,46 @@ requestsRoutes.post('/:id/send', async (c) => {
   try {
     const requestId = c.req.param('id')
 
-    // SÉCURITÉ : Validation stricte du format UUID
     if (!uuidRegex.test(requestId)) {
       return c.json({
-        error: "Format d'identifiant de demande invalide. Un UUID est attendu.",
+        error: "Format d'identifiant invalide",
         code: "BAD_REQUEST"
       }, 400)
     }
 
-    // 1. Récupérer la demande existante
-    const requestData = await db
+    const [request] = await db
       .select()
       .from(removalRequests)
       .where(eq(removalRequests.id, requestId))
       .limit(1)
 
-    if (requestData.length === 0) {
+    if (!request) {
       return c.json({
-        error: "La demande spécifiée est introuvable.",
+        error: "Demande introuvable",
         code: "NOT_FOUND"
       }, 404)
     }
 
-    const request = requestData[0]
-
-    // 2. Vérifier les conditions d'envoi
     if (request.status !== 'DRAFT') {
       return c.json({
-        error: "La demande doit être au statut DRAFT pour être envoyée.",
+        error: "La demande doit être DRAFT",
         code: "BAD_REQUEST"
       }, 400)
     }
 
-    if (!request.emailBody) {
-      return c.json({
-        error: "Impossible d'envoyer l'email : le corps du message est vide.",
-        code: "BAD_REQUEST"
-      }, 400)
-    }
-
-    // 3. Ajouter un "Job" dans la file d'attente Redis (BullMQ)
-    await emailQueue.add('send-request', { 
-      requestId: request.id 
+    await emailQueue.add('send-request', {
+      requestId: request.id
     })
-    
-    console.log(`[Queue] Job ajouté pour la demande : ${request.id}`)
 
-    // 4. Mettre à jour le statut en base de données
-    const updatedRequest = await db
-      .update(removalRequests)
-      .set({
-        status: 'SENT',
-        sentAt: new Date(),
-        updatedAt: new Date()
-      })
-      .where(eq(removalRequests.id, requestId))
-      .returning()
-
-    // 5. Réponse de succès
     return c.json({
-      message: "Demande ajoutée à la file d'attente avec succès.",
-      data: updatedRequest[0]
-    }, 200)
+      message: "Ajouté à la queue",
+      data: request
+    })
 
   } catch (error) {
-    console.error(`[POST /requests/${c.req.param('id')}/send] Erreur critique :`, error)
+    console.error(error)
     return c.json({
-      error: "Erreur serveur lors de la mise en file d'attente de la demande.",
-      code: "INTERNAL_SERVER_ERROR"
+      error: "server error"
     }, 500)
   }
 })
@@ -358,127 +338,74 @@ requestsRoutes.post('/:id/send', async (c) => {
  * Comportement partiel : si un broker est invalide, on continue avec les autres
  * et on signale l'échec dans le résultat.
  */
+
 requestsRoutes.post('/batch', authMiddleware, async (c) => {
   try {
     const body = await c.req.json()
     const { templateId, brokerIds } = body
     const userId = c.get('userId') as string
 
-    if (!uuidRegex.test(userId) || !uuidRegex.test(templateId)) {
-      return c.json({
-        error: "userId et templateId doivent être des UUIDs valides.",
-        code: "BAD_REQUEST"
-      }, 400)
-    }
-
-    // 2. Vérifier que l'utilisateur existe
-    const userRows = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1)
-
-    if (userRows.length === 0) {
-      return c.json({
-        error: "Utilisateur introuvable.",
-        code: "NOT_FOUND"
-      }, 404)
-    }
-
-    // 3. Vérifier que le template existe
-    const templateRows = await db
-      .select()
-      .from(emailTemplates)
-      .where(eq(emailTemplates.id, templateId))
-      .limit(1)
-
-    if (templateRows.length === 0) {
-      return c.json({
-        error: "Template introuvable.",
-        code: "NOT_FOUND"
-      }, 404)
-    }
-
-    // 4. Traiter chaque broker un par un
     const created = []
     const failed = []
 
     for (const brokerId of brokerIds) {
-      // Valider le format UUID du brokerId
       if (!uuidRegex.test(brokerId)) {
-        failed.push({ brokerId, reason: "Format UUID invalide" })
+        failed.push({ brokerId, reason: "UUID invalide" })
         continue
       }
 
-      // Vérifier que le broker existe
-      const brokerRows = await db
+      const [broker] = await db
         .select()
         .from(brokers)
         .where(eq(brokers.id, brokerId))
         .limit(1)
 
-      if (brokerRows.length === 0) {
+      if (!broker) {
         failed.push({ brokerId, reason: "Broker introuvable" })
         continue
       }
 
-      try {
-        // Créer la demande en DRAFT
-        const [newRequest] = await db
-          .insert(removalRequests)
-          .values({
-            userId,
-            brokerId,
-            templateId,
-            emailBody: "Généré automatiquement par le batch.",
-          })
-          .returning()
-
-        // Ajouter dans la queue
-        await emailQueue.add('send-request', {
-          requestId: newRequest.id
+      const [newRequest] = await db
+        .insert(removalRequests)
+        .values({
+          userId,
+          brokerId,
+          templateId,
+          status: 'DRAFT',
+          emailBody: "generated",
         })
+        .returning()
 
-        console.log(`[POST /batch] Job ajouté pour la demande : ${newRequest.id}`)
+      // ❗ UNIQUEMENT QUEUE (PAS SENT ICI)
+      await emailQueue.add(
+        'send-request',
+        { requestId: newRequest.id },
+        {
+          attempts: 3,
+          removeOnComplete: true,
+          removeOnFail: false,
+        }
+      )
 
-        // Mettre à jour le statut SENT (cohérent avec POST /:id/send de Fabien)
-        const [updatedRequest] = await db
-          .update(removalRequests)
-          .set({
-            status: 'SENT',
-            sentAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(removalRequests.id, newRequest.id))
-          .returning()
+      created.push(newRequest)
 
-        created.push(updatedRequest)
-
-      } catch (brokerError) {
-        console.error(`[POST /batch] Erreur pour le broker ${brokerId} :`, brokerError)
-        failed.push({ brokerId, reason: "Erreur lors de la création de la demande" })
-      }
+      console.log(`[batch] queued ${newRequest.id}`)
     }
 
-    // 5. Réponse avec le récap complet
     return c.json({
-      message: `${created.length} demande(s) créée(s) et mise(s) en file d'attente.`,
+      message: "Batch queued",
       data: {
-        created: created.length,
-        failed: failed.length,
-        requests: created,
-        errors: failed.length > 0 ? failed : undefined,
+        created,
+        failed,
       }
     }, 201)
 
-  } catch (error) {
-    console.error("[POST /requests/batch] Erreur critique :", error)
-    return c.json({
-      error: "Erreur serveur lors du traitement du batch.",
-      code: "INTERNAL_SERVER_ERROR"
-    }, 500)
+  } catch (e) {
+    return c.json({ error: "server error" }, 500)
   }
 })
+
+
 
 // ============================================================================
 // FEATURE 14 : MISE À JOUR MANUELLE DU STATUT
@@ -579,6 +506,64 @@ requestsRoutes.get('/:id/events', async (c) => {
     return c.json({ data: events })
   } catch (e) {
     return c.json({ error: 'server error' }, 500)
+  }
+})
+
+const ALLOWED_REMINDER_DELAYS = [3, 7, 15, 30]
+
+requestsRoutes.post('/:id/remind', authMiddleware, async (c) => {
+  try {
+    const requestId = c.req.param('id')
+    const userId = c.get('userId') as string
+
+    if (!uuidRegex.test(requestId)) {
+      return c.json({ error: 'UUID invalide', code: 'BAD_REQUEST' }, 400)
+    }
+
+    let body: any
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'Body JSON invalide', code: 'BAD_REQUEST' }, 400)
+    }
+
+    const delayDays = Number(body?.delayDays)
+    if (!ALLOWED_REMINDER_DELAYS.includes(delayDays)) {
+      return c.json({
+        error: `delayDays doit être l'un de ${ALLOWED_REMINDER_DELAYS.join(', ')}`,
+        code: 'BAD_REQUEST',
+      }, 400)
+    }
+
+    const [request] = await db
+      .select()
+      .from(removalRequests)
+      .where(and(eq(removalRequests.id, requestId), eq(removalRequests.userId, userId)))
+      .limit(1)
+
+    if (!request) {
+      return c.json({ error: 'Demande introuvable', code: 'NOT_FOUND' }, 404)
+    }
+
+    const now = new Date()
+    const nextActionAt = new Date(now.getTime() + delayDays * 24 * 60 * 60 * 1000)
+
+    const [updated] = await db
+      .update(removalRequests)
+      .set({ nextActionAt, updatedAt: now })
+      .where(eq(removalRequests.id, requestId))
+      .returning()
+
+    await db.insert(requestEvents).values({
+      requestId,
+      eventType: 'note_added',
+      note: `Relance programmée dans ${delayDays} jours (le ${nextActionAt.toISOString().slice(0, 10)})`,
+    })
+
+    return c.json({ data: updated })
+  } catch (e) {
+    console.error('[POST /requests/:id/remind] Erreur :', e)
+    return c.json({ error: 'Erreur serveur', code: 'INTERNAL_SERVER_ERROR' }, 500)
   }
 })
 
