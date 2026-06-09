@@ -140,7 +140,9 @@ export async function getRequest(id: string): Promise<RemovalRequest | null> {
 }
 
 export async function getRequestEvents(id: string): Promise<RequestEvent[]> {
-  return request<RequestEvent[]>(`/requests/${id}/events`, {}, [])
+  // API réelle retourne { data: RequestEvent[] }
+  const raw = await request<{ data: RequestEvent[] }>(`/requests/${id}/events`, {}, { data: [] })
+  return raw.data
 }
 
 export async function getEmailPreview(requestId: string): Promise<string> {
@@ -154,12 +156,16 @@ export async function getEmailPreview(requestId: string): Promise<string> {
   return `Objet : ${raw.data.subject}\n\n${raw.data.body}`
 }
 
-export async function sendReminder(requestId: string): Promise<{ success: boolean }> {
-  return request<{ success: boolean }>(
+export async function sendReminder(
+  requestId: string,
+  delayDays: number
+): Promise<RemovalRequest | null> {
+  const raw = await request<{ data: RemovalRequest } | null>(
     `/requests/${requestId}/remind`,
-    { method: 'POST' },
-    { success: false }
+    { method: 'POST', body: JSON.stringify({ delayDays }) },
+    null
   )
+  return raw?.data ?? null
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────
