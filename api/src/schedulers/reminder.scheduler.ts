@@ -1,27 +1,16 @@
-import { Worker } from 'bullmq'
-import { Queue } from 'bullmq'
-import { lt, lte, eq, and, isNull, isNotNull } from 'drizzle-orm'
+import { lt, lte, eq, and, isNotNull } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { removalRequests, requestEvents, notifications } from '../db/schema.js'
 import { emailQueue } from '../services/queue.service.js'
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+
 // ============================================================
 // FEATURE 16 : SCHEDULER — Relance automatique 30j
+// Détecte les demandes SENT sans réponse depuis 30j,
+// les passe NO_RESPONSE, et envoie un email de relance
+// (isReminder=true → le worker cherche le template 'relance').
 // ============================================================
-/*
- * Logique :
- *  - Toutes les 24h, détecte les demandes en statut SENT
- *    dont sentAt > 30 jours et nextActionAt est null ou dépassé
- *  - Pour chacune :
- *    1. Passe le statut à NO_RESPONSE
- *    2. Logue un request_event 'status_changed'
- *    3. Remet un job dans emailQueue pour renvoyer l'email
- *    4. Crée une notification in-app pour l'utilisateur
- *    5. Met à jour nextActionAt à maintenant + 30j (pour F17)
- */
-
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
-const SIXTY_DAYS_MS = 60 * 24 * 60 * 60 * 1000
 
 export async function runReminderScheduler() {
   console.log('[scheduler] Lancement du scheduler de relance 30j...')
@@ -29,7 +18,6 @@ export async function runReminderScheduler() {
   const now = new Date()
   const thirtyDaysAgo = new Date(now.getTime() - THIRTY_DAYS_MS)
 
-  // 1. Trouver les demandes SENT depuis plus de 30j sans réponse
   const staleRequests = await db
     .select()
     .from(removalRequests)
@@ -40,21 +28,19 @@ export async function runReminderScheduler() {
       )
     )
 
-  console.log(`[scheduler] ${staleRequests.length} demande(s) sans réponse depuis 30j détectée(s)`)
+  console.log(`[scheduler] ${staleRequests.length} demande(s) sans réponse depuis 30j`)
 
   for (const request of staleRequests) {
     try {
-      // 2. Passer le statut à NO_RESPONSE
       await db
         .update(removalRequests)
         .set({
           status: 'NO_RESPONSE',
-          nextActionAt: new Date(now.getTime() + THIRTY_DAYS_MS), // +30j pour F17
+          nextActionAt: new Date(now.getTime() + THIRTY_DAYS_MS), // used by 60d scheduler
           updatedAt: now,
         })
         .where(eq(removalRequests.id, request.id))
 
-      // 3. Logger l'événement (audit RGPD)
       await db.insert(requestEvents).values({
         requestId: request.id,
         eventType: 'status_changed',
@@ -63,46 +49,40 @@ export async function runReminderScheduler() {
         note: 'Aucune réponse reçue après 30 jours — relance automatique déclenchée',
       })
 
-      // 4. Remettre dans la queue pour renvoyer l'email de relance
+      // Pass isReminder=true so the worker uses the relance template
       await emailQueue.add('send-request', {
         requestId: request.id,
+        isReminder: true,
       })
 
-      console.log(`[scheduler] Job de relance ajouté pour la demande ${request.id}`)
-
-      // 5. Créer une notification in-app pour l'utilisateur
       await db.insert(notifications).values({
         userId: request.userId,
         requestId: request.id,
-        message: `Aucune réponse reçue depuis 30 jours pour votre demande auprès de ce broker. Un email de relance a été envoyé automatiquement.`,
+        message: 'Aucune réponse depuis 30 jours pour votre demande. Un email de relance a été envoyé automatiquement.',
       })
 
+      console.log(`[scheduler] Relance 30j déclenchée pour ${request.id}`)
     } catch (error) {
       console.error(`[scheduler] Erreur pour la demande ${request.id} :`, error)
-      // On continue avec les autres demandes même si une échoue
     }
   }
 
   console.log('[scheduler] Scheduler 30j terminé.')
 }
+
 // ============================================================
-// FEATURE 17 : SCHEDULER — Mise en demeure automatique 60j
+// FEATURE 17 : SCHEDULER — Notification mise en demeure 60j
+// Détecte les demandes NO_RESPONSE dont nextActionAt est dépassé
+// (= 60j après l'envoi initial).
+// Ne change PAS le statut automatiquement — notifie l'utilisateur
+// pour qu'il dépose lui-même une plainte (CNIL ou autre).
 // ============================================================
-/*
- * Logique :
- *  - Toutes les 24h, détecte les demandes en statut NO_RESPONSE
- *    dont nextActionAt est dépassé (= 60j après l'envoi initial)
- *  - Pour chacune :
- *    1. Passe le statut à COMPLAINT
- *    2. Logge un request_event 'status_changed'
- *    3. Crée une notification de mise en demeure pour l'utilisateur
- */
+
 export async function runFormalNoticeScheduler() {
   console.log('[scheduler] Lancement du scheduler de mise en demeure 60j...')
 
   const now = new Date()
 
-  // Trouver les demandes NO_RESPONSE dont nextActionAt est dépassé
   const overdueRequests = await db
     .select()
     .from(removalRequests)
@@ -113,37 +93,30 @@ export async function runFormalNoticeScheduler() {
       )
     )
 
-  console.log(`[scheduler] ${overdueRequests.length} demande(s) en mise en demeure détectée(s)`)
+  console.log(`[scheduler] ${overdueRequests.length} demande(s) en attente de mise en demeure`)
 
   for (const request of overdueRequests) {
     try {
-      // 1. Passer le statut à COMPLAINT
-      await db
-        .update(removalRequests)
-        .set({
-          status: 'COMPLAINT',
-          updatedAt: now,
-        })
-        .where(eq(removalRequests.id, request.id))
-
-      // 2. Logger l'événement (audit RGPD)
+      // Log the event without auto-transitioning — user must file the complaint manually
       await db.insert(requestEvents).values({
         requestId: request.id,
-        eventType: 'status_changed',
-        oldStatus: 'NO_RESPONSE',
-        newStatus: 'COMPLAINT',
-        note: 'Aucune réponse reçue après 60 jours — mise en demeure déclenchée automatiquement',
+        eventType: 'note_added',
+        note: 'Délai de 60 jours dépassé — une mise en demeure peut être déposée (CNIL ou équivalent)',
       })
 
-      // 3. Notification de mise en demeure pour l'utilisateur
       await db.insert(notifications).values({
         userId: request.userId,
         requestId: request.id,
-        message: `Votre demande est sans réponse depuis plus de 60 jours. Vous pouvez désormais déposer une plainte auprès de la CNIL (www.cnil.fr).`,
+        message: 'Votre demande est sans réponse depuis plus de 60 jours. Vous pouvez désormais déposer une mise en demeure ou une plainte auprès de la CNIL (www.cnil.fr).',
       })
 
-      console.log(`[scheduler] Mise en demeure créée pour la demande ${request.id}`)
+      // Clear nextActionAt to avoid re-notifying every day
+      await db
+        .update(removalRequests)
+        .set({ nextActionAt: null, updatedAt: now })
+        .where(eq(removalRequests.id, request.id))
 
+      console.log(`[scheduler] Notification mise en demeure créée pour ${request.id}`)
     } catch (error) {
       console.error(`[scheduler] Erreur pour la demande ${request.id} :`, error)
     }
@@ -152,8 +125,15 @@ export async function runFormalNoticeScheduler() {
   console.log('[scheduler] Scheduler 60j terminé.')
 }
 
+// ============================================================
+// FEATURE 18 : SCHEDULER — Relances programmées
+// Une relance programmée est une demande PENDING distincte, liée à une
+// demande initiale (parentRequestId non nul), dont scheduledAt est échu.
+// On l'ajoute à la file d'envoi ; le worker la passera en SENT.
+// ============================================================
+
 export async function runManualReminderScheduler() {
-  console.log('[scheduler] Relances manuelles programmées...')
+  console.log('[scheduler] Relances programmées dues...')
 
   const now = new Date()
 
@@ -162,22 +142,20 @@ export async function runManualReminderScheduler() {
     .from(removalRequests)
     .where(
       and(
-        eq(removalRequests.status, 'SENT'),
-        isNotNull(removalRequests.nextActionAt),
-        lte(removalRequests.nextActionAt, now)
+        eq(removalRequests.status, 'PENDING'),
+        isNotNull(removalRequests.parentRequestId), // relance (pas un envoi initial)
+        isNotNull(removalRequests.scheduledAt),
+        lte(removalRequests.scheduledAt, now)
       )
     )
 
-  console.log(`[scheduler] ${dueRequests.length} relance(s) manuelle(s) due(s)`)
+  console.log(`[scheduler] ${dueRequests.length} relance(s) programmée(s) due(s)`)
 
   for (const request of dueRequests) {
     try {
-      await emailQueue.add('send-request', { requestId: request.id })
-
-      await db.insert(requestEvents).values({
+      await emailQueue.add('send-request', {
         requestId: request.id,
-        eventType: 'reminder_sent',
-        note: 'Relance programmée par l\'utilisateur envoyée',
+        isReminder: true,
       })
 
       await db.insert(notifications).values({
@@ -186,15 +164,17 @@ export async function runManualReminderScheduler() {
         message: 'Votre relance programmée a été envoyée au broker.',
       })
 
+      // Vider scheduledAt pour ne pas re-déclencher au prochain passage.
+      // Le statut reste PENDING jusqu'à ce que le worker confirme l'envoi (→ SENT).
       await db
         .update(removalRequests)
-        .set({ nextActionAt: null, updatedAt: now })
+        .set({ scheduledAt: null, updatedAt: now })
         .where(eq(removalRequests.id, request.id))
 
     } catch (error) {
-      console.error(`[scheduler] Erreur relance manuelle ${request.id} :`, error)
+      console.error(`[scheduler] Erreur relance programmée ${request.id} :`, error)
     }
   }
 
-  console.log('[scheduler] Relances manuelles terminées.')
+  console.log('[scheduler] Relances programmées terminées.')
 }
