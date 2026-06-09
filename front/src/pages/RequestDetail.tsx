@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { motion, type Variants } from 'framer-motion'
 
@@ -59,9 +59,28 @@ const languageLabels: Record<string, string> = {
   en: 'Anglais',
 }
 
-// Options de délai pour la relance
 const REMINDER_DELAYS = [3, 7, 15, 30] as const
 type ReminderDelay = typeof REMINDER_DELAYS[number]
+
+// ─── Persistance locale des relances programmées ──────────────────────────────
+// Stocke {requestId: ISOString} dans localStorage pour persister entre refreshs
+
+const REMINDER_STORAGE_KEY = 'float:scheduled-reminders'
+
+function getStoredReminders(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(REMINDER_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+function setStoredReminder(requestId: string, isoDate: string) {
+  const all = getStoredReminders()
+  all[requestId] = isoDate
+  localStorage.setItem(REMINDER_STORAGE_KEY, JSON.stringify(all))
+}
 
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>()
@@ -72,28 +91,39 @@ export default function RequestDetail() {
   const [emailPreview, setEmailPreview] = useState<string | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
 
-  // États de la modal de relance
   const [reminderModalOpen, setReminderModalOpen] = useState(false)
   const [selectedDelay, setSelectedDelay] = useState<ReminderDelay>(7)
   const [scheduledReminderDate, setScheduledReminderDate] = useState<Date | null>(null)
 
+  // Charger la relance stockée localement au montage (persiste le refresh)
+  useEffect(() => {
+    if (!id) return
+    const stored = getStoredReminders()
+    if (stored[id]) {
+      setScheduledReminderDate(new Date(stored[id]))
+    }
+  }, [id])
+
   const broker = request?.broker ?? null
   const cfg = request ? statusConfig[request.status] : null
 
-  // Calculer la date d'envoi en fonction du délai choisi
   const computeReminderDate = (delayDays: number): Date => {
     const date = new Date()
     date.setDate(date.getDate() + delayDays)
     return date
   }
 
-  // Confirmation de programmation de relance
   const handleConfirmReminder = async () => {
     if (!request) return
     setSendingReminder(true)
+    // Note: l'endpoint backend POST /requests/:id/remind n'existe pas encore
+    // Le scheduler backend gère déjà les relances automatiques à J+30
+    // On stocke localement la date pour qu'elle persiste au refresh
     await sendReminder(request.id)
+    const scheduledDate = computeReminderDate(selectedDelay)
+    setStoredReminder(request.id, scheduledDate.toISOString())
+    setScheduledReminderDate(scheduledDate)
     setSendingReminder(false)
-    setScheduledReminderDate(computeReminderDate(selectedDelay))
     setReminderModalOpen(false)
   }
 
@@ -131,7 +161,6 @@ export default function RequestDetail() {
 
   return (
     <div className="p-4 md:p-8 space-y-5 md:space-y-6">
-      {/* Breadcrumb */}
       <nav className="text-sm text-muted-foreground flex items-center gap-1">
         <Link to="/dashboard" className="hover:text-foreground">FLOAT</Link>
         <span>›</span>
@@ -140,7 +169,6 @@ export default function RequestDetail() {
         <span className="text-foreground">{request.brokerName}</span>
       </nav>
 
-      {/* Header */}
       <motion.div className="flex items-center gap-4" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
         <Button variant="outline" size="icon" className="w-9 h-9 shrink-0" onClick={() => navigate(-1)}>
           <ArrowLeft className="w-4 h-4" />
@@ -160,10 +188,8 @@ export default function RequestDetail() {
         })()}
       </motion.div>
 
-      {/* Grid plat 3 colonnes */}
       <motion.div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6" variants={stagger} initial="hidden" animate="show">
 
-        {/* Broker — 2/3 */}
         <motion.div variants={fadeUp} className="lg:col-span-2">
           <Card className="h-full">
             <CardHeader className="px-6 pt-5 pb-3">
@@ -200,7 +226,6 @@ export default function RequestDetail() {
           </Card>
         </motion.div>
 
-        {/* Dates clés — 1/3 */}
         <motion.div variants={fadeUp}>
           <Card className="h-full">
             <CardHeader className="px-6 pt-5 pb-3">
@@ -236,7 +261,6 @@ export default function RequestDetail() {
           </Card>
         </motion.div>
 
-        {/* Suivi — 2/3 */}
         <motion.div variants={fadeUp} className="lg:col-span-2">
           <Card className="h-full">
             <CardHeader className="px-6 pt-5 pb-3">
@@ -315,7 +339,6 @@ export default function RequestDetail() {
           </Card>
         </motion.div>
 
-        {/* Actions + Cadre légal — 1/3 */}
         <motion.div variants={fadeUp}>
           <Card className="h-full">
             <CardHeader className="px-6 pt-5 pb-3">
@@ -324,13 +347,11 @@ export default function RequestDetail() {
             <CardContent className="px-6 pb-5 space-y-2">
               {!isTerminal && (
                 <>
-                  {/* Bouton Envoyer une relance → ouvre la modal */}
                   <Button className="w-full gap-2 h-10 text-white bg-[#FC7E34] hover:bg-[#e06e28]" onClick={() => setReminderModalOpen(true)} disabled={!!scheduledReminderDate}>
                     <RefreshCw className="w-4 h-4" />
                     {scheduledReminderDate ? 'Relance programmée' : 'Envoyer une relance'}
                   </Button>
 
-                  {/* Affichage de la date prévue après programmation */}
                   {scheduledReminderDate && (
                     <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 text-xs text-muted-foreground bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
                       <Calendar className="w-3.5 h-3.5 text-amber-600 shrink-0" />
@@ -375,7 +396,6 @@ export default function RequestDetail() {
 
       </motion.div>
 
-      {/* Modal aperçu email */}
       {emailPreview !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEmailPreview(null)} />
@@ -393,13 +413,10 @@ export default function RequestDetail() {
         </div>
       )}
 
-      {/* Modal programmation de relance */}
       {reminderModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !sendingReminder && setReminderModalOpen(false)} />
           <motion.div className="relative bg-popover rounded-xl border border-border shadow-2xl w-full max-w-md flex flex-col" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.18 }}>
-
-            {/* Header de la modal */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-lg bg-[#FC7E34]/10 flex items-center justify-center">
@@ -412,7 +429,6 @@ export default function RequestDetail() {
               </button>
             </div>
 
-            {/* Body de la modal */}
             <div className="p-6 space-y-4">
               <p className="text-sm text-muted-foreground">
                 Choisissez quand envoyer la relance{broker ? ` à ${broker.name}` : ''} :
@@ -435,7 +451,6 @@ export default function RequestDetail() {
               </div>
             </div>
 
-            {/* Footer de la modal */}
             <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border">
               <Button variant="outline" onClick={() => setReminderModalOpen(false)} disabled={sendingReminder}>
                 Annuler
