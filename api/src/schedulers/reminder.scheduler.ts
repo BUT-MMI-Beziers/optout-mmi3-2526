@@ -1,6 +1,6 @@
 import { Worker } from 'bullmq'
 import { Queue } from 'bullmq'
-import { lt, eq, and, isNull } from 'drizzle-orm'
+import { lt, lte, eq, and, isNull, isNotNull } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { removalRequests, requestEvents, notifications } from '../db/schema.js'
 import { emailQueue } from '../services/queue.service.js'
@@ -150,4 +150,51 @@ export async function runFormalNoticeScheduler() {
   }
 
   console.log('[scheduler] Scheduler 60j terminé.')
+}
+
+export async function runManualReminderScheduler() {
+  console.log('[scheduler] Relances manuelles programmées...')
+
+  const now = new Date()
+
+  const dueRequests = await db
+    .select()
+    .from(removalRequests)
+    .where(
+      and(
+        eq(removalRequests.status, 'SENT'),
+        isNotNull(removalRequests.nextActionAt),
+        lte(removalRequests.nextActionAt, now)
+      )
+    )
+
+  console.log(`[scheduler] ${dueRequests.length} relance(s) manuelle(s) due(s)`)
+
+  for (const request of dueRequests) {
+    try {
+      await emailQueue.add('send-request', { requestId: request.id })
+
+      await db.insert(requestEvents).values({
+        requestId: request.id,
+        eventType: 'reminder_sent',
+        note: 'Relance programmée par l\'utilisateur envoyée',
+      })
+
+      await db.insert(notifications).values({
+        userId: request.userId,
+        requestId: request.id,
+        message: 'Votre relance programmée a été envoyée au broker.',
+      })
+
+      await db
+        .update(removalRequests)
+        .set({ nextActionAt: null, updatedAt: now })
+        .where(eq(removalRequests.id, request.id))
+
+    } catch (error) {
+      console.error(`[scheduler] Erreur relance manuelle ${request.id} :`, error)
+    }
+  }
+
+  console.log('[scheduler] Relances manuelles terminées.')
 }
