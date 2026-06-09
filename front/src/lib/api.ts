@@ -123,12 +123,12 @@ export interface RequestsParams {
 
 export async function getRequests(params: RequestsParams = {}): Promise<Paginated<RemovalRequest>> {
   const { page = 1, perPage = 12, status, search, brokerId } = params
-  const fallback = { data: [], total: 0, page, limit: perPage, totalPages: 1 }
 
   const q = buildQuery({ page, per_page: perPage, status, search, broker_id: brokerId })
-  // API réelle retourne { data, total, page, limit, totalPages }
   const raw = await request<{ data: RemovalRequest[]; total: number; page: number; limit: number; totalPages: number }>(
-    `/requests?${q}`, {}, fallback
+    `/requests?${q}`,
+    {},
+    { data: [], total: 0, page, limit: perPage, totalPages: 1 }
   )
   return { data: raw.data, total: raw.total, page: raw.page, lastPage: raw.totalPages }
 }
@@ -184,39 +184,43 @@ export async function getNotifications(): Promise<AppNotification[]> {
   return request<AppNotification[]>('/notifications', {}, [])
 }
 
-// Crée et envoie les demandes en batch
 export async function sendBatch(payload: {
   brokerIds: string[]
   templateId: string
-}): Promise<{ success: boolean }> {
-  // API réelle attend { userId, templateId, brokerIds } en camelCase
-  const user = await getMe()
-  if (!user) return { success: false }
-
-  const raw = await request<{ message: string; data: { created: number; failed: number } } | null>(
+}): Promise<{ success: boolean; created: number; failed: number }> {
+  const raw = await request<{ message: string; data: { created: unknown[]; failed: unknown[] } } | null>(
     '/requests/batch',
     {
       method: 'POST',
-      body: JSON.stringify({
-        userId: user.id,
-        templateId: payload.templateId,
-        brokerIds: payload.brokerIds,
-      }),
+      body: JSON.stringify({ templateId: payload.templateId, brokerIds: payload.brokerIds }),
     },
     null
   )
-  return { success: raw !== null && raw.data.failed === 0 }
+  if (!raw) return { success: false, created: 0, failed: payload.brokerIds.length }
+  const created = raw.data.created.length
+  const failed = raw.data.failed.length
+  return { success: failed === 0, created, failed }
 }
 
 export async function updateRequestStatus(
   id: string,
   status: RequestStatus
 ): Promise<RemovalRequest | null> {
-  return request<RemovalRequest | null>(
+  const raw = await request<{ data: RemovalRequest } | null>(
     `/requests/${id}/status`,
     { method: 'PATCH', body: JSON.stringify({ status }) },
     null
   )
+  return raw?.data ?? null
+}
+
+export async function cancelRequest(id: string): Promise<boolean> {
+  const raw = await request<{ message: string } | null>(
+    `/requests/${id}`,
+    { method: 'DELETE' },
+    null
+  )
+  return raw !== null
 }
 
 // ─── Stats (dashboard) ────────────────────────────────────────────────────────

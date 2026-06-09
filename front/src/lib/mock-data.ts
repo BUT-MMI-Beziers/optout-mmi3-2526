@@ -2,6 +2,7 @@
 
 export type RequestStatus =
   | 'DRAFT'
+  | 'PENDING'
   | 'SENT'
   | 'ACKNOWLEDGED'
   | 'COMPLETED'
@@ -76,10 +77,12 @@ export interface RemovalRequest {
   brokerUrl?: string
   brokerCategory?: BrokerCategory
   templateId: string
+  parentRequestId?: string | null
   status: RequestStatus
-  sentAt: string
-  respondedAt?: string
-  nextActionAt?: string
+  scheduledAt?: string | null
+  sentAt?: string | null
+  respondedAt?: string | null
+  nextActionAt?: string | null
   emailBody: string
   createdAt: string
   updatedAt: string
@@ -126,6 +129,7 @@ export interface Notification {
 
 export const statusConfig: Record<RequestStatus, { label: string; color: string; dot: string; bg: string }> = {
   DRAFT:        { label: 'Brouillon',  color: 'text-gray-500',    dot: 'bg-gray-400',    bg: 'bg-gray-100' },
+  PENDING:      { label: 'En attente d\'envoi', color: 'text-violet-600', dot: 'bg-violet-500', bg: 'bg-violet-50' },
   SENT:         { label: 'Envoyée',    color: 'text-blue-600',    dot: 'bg-blue-500',    bg: 'bg-blue-50' },
   ACKNOWLEDGED: { label: 'En attente', color: 'text-amber-600',   dot: 'bg-amber-500',   bg: 'bg-amber-50' },
   COMPLETED:    { label: 'Confirmée',  color: 'text-green-600',   dot: 'bg-green-500',   bg: 'bg-green-50' },

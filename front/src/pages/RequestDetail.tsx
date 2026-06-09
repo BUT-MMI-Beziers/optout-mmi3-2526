@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { motion, type Variants } from 'framer-motion'
 
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
 const fadeUp: Variants = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } }
 const fadeLeft: Variants = { hidden: { opacity: 0, x: -12 }, show: { opacity: 1, x: 0, transition: { duration: 0.24 } } }
-import { ArrowLeft, Send, RefreshCw, FileText, CheckCircle2, XCircle, AlertTriangle, Loader2, X, Clock, AlertCircle, Flag, Archive, Calendar, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Send, RefreshCw, FileText, CheckCircle2, XCircle, AlertTriangle, Loader2, X, Clock, AlertCircle, Flag, Archive, Calendar, Hourglass, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useRequestDetail } from '@/hooks/useRequestDetail'
-import { sendReminder, getEmailPreview } from '@/lib/api'
+import { sendReminder, getEmailPreview, cancelRequest } from '@/lib/api'
 import {
   statusConfig, categoryLabels, difficultyLabels, methodLabels,
   type RequestStatus,
@@ -21,6 +21,7 @@ const STATUS_STEPS: RequestStatus[] = ['DRAFT', 'SENT', 'ACKNOWLEDGED', 'COMPLET
 
 const statusIcons: Record<RequestStatus, LucideIcon> = {
   DRAFT:        FileText,
+  PENDING:      Hourglass,
   SENT:         Send,
   ACKNOWLEDGED: Clock,
   COMPLETED:    CheckCircle2,
@@ -70,19 +71,20 @@ export default function RequestDetail() {
   const [sendingReminder, setSendingReminder] = useState(false)
   const [emailPreview, setEmailPreview] = useState<string | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelConfirm, setCancelConfirm] = useState(false)
 
   const [reminderModalOpen, setReminderModalOpen] = useState(false)
   const [selectedDelay, setSelectedDelay] = useState<ReminderDelay>(7)
-  const [scheduledReminderDate, setScheduledReminderDate] = useState<Date | null>(null)
-
-  useEffect(() => {
-    if (request?.nextActionAt) {
-      setScheduledReminderDate(new Date(request.nextActionAt))
-    }
-  }, [request])
 
   const broker = request?.broker ?? null
   const cfg = request ? statusConfig[request.status] : null
+
+  // A scheduled relance is its own PENDING request linked to an original (parentRequestId).
+  // An initial send = PENDING with no parent.
+  const isScheduledRelance = !!request && request.status === 'PENDING' && !!request.parentRequestId
+  const isPendingInitial = !!request && request.status === 'PENDING' && !request.parentRequestId
+  const scheduledReminderDate = request?.scheduledAt ? new Date(request.scheduledAt) : null
 
   const computeReminderDate = (delayDays: number): Date => {
     const date = new Date()
@@ -93,12 +95,22 @@ export default function RequestDetail() {
   const handleConfirmReminder = async () => {
     if (!request) return
     setSendingReminder(true)
-    const updated = await sendReminder(request.id, selectedDelay)
+    const relance = await sendReminder(request.id, selectedDelay)
     setSendingReminder(false)
-    if (updated?.nextActionAt) {
-      setScheduledReminderDate(new Date(updated.nextActionAt))
-      setReminderModalOpen(false)
-    }
+    setReminderModalOpen(false)
+    // A relance is a brand-new request → jump to it so the user sees the queued entry.
+    if (relance?.id) navigate(`/requests/${relance.id}`)
+  }
+
+  const handleCancel = async () => {
+    if (!request) return
+    setCancelling(true)
+    const ok = await cancelRequest(request.id)
+    setCancelling(false)
+    setCancelConfirm(false)
+    if (!ok) return
+    // The relance request is deleted on cancel → go back to the list.
+    navigate('/requests')
   }
 
   const handleViewEmail = async () => {
@@ -114,11 +126,13 @@ export default function RequestDetail() {
     : false
   const currentStep = request ? STATUS_STEPS.indexOf(request.status as RequestStatus) : -1
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('fr-FR', {
+  const formatDate = (iso: string | null | undefined) => {
+    if (!iso) return '—'
+    return new Date(iso).toLocaleDateString('fr-FR', {
       day: 'numeric', month: 'long', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     })
+  }
 
   const formatShortDate = (date: Date) =>
     date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -148,7 +162,14 @@ export default function RequestDetail() {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: "'Squada One', sans-serif" }}>DÉTAIL DEMANDE</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-4xl font-bold tracking-tight" style={{ fontFamily: "'Squada One', sans-serif" }}>DÉTAIL DEMANDE</h1>
+            {request.parentRequestId && (
+              <Link to={`/requests/${request.parentRequestId}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100">
+                <RefreshCw className="w-3 h-3" /> Relance
+              </Link>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">Réf. {request.id}</p>
         </div>
         {cfg && (() => {
@@ -207,22 +228,33 @@ export default function RequestDetail() {
             </CardHeader>
             <CardContent className="px-6 pb-5 space-y-4">
               <div>
-                <p className="text-xs text-muted-foreground mb-0.5">Envoyée le</p>
-                <p className="text-sm font-medium">{formatDate(request.sentAt)}</p>
+                <p className="text-xs text-muted-foreground mb-0.5">
+                  {request.sentAt ? 'Envoyée le' : 'Créée le'}
+                </p>
+                <p className="text-sm font-medium">{formatDate(request.sentAt ?? request.createdAt)}</p>
               </div>
-              {request.respondedAt && (
+              {isScheduledRelance && scheduledReminderDate && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Relance programmée le</p>
+                    <p className="text-sm font-medium text-violet-600">{formatDate(request.scheduledAt)}</p>
+                  </div>
+                </>
+              )}
+              {request.respondedAt && request.sentAt && (
                 <>
                   <Separator />
                   <div>
                     <p className="text-xs text-muted-foreground mb-0.5">Réponse reçue le</p>
                     <p className="text-sm font-medium">{formatDate(request.respondedAt)}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      en {Math.round((new Date(request.respondedAt).getTime() - new Date(request.sentAt).getTime()) / 86_400_000)} jour(s)
+                      en {Math.round((new Date(request.respondedAt as string).getTime() - new Date(request.sentAt as string).getTime()) / 86_400_000)} jour(s)
                     </p>
                   </div>
                 </>
               )}
-              {request.nextActionAt && (
+              {request.nextActionAt && !isScheduledRelance && (
                 <>
                   <Separator />
                   <div>
@@ -319,19 +351,59 @@ export default function RequestDetail() {
               <CardTitle className="text-xl font-medium">Actions</CardTitle>
             </CardHeader>
             <CardContent className="px-6 pb-5 space-y-2">
-              {!isTerminal && (
-                <>
-                  <Button className="w-full gap-2 h-10 text-white bg-[#FC7E34] hover:bg-[#e06e28]" onClick={() => setReminderModalOpen(true)} disabled={!!scheduledReminderDate}>
-                    <RefreshCw className="w-4 h-4" />
-                    {scheduledReminderDate ? 'Relance programmée' : 'Envoyer une relance'}
-                  </Button>
+              {/* Scheduled relance banner — PENDING request already sent once */}
+              {isScheduledRelance && (
+                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 text-xs text-muted-foreground bg-violet-50 border border-violet-200 rounded-md px-3 py-2">
+                  <Hourglass className="w-3.5 h-3.5 text-violet-600 shrink-0" />
+                  <span>
+                    Relance en file
+                    {scheduledReminderDate ? <> — envoi prévu le <strong className="text-violet-700">{formatShortDate(scheduledReminderDate)}</strong></> : ' — envoi imminent'}
+                  </span>
+                </motion.div>
+              )}
 
-                  {scheduledReminderDate && (
-                    <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 text-xs text-muted-foreground bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                      <Calendar className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span>Relance prévue le <strong className="text-amber-700">{formatShortDate(scheduledReminderDate)}</strong></span>
-                    </motion.div>
+              {/* Initial send banner — PENDING request never sent */}
+              {isPendingInitial && (
+                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 text-xs text-muted-foreground bg-violet-50 border border-violet-200 rounded-md px-3 py-2">
+                  <Hourglass className="w-3.5 h-3.5 text-violet-600 shrink-0" />
+                  <span>En file d'envoi — l'email partira dans quelques instants.</span>
+                </motion.div>
+              )}
+
+              {/* Cancel — DRAFT, initial PENDING (delete) or scheduled relance (revert) */}
+              {(request.status === 'DRAFT' || request.status === 'PENDING') && (
+                <>
+                  {cancelConfirm ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-red-600 font-medium px-1">
+                        {isScheduledRelance ? 'Annuler la relance programmée ?' : 'Confirmer l\'annulation de cette demande ?'}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button variant="outline" className="flex-1 h-9 text-sm" onClick={() => setCancelConfirm(false)} disabled={cancelling}>
+                          Non
+                        </Button>
+                        <Button className="flex-1 h-9 text-sm bg-red-600 hover:bg-red-700 text-white gap-1.5" onClick={handleCancel} disabled={cancelling}>
+                          {cancelling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                          Confirmer
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button variant="outline" className="w-full gap-2 h-10 border-red-200 text-red-600 hover:bg-red-50" onClick={() => setCancelConfirm(true)}>
+                      <XCircle className="w-4 h-4" />
+                      {isScheduledRelance ? 'Annuler la relance' : 'Annuler la demande'}
+                    </Button>
                   )}
+                  <Separator />
+                </>
+              )}
+
+              {!isTerminal && request.status !== 'DRAFT' && request.status !== 'PENDING' && (
+                <>
+                  <Button className="w-full gap-2 h-10 text-white bg-[#FC7E34] hover:bg-[#e06e28]" onClick={() => setReminderModalOpen(true)}>
+                    <RefreshCw className="w-4 h-4" />
+                    Programmer une relance
+                  </Button>
 
                   <Button variant="outline" className="w-full gap-2 h-10" onClick={handleViewEmail} disabled={loadingPreview}>
                     {loadingPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}

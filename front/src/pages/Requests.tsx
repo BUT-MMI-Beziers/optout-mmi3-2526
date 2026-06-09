@@ -5,8 +5,8 @@ import { motion, type Variants } from 'framer-motion'
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } }
 const rowVariant: Variants = { hidden: { opacity: 0, x: -12 }, show: { opacity: 1, x: 0, transition: { duration: 0.22 } } }
 import {
-  Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown,
-  Send, Clock, CheckCircle2, AlertCircle, XCircle, FileText, Flag, Archive,
+  Plus, Search, ChevronLeft, ChevronRight, ArrowUp, ArrowDown,
+  Send, Clock, CheckCircle2, AlertCircle, XCircle, FileText, Flag, Archive, Hourglass,
   type LucideIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -20,14 +20,16 @@ type StatusFilter = 'all' | RequestStatus
 
 const STATUS_TABS: { key: StatusFilter; label: string; icon?: LucideIcon }[] = [
   { key: 'all',          label: 'Tous' },
-  { key: 'SENT',         label: 'Envoyées',   icon: Send },
-  { key: 'ACKNOWLEDGED', label: 'En attente', icon: Clock },
-  { key: 'COMPLETED',    label: 'Confirmées', icon: CheckCircle2 },
-  { key: 'NO_RESPONSE',  label: 'À Relancer', icon: AlertCircle },
+  { key: 'PENDING',      label: 'En attente',  icon: Hourglass },
+  { key: 'SENT',         label: 'Envoyées',    icon: Send },
+  { key: 'ACKNOWLEDGED', label: 'Reçues',      icon: Clock },
+  { key: 'COMPLETED',    label: 'Confirmées',  icon: CheckCircle2 },
+  { key: 'NO_RESPONSE',  label: 'À relancer',  icon: AlertCircle },
 ]
 
 const statusIcons: Record<RequestStatus, LucideIcon> = {
   DRAFT:        FileText,
+  PENDING:      Hourglass,
   SENT:         Send,
   ACKNOWLEDGED: Clock,
   COMPLETED:    CheckCircle2,
@@ -54,16 +56,20 @@ export default function Requests() {
   })
 
   const requests = [...(data?.data ?? [])].sort((a, b) => {
-    const diff = new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
-    return sortOrder === 'desc' ? -diff : diff
+    const ta = new Date(a.sentAt || a.createdAt).getTime()
+    const tb = new Date(b.sentAt || b.createdAt).getTime()
+    return sortOrder === 'desc' ? tb - ta : ta - tb
   })
   const total = data?.total ?? 0
   const totalPages = data?.lastPage ?? 1
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+  const formatDate = (iso: string | null | undefined) => {
+    if (!iso) return '—'
+    return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+  }
 
-  const formatRelative = (iso: string) => {
+  const formatRelative = (iso: string | null | undefined) => {
+    if (!iso) return '—'
     const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000)
     if (h < 24) return `il y a ${h}h`
     return `il y a ${Math.floor(h / 24)}j`
@@ -204,7 +210,13 @@ export default function Requests() {
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Envoyée {formatRelative(req.sentAt)} · {formatDate(req.sentAt)}
+                      {req.status === 'PENDING' && req.parentRequestId
+                        ? `Relance programmée · ${formatDate(req.scheduledAt ?? req.createdAt)}`
+                        : req.status === 'PENDING'
+                        ? 'En file d\'envoi'
+                        : req.sentAt
+                        ? `Envoyée ${formatRelative(req.sentAt)} · ${formatDate(req.sentAt)}`
+                        : `Créée ${formatRelative(req.createdAt)} · ${formatDate(req.createdAt)}`}
                     </p>
                   </Link>
                 </motion.div>
@@ -277,11 +289,25 @@ export default function Requests() {
                   </div>
                 </div>
                 <span className="hidden lg:block text-sm font-medium text-muted-foreground">
-                  {categoryLabels[req.brokerCategory]}
+                  {req.brokerCategory ? categoryLabels[req.brokerCategory as import('@/lib/mock-data').BrokerCategory] : '—'}
                 </span>
                 <div className="hidden sm:block">
-                  <p className="text-base">{formatDate(req.sentAt)}</p>
-                  <p className="text-sm text-muted-foreground">{formatRelative(req.sentAt)}</p>
+                  {req.status === 'PENDING' && req.parentRequestId ? (
+                    <>
+                      <p className="text-base">{formatDate(req.scheduledAt ?? req.createdAt)}</p>
+                      <p className="text-sm text-violet-600">Relance programmée</p>
+                    </>
+                  ) : req.status === 'PENDING' ? (
+                    <>
+                      <p className="text-base">{formatDate(req.createdAt)}</p>
+                      <p className="text-sm text-violet-600">En file d'envoi</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-base">{formatDate(req.sentAt ?? req.createdAt)}</p>
+                      <p className="text-sm text-muted-foreground">{formatRelative(req.sentAt ?? req.createdAt)}</p>
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <StatusIcon className="w-4 h-4 shrink-0" />

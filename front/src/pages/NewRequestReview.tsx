@@ -5,7 +5,7 @@ import { motion, type Variants } from 'framer-motion'
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } }
 const fadeUp: Variants = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.26 } } }
 
-import { Send, User, Mail, MapPin, CheckCircle2, Loader2, ArrowLeft } from 'lucide-react'
+import { Send, User, Mail, MapPin, CheckCircle2, Loader2, ArrowLeft, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -34,7 +34,7 @@ export default function NewRequestReview() {
   const [selectedEmailIds, setSelectedEmailIds] = useState<Set<string>>(new Set())
   const [selectedAddressIds, setSelectedAddressIds] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState(false)
-  const [sent, setSent] = useState(false)
+  const [queued, setQueued] = useState<{ created: number; failed: number } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -81,22 +81,35 @@ export default function NewRequestReview() {
   const handleSend = async () => {
     if (!selectedTemplateId || selectedBrokers.length === 0) return
     setSending(true)
-    await sendBatch({ brokerIds: selectedBrokers.map((b) => b.id), templateId: selectedTemplateId })
+    const result = await sendBatch({ brokerIds: selectedBrokers.map((b) => b.id), templateId: selectedTemplateId })
     setSending(false)
-    setSent(true)
-    setTimeout(() => navigate('/requests'), 1500)
+    setQueued({ created: result.created, failed: result.failed })
   }
 
-  if (sent) {
+  if (queued !== null) {
     return (
-      <div className="p-4 md:p-8 flex flex-col items-center justify-center min-h-[50vh] gap-3">
+      <div className="p-4 md:p-8 flex flex-col items-center justify-center min-h-[50vh] gap-4">
         <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 350, damping: 22 }}>
-          <CheckCircle2 className="w-14 h-14 text-green-500" />
+          <div className="relative">
+            <CheckCircle2 className="w-14 h-14 text-green-500" />
+            <Clock className="w-5 h-5 text-violet-500 absolute -bottom-1 -right-1 bg-white rounded-full" />
+          </div>
         </motion.div>
-        <p className="text-base font-semibold text-green-600">
-          {selectedBrokers.length} demande{selectedBrokers.length > 1 ? 's' : ''} envoyée{selectedBrokers.length > 1 ? 's' : ''} avec succès
-        </p>
-        <p className="text-sm text-muted-foreground">Redirection en cours…</p>
+        <div className="text-center space-y-1">
+          <p className="text-base font-semibold text-green-600">
+            {queued.created} demande{queued.created > 1 ? 's' : ''} mise{queued.created > 1 ? 's' : ''} en file d'envoi
+          </p>
+          {queued.failed > 0 && (
+            <p className="text-sm text-amber-600">{queued.failed} broker{queued.failed > 1 ? 's' : ''} ignoré{queued.failed > 1 ? 's' : ''} (déjà en attente ou invalide)</p>
+          )}
+          <p className="text-sm text-muted-foreground">Les emails seront envoyés dans quelques instants. Vous pouvez les annuler depuis la liste des demandes.</p>
+        </div>
+        <button
+          onClick={() => navigate('/requests')}
+          className="mt-2 text-sm font-medium text-[#FC7E34] hover:underline"
+        >
+          Voir mes demandes →
+        </button>
       </div>
     )
   }
