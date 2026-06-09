@@ -11,12 +11,10 @@ import {
   RefreshCw,
   Lock,
   Container,
-  Check,
   CheckCircle2,
   Clock,
   ChevronDown,
   ShieldCheck,
-  ArrowRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -49,7 +47,7 @@ const staggerItem = {
   show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" as const } },
 }
 
-// ─── Logo GitHub inline (absent de cette version de lucide) ───────────────────
+// ─── Logo GitHub inline ───────────────────────────────────────────────────────
 
 function GithubMark({ className }: { className?: string }) {
   return (
@@ -69,7 +67,6 @@ function WindowDots() {
   )
 }
 
-// En-tête de section réutilisable (eyebrow + titre + sous-titre)
 function SectionHead({
   eyebrow,
   title,
@@ -124,20 +121,6 @@ function LandingNav() {
             </a>
           ))}
         </nav>
-
-        <div className="flex items-center gap-2 md:gap-3 ml-auto">
-          <Link
-            to="/login"
-            className="text-sm font-medium text-foreground/80 hover:text-foreground transition-colors px-3 py-2"
-          >
-            Se connecter
-          </Link>
-          <Link to="/register">
-            <Button className="bg-[#FC7E34] hover:bg-[#e06e28] text-white h-9 px-4 text-sm font-semibold">
-              S'inscrire
-            </Button>
-          </Link>
-        </div>
       </div>
     </header>
   )
@@ -155,12 +138,10 @@ const TRUST = [
 function Hero() {
   return (
     <section className="relative overflow-hidden bg-white">
-      {/* glow chaud très subtil */}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-[620px]"
         style={{ background: "radial-gradient(60% 55% at 50% 0%, rgba(252,126,52,0.07), transparent 70%)" }}
       />
-      {/* grille pointillée qui s'estompe */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -201,21 +182,13 @@ function Hero() {
           className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3"
         >
           <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-            <Link to="/register">
-              <Button className="bg-[#FC7E34] hover:bg-[#e06e28] text-white h-12 px-7 text-base font-semibold gap-2">
-                Créer un compte
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
-          </motion.div>
-          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
             <a href={REPO} target="_blank" rel="noreferrer">
               <Button
                 variant="outline"
                 className="h-12 px-7 text-base font-semibold gap-2 border-border bg-white hover:bg-muted"
               >
                 <Container className="w-4 h-4" />
-                Auto-hébergé sur Docker
+                Auto-héberger sur Docker
               </Button>
             </a>
           </motion.div>
@@ -236,7 +209,6 @@ function Hero() {
         </motion.div>
       </div>
 
-      {/* Aperçu produit + cartes flottantes autour de l'image */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -407,128 +379,35 @@ const STATS = [
 function Stats() {
   return (
     <section className="py-24" style={{ backgroundColor: OFFWHITE }}>
-      <motion.div
-        variants={staggerContainer}
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true, margin: "-80px" }}
-        className="max-w-6xl mx-auto px-5 md:px-8 grid grid-cols-2 md:grid-cols-4 gap-5"
-      >
-        {STATS.map((s) => (
-          <motion.div
-            key={s.label}
-            variants={staggerItem}
-            whileHover={{ y: -4 }}
-            className="rounded-2xl bg-white border border-border shadow-sm p-6 text-center"
-          >
-            <p
-              className="text-4xl md:text-5xl font-extrabold tracking-tight tabular-nums"
-              style={{ fontFamily: "'Inter Variable', sans-serif", color: ORANGE }}
-            >
-              {s.value}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground leading-snug">{s.label}</p>
-          </motion.div>
-        ))}
-      </motion.div>
-    </section>
-  )
-}
-
-// ─── Comparaison tarifaire ──────────────────────────────────────────────────
-
-const PLANS = [
-  {
-    name: "Incogni",
-    price: "7 €",
-    period: "/mois*",
-    highlight: false,
-    features: ["Service géré par un tiers", "Engagement à l'année", "Vos données confiées à l'éditeur"],
-  },
-  {
-    name: "FLOAT",
-    price: "0€",
-    period: "",
-    highlight: true,
-    features: ["Vos données restent chez vous", "Communautaire, extensible", "Gratuit", "Auto-hébergement", "AGPL-3.0"],
-  },
-  {
-    name: "DeleteMe",
-    price: "10 €",
-    period: "/mois*",
-    highlight: false,
-    features: ["Service géré par un tiers", "Paiement annuel d'avance", "Vos données confiées à l'éditeur"],
-  },
-]
-
-function Pricing() {
-  return (
-    <section id="tarifs" className="py-24 bg-white">
       <div className="max-w-6xl mx-auto px-5 md:px-8">
         <SectionHead
-          eyebrow="Comparatif"
-          title="FLOAT ou abonnement privé ?"
-          subtitle="Pourquoi payer un abonnement à un service tiers pour exercer un droit fondamental ?"
+          eyebrow="Chiffres clés"
+          title="Nos chiffres."
         />
-
         <motion.div
           variants={staggerContainer}
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, margin: "-80px" }}
-          className="mt-14 grid md:grid-cols-3 gap-5 items-center max-w-4xl mx-auto"
+          className="mt-14 grid grid-cols-2 md:grid-cols-4 gap-5"
         >
-          {PLANS.map((p) => (
-            <motion.div key={p.name} variants={staggerItem} whileHover={{ y: -6 }}>
-            <div
-              className="relative rounded-2xl p-7 bg-white"
-              style={
-                p.highlight
-                  ? { border: `2px solid ${ORANGE}`, transform: "scale(1.04)", boxShadow: "0 24px 48px -16px rgba(252,126,52,0.3)" }
-                  : { border: "1px solid #e5e3e1", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }
-              }
+          {STATS.map((s) => (
+            <motion.div
+              key={s.label}
+              variants={staggerItem}
+              whileHover={{ y: -4 }}
+              className="rounded-2xl bg-white border border-border shadow-sm p-6 text-center"
             >
-              {p.highlight ? (
-                <span
-                  className="absolute -top-3 left-1/2 -translate-x-1/2 text-[11px] font-bold uppercase tracking-wider text-white px-3 py-1 rounded-full"
-                  style={{ backgroundColor: ORANGE }}
-                >
-                  Recommandé
-                </span>
-              ) : null}
-
-              <p className="text-xs font-bold uppercase tracking-widest" style={{ color: p.highlight ? ORANGE : "#9ca3af" }}>
-                {p.name}
+              <p
+                className="text-4xl md:text-5xl font-extrabold tracking-tight tabular-nums"
+                style={{ fontFamily: "'Inter Variable', sans-serif", color: ORANGE }}
+              >
+                {s.value}
               </p>
-              <div className="mt-3 flex items-end gap-1">
-                <span className="text-4xl font-bold" style={{ color: DARK }}>{p.price}</span>
-                <span className="text-muted-foreground mb-1">{p.period}</span>
-              </div>
-
-              <ul className="mt-5 space-y-2.5">
-                {p.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-sm">
-                    <Check className="w-4 h-4 mt-0.5 shrink-0" style={{ color: p.highlight ? ORANGE : "#9ca3af" }} />
-                    <span style={{ color: "#4b5563" }}>{f}</span>
-                  </li>
-                ))}
-              </ul>
-
-              {p.highlight ? (
-                <Link to="/register" className="block mt-7">
-                  <Button className="w-full bg-[#FC7E34] hover:bg-[#e06e28] text-white font-semibold h-11">
-                    Commencer maintenant
-                  </Button>
-                </Link>
-              ) : null}
-            </div>
+              <p className="mt-1 text-sm text-muted-foreground leading-snug">{s.label}</p>
             </motion.div>
           ))}
         </motion.div>
-
-        <p className="mt-8 text-center text-xs text-muted-foreground">
-          * Tarifs concurrents constatés en mai 2026, convertis depuis l'USD et facturés à l'année.
-        </p>
       </div>
     </section>
   )
@@ -647,10 +526,6 @@ function Features() {
 
 const FAQ = [
   {
-    q: "Est-ce vraiment légal ?",
-    a: "Oui. Le RGPD (art. 17) vous donne un droit à l'effacement de vos données personnelles. FLOAT ne fait qu'automatiser l'envoi de demandes que vous êtes légalement en droit de formuler.",
-  },
-  {
     q: "Mes données sont-elles en sécurité ?",
     a: "Vos données restent chiffrées au repos (AES-256) sur l'instance que vous contrôlez. En auto-hébergement, elles ne quittent jamais votre serveur. Aucune télémétrie n'est remontée vers nous.",
   },
@@ -727,8 +602,6 @@ const FOOTER_COLS = [
     links: [
       { label: "Comment ça marche", href: "#etapes" },
       { label: "Fonctionnalités", href: "#features" },
-      { label: "Comparatif", href: "#tarifs" },
-      { label: "Créer un compte", href: "/register", route: true },
     ],
   },
   {
@@ -755,7 +628,6 @@ function Footer() {
   return (
     <footer className="border-t border-border bg-white">
       <motion.div {...fadeUp} className="max-w-6xl mx-auto px-5 md:px-8 py-14 grid gap-10 md:grid-cols-[1.6fr_1fr_1fr_1fr]">
-        {/* Marque */}
         <div className="max-w-xs">
           <span className="text-2xl font-bold tracking-wide" style={{ ...heading, color: ORANGE }}>FLOAT</span>
           <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
@@ -772,7 +644,6 @@ function Footer() {
           </a>
         </div>
 
-        {/* Colonnes de liens */}
         {FOOTER_COLS.map((col) => (
           <div key={col.title}>
             <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: NAVY }}>
@@ -827,7 +698,6 @@ export default function Landing() {
       <Hero />
       <Steps />
       <Stats />
-      <Pricing />
       <Contribute />
       <Features />
       <Faq />

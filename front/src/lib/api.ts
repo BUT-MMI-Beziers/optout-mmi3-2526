@@ -140,7 +140,9 @@ export async function getRequest(id: string): Promise<RemovalRequest | null> {
 }
 
 export async function getRequestEvents(id: string): Promise<RequestEvent[]> {
-  return request<RequestEvent[]>(`/requests/${id}/events`, {}, [])
+  // API réelle retourne { data: RequestEvent[] }
+  const raw = await request<{ data: RequestEvent[] }>(`/requests/${id}/events`, {}, { data: [] })
+  return raw.data
 }
 
 export async function getEmailPreview(requestId: string): Promise<string> {
@@ -154,12 +156,16 @@ export async function getEmailPreview(requestId: string): Promise<string> {
   return `Objet : ${raw.data.subject}\n\n${raw.data.body}`
 }
 
-export async function sendReminder(requestId: string): Promise<{ success: boolean }> {
-  return request<{ success: boolean }>(
+export async function sendReminder(
+  requestId: string,
+  delayDays: number
+): Promise<RemovalRequest | null> {
+  const raw = await request<{ data: RemovalRequest } | null>(
     `/requests/${requestId}/remind`,
-    { method: 'POST' },
-    { success: false }
+    { method: 'POST', body: JSON.stringify({ delayDays }) },
+    null
   )
+  return raw?.data ?? null
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────
@@ -225,9 +231,36 @@ export interface DashboardStats {
   responseRate: number
 }
 
+interface RawStats {
+  total: number
+  byStatus: {
+    DRAFT: number; SENT: number; ACKNOWLEDGED: number; COMPLETED: number
+    REFUSED: number; NO_RESPONSE: number; COMPLAINT: number; SUPPRESSED: number
+  }
+  avgResponseDays: number | null
+}
+
 export async function getStats(): Promise<DashboardStats> {
-  return request<DashboardStats>('/stats', {}, {
-    total: 0, sent: 0, acknowledged: 0, completed: 0,
-    noResponse: 0, refused: 0, responseRate: 0,
-  })
+  const fallback: RawStats = {
+    total: 0,
+    byStatus: {
+      DRAFT: 0, SENT: 0, ACKNOWLEDGED: 0, COMPLETED: 0,
+      REFUSED: 0, NO_RESPONSE: 0, COMPLAINT: 0, SUPPRESSED: 0,
+    },
+    avgResponseDays: null,
+  }
+  // API réelle renvoie { data: { total, byStatus, avgResponseDays } }
+  const raw = await request<{ data: RawStats }>('/stats', {}, { data: fallback })
+  const d = raw.data ?? fallback
+  const b = d.byStatus
+  const responded = b.COMPLETED + b.REFUSED
+  return {
+    total: d.total,
+    sent: b.SENT,
+    acknowledged: b.ACKNOWLEDGED,
+    completed: b.COMPLETED,
+    noResponse: b.NO_RESPONSE,
+    refused: b.REFUSED,
+    responseRate: d.total > 0 ? Math.round((responded / d.total) * 100) : 0,
+  }
 }

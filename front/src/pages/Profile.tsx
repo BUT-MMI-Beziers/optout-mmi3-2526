@@ -31,12 +31,23 @@ interface Profil {
   contacts: Contact[]
 }
 
+// ─── FieldStatus ──────────────────────────────────────────────────────────────
+// Petit composant réutilisable : étoile rouge si obligatoire, "(Optionnel)" gris sinon
+
+function FieldStatus({ required }: { required: boolean }) {
+  if (required) {
+    return <span className="ml-1 text-red-500 font-bold" title="Champ obligatoire">*</span>
+  }
+  return <span className="ml-2 text-xs font-normal normal-case text-muted-foreground">(Optionnel)</span>
+}
+
 // ─── EditableRow ──────────────────────────────────────────────────────────────
 
-function EditableRow({ label, value, type = 'text', onSave }: {
+function EditableRow({ label, value, type = 'text', required = false, onSave }: {
   label: string
   value: string
   type?: string
+  required?: boolean
   onSave?: (value: string) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -49,22 +60,13 @@ function EditableRow({ label, value, type = 'text', onSave }: {
     <div className="py-4 border-b border-border last:border-0">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
         {label}
+        <FieldStatus required={required} />
       </p>
       {editing ? (
         <div className="flex items-center gap-2">
-          <input
-            type={type}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            autoFocus
-            className="flex-1 h-9 px-3 rounded-lg border border-[#FC7E34] bg-muted/40 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 transition-colors"
-          />
-          <button onClick={save} className="h-9 px-3 rounded-lg bg-[#FC7E34] text-white text-sm font-semibold hover:bg-[#e06e28] transition-colors whitespace-nowrap">
-            Sauvegarder
-          </button>
-          <button onClick={cancel} className="h-9 px-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-            Annuler
-          </button>
+          <input type={type} value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus className="flex-1 h-9 px-3 rounded-lg border border-[#FC7E34] bg-muted/40 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 transition-colors" />
+          <button onClick={save} className="h-9 px-3 rounded-lg bg-[#FC7E34] text-white text-sm font-semibold hover:bg-[#e06e28] transition-colors whitespace-nowrap">Sauvegarder</button>
+          <button onClick={cancel} className="h-9 px-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Annuler</button>
         </div>
       ) : (
         <div className="flex items-center justify-between">
@@ -83,7 +85,7 @@ function EditableRow({ label, value, type = 'text', onSave }: {
 
 // ─── ContactCard ──────────────────────────────────────────────────────────────
 
-function ContactCard({ title, subtitle, icon: Icon, items, placeholder, type = 'text', pattern, limit, minItems = 0, onAdd, onRemove }: {
+function ContactCard({ title, subtitle, icon: Icon, items, placeholder, type = 'text', pattern, limit, minItems = 0, required = false, onAdd, onRemove }: {
   title: string
   subtitle: string
   icon: React.ElementType
@@ -93,6 +95,7 @@ function ContactCard({ title, subtitle, icon: Icon, items, placeholder, type = '
   pattern?: string
   limit: number
   minItems?: number
+  required?: boolean
   onAdd: (value: string) => void
   onRemove: (id: string) => void
 }) {
@@ -126,8 +129,11 @@ function ContactCard({ title, subtitle, icon: Icon, items, placeholder, type = '
             <Icon className="w-4 h-4 text-[#253550]" />
           </div>
           <div>
-            <p className="text-base font-semibold text-[#253550] leading-tight">
-              {title} <span className="text-sm font-normal text-muted-foreground">({items.length}/{limit})</span>
+            <p className="text-base font-semibold text-[#253550] leading-tight inline-flex items-baseline">
+              <span>
+                {title} <span className="text-sm font-normal text-muted-foreground">({items.length}/{limit})</span>
+              </span>
+              <FieldStatus required={required} />
             </p>
             <p className="text-sm text-muted-foreground leading-tight">{subtitle}</p>
           </div>
@@ -169,26 +175,26 @@ function ContactCard({ title, subtitle, icon: Icon, items, placeholder, type = '
 
         {adding && (
           <div className="flex flex-col gap-1.5 pt-1">
-          <div className="flex items-center gap-2">
-            <input
-              ref={inputRef}
-              type={type}
-              pattern={pattern}
-              value={draft}
-              onChange={(e) => { setDraft(e.target.value); setInputError('') }}
-              placeholder={placeholder}
-              autoFocus
-              onKeyDown={(e) => e.key === 'Enter' && addItem()}
-              className="flex-1 h-9 px-3 rounded-lg border border-[#FC7E34] bg-muted/40 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 transition-colors"
-            />
-            <button onClick={addItem} className="h-9 px-3 rounded-lg bg-[#FC7E34] text-white text-sm font-semibold hover:bg-[#e06e28] transition-colors">
-              Ajouter
-            </button>
-            <button onClick={() => { setAdding(false); setDraft(''); setInputError('') }} className="h-9 px-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-              Annuler
-            </button>
-          </div>
-          {inputError && <p className="text-xs text-red-500 px-1">{inputError}</p>}
+            <div className="flex items-center gap-2">
+              <input
+                ref={inputRef}
+                type={type}
+                pattern={pattern}
+                value={draft}
+                onChange={(e) => { setDraft(e.target.value); setInputError('') }}
+                placeholder={placeholder}
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && addItem()}
+                className="flex-1 h-9 px-3 rounded-lg border border-[#FC7E34] bg-muted/40 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 transition-colors"
+              />
+              <button onClick={addItem} className="h-9 px-3 rounded-lg bg-[#FC7E34] text-white text-sm font-semibold hover:bg-[#e06e28] transition-colors">
+                Ajouter
+              </button>
+              <button onClick={() => { setAdding(false); setDraft(''); setInputError('') }} className="h-9 px-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                Annuler
+              </button>
+            </div>
+            {inputError && <p className="text-xs text-red-500 px-1">{inputError}</p>}
           </div>
         )}
       </div>
@@ -285,11 +291,7 @@ export default function Profile() {
 
       {/* Bannière */}
       <div className="relative rounded-2xl bg-[#253550] overflow-hidden" style={{ height: '160px' }}>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="absolute top-4 right-4 h-9 gap-2 text-white/80 hover:text-white hover:bg-white/10 border border-white/20 text-sm font-medium"
-        >
+        <Button variant="ghost" size="sm" className="absolute top-4 right-4 h-9 gap-2 text-white/80 hover:text-white hover:bg-white/10 border border-white/20 text-sm font-medium">
           <Download className="w-4 h-4" />
           Exporter mes données
         </Button>
@@ -318,9 +320,9 @@ export default function Profile() {
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">
             Identité
           </p>
-          <EditableRow label="Prénom" value={profil.firstName} onSave={(v) => updateField('firstName', v)} />
-          <EditableRow label="Nom" value={profil.lastName} onSave={(v) => updateField('lastName', v)} />
-          <EditableRow label="Email du compte" value={profil.email} type="email" />
+          <EditableRow label="Prénom" value={profil.firstName} required onSave={(v) => updateField('firstName', v)} />
+          <EditableRow label="Nom" value={profil.lastName} required onSave={(v) => updateField('lastName', v)} />
+          <EditableRow label="Email du compte" value={profil.email} type="email" required />
         </motion.div>
 
         {/* Contacts */}
@@ -329,7 +331,7 @@ export default function Profile() {
             <ContactCard
               title="Adresses email" subtitle="Emails à retirer des bases des data brokers"
               icon={Mail} placeholder="nouvelle@email.com" type="email"
-              limit={5} minItems={1} items={emails}
+              limit={5} minItems={1} required items={emails}
               onAdd={(v) => addContact('email', v)} onRemove={deleteContact}
             />
           </motion.div>
@@ -356,6 +358,12 @@ export default function Profile() {
         </div>
 
       </div>
+
+      {/* Légende des champs obligatoires (en bas) */}
+      <p className="text-xs text-muted-foreground mt-4 flex items-center gap-1.5">
+        <span className="text-red-500 font-bold">*</span>
+        <span>Les champs marqués d'un astérisque sont obligatoires pour envoyer des demandes RGPD.</span>
+      </p>
 
       {/* Zone dangereuse */}
       <div className="rounded-xl border border-red-200 bg-card p-6">
