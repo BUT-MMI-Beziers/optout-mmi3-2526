@@ -101,7 +101,7 @@ export default function Login() {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Au moins 12 caractères"
+                placeholder="Mot de passe"
                 required
                 className="
                   w-full h-11 pl-4 pr-10 rounded-lg border border-border
