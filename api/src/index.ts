@@ -12,7 +12,6 @@ import { usersRoutes } from './routes/users.routes.js'
 import authRouter from './routes/auth/auth.router.js'
 import profilRouter from './routes/profil/profil.router.js'
 import { swaggerUI } from '@hono/swagger-ui'
-import { readFileSync } from 'node:fs'
 import { load } from 'js-yaml'  // déjà installé dans ton projet
 
 const spec = load(readFileSync('./src/docs/openapi.yaml', 'utf-8'))
