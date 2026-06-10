@@ -342,13 +342,12 @@ export default function Profile() {
   useEffect(() => {
     authFetch(`${API}/users/me`)
       .then((r) => r.json())
-      .then((data: Profil) => setProfil(data))
-    getSessions().then(setSessions)
-    fetch('/api/v1/users/me', { credentials: 'include' })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data?.totpEnabled) setTwoFaActive(true) })
-      .catch(() => {})
-    loadPasskeys()
+      .then((data: Profil & { totpEnabled?: boolean }) => {
+        setProfil(data)
+        if (data.totpEnabled) setTwoFaActive(true)
+        getSessions().then(setSessions)
+        loadPasskeys()
+      })
   }, [])
 
   async function updateField(field: 'firstName' | 'lastName', value: string) {
