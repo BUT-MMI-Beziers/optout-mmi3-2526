@@ -21,7 +21,9 @@
     "ioredis": "^5.11.0",
     "js-yaml": "^4.1.1",
     "nodemailer": "^8.0.9",
-    "postgres": "^3.4.9"
+    "postgres": "^3.4.9",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

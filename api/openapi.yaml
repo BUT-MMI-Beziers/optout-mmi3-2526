@@ -1,0 +1,1486 @@
+openapi: "3.0.0"
+info:
+  title: OptOut API
+  description: >
+    API de gestion des brokers de données et des demandes de suppression (opt-out) conformes au RGPD (Art. 15, 17), CCPA, PIPEDA.
+    Toutes les routes protégées exigent des tokens JWT transitant par cookies sécurisés HTTPOnly (`accessToken` et `refreshToken`).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Serveur de développement local
+
+security:
+  - cookieAuth: []
+
+paths:
+  # ---------------------------------------------------------
+  # AUTHENTICATION
+  # ---------------------------------------------------------
+  /auth/register:
+    post:
+      summary: Enregistrer un nouvel utilisateur
+      tags:
+        - Authentification
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - firstName
+                - lastName
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: jean.dupont@example.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: "SuperSecurePwd123!"
+                firstName:
+                  type: string
+                  example: Jean
+                lastName:
+                  type: string
+                  example: Dupont
+      responses:
+        '201':
+          description: Utilisateur créé avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Utilisateur enregistré avec succès"
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Données invalides (champs manquants, mot de passe trop court...)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Cet email est déjà utilisé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      summary: Se connecter à l'application
+      tags:
+        - Authentification
+      security: []
+      description: Reçoit l'email/mot de passe et définit les cookies HTTPOnly `accessToken` et `refreshToken`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: jean.dupont@example.com
+                password:
+                  type: string
+                  format: password
+                  example: "SuperSecurePwd123!"
+      responses:
+        '200':
+          description: Connexion réussie, cookies JWT injectés
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Format email/password invalide ou champs manquants
+        '401':
+          description: Identifiants incorrects
+        '429':
+          description: Trop de tentatives de connexion (limite à 5 essais par IP sur 15 min)
+
+  /auth/refresh:
+    post:
+      summary: Rafraîchir les tokens de session
+      tags:
+        - Authentification
+      security: []
+      description: Utilise le refresh token présent dans le cookie HTTPOnly pour générer un nouvel accessToken.
+      responses:
+        '200':
+          description: Access token rafraîchi avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '401':
+          description: Refresh token manquant, invalide ou expiré
+
+  /auth/logout:
+    post:
+      summary: Déconnecter l'utilisateur
+      tags:
+        - Authentification
+      description: Révoque le refresh token en base de données et supprime les cookies HTTPOnly de session.
+      responses:
+        '200':
+          description: Déconnexion réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+
+  /auth/password:
+    patch:
+      summary: Modifier le mot de passe
+      tags:
+        - Authentification
+      description: Permet à l'utilisateur connecté de modifier son mot de passe actuel.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                  format: password
+                newPassword:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        '200':
+          description: Mot de passe modifié avec succès
+        '400':
+          description: Mot de passe trop court ou incorrect
+        '401':
+          description: Non authentifié
+
+  # ---------------------------------------------------------
+  # PROFIL / ME
+  # ---------------------------------------------------------
+  /users/me:
+    get:
+      summary: Obtenir le profil connecté
+      tags:
+        - Profil
+      responses:
+        '200':
+          description: Infos de l'utilisateur connecté récupérées
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Non authentifié
+
+    put:
+      summary: Modifier son profil utilisateur
+      tags:
+        - Profil
+      description: Permet de mettre à jour son prénom et/ou son nom.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                  example: Jean
+                lastName:
+                  type: string
+                  example: Dupont
+            encoding: {}
+      responses:
+        '200':
+          description: Profil mis à jour avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Non authentifié
+
+    delete:
+      summary: Supprimer définitivement son compte
+      tags:
+        - Profil
+      description: Supprime l'utilisateur ainsi que toutes ses demandes et données associées en cascade.
+      responses:
+        '200':
+          description: Compte supprimé avec succès
+        '401':
+          description: Non authentifié
+
+  /users/me/contacts:
+    get:
+      summary: Lister les coordonnées de contact de l'utilisateur
+      tags:
+        - Profil
+      description: Retourne tous les contacts (emails, téléphones, adresses) enregistrés pour le compte.
+      responses:
+        '200':
+          description: Tableau des contacts récupéré
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserContact'
+        '401':
+          description: Non authentifié
+
+    post:
+      summary: Ajouter une coordonnée de contact
+      tags:
+        - Profil
+      description: >
+        Ajoute un email, un numéro ou une adresse.
+        Limites de sécurité : Maximum 5 emails, 5 adresses et 3 numéros de téléphone par compte.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - value
+              properties:
+                type:
+                  type: string
+                  enum: [email, phone, address]
+                  example: email
+                value:
+                  type: string
+                  description: La coordonnée en clair (elle sera chiffrée en base avec AES-256).
+                  example: jean.pro@example.com
+                isPrimary:
+                  type: boolean
+                  default: false
+                label:
+                  type: string
+                  example: Professionnel
+      responses:
+        '201':
+          description: Contact créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserContact'
+        '400':
+          description: Données invalides ou limite de contacts atteinte pour ce type
+        '401':
+          description: Non authentifié
+
+  /users/me/contacts/{id}:
+    delete:
+      summary: Supprimer un contact
+      tags:
+        - Profil
+      description: Supprime la coordonnée. L'action est refusée si c'est la seule coordonnée principale restante.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contact supprimé
+        '401':
+          description: Non authentifié
+        '404':
+          description: Contact introuvable
+
+  /users/me/export:
+    get:
+      summary: Exporter ses données personnelles (Droit à la portabilité - Art. 15)
+      tags:
+        - Profil
+      description: Génère et renvoie un fichier JSON complet de toutes les données liées au compte.
+      responses:
+        '200':
+          description: Fichier JSON de portabilité généré
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Export brut de l'utilisateur, contacts, requêtes, et logs.
+
+  /users/me/notifications:
+    get:
+      summary: Lister les notifications de l'utilisateur
+      tags:
+        - Profil
+      description: Retourne l'historique des notifications in-app, triées de la plus récente à la plus ancienne.
+      parameters:
+        - name: user_id
+          in: query
+          description: UUID temporaire requis (en cours de transition vers le token)
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Liste des notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+
+  /users/me/notifications/{id}:
+    patch:
+      summary: Marquer une notification comme lue
+      tags:
+        - Profil
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notification mise à jour
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Notification'
+        '404':
+          description: Notification introuvable
+
+  # ---------------------------------------------------------
+  # BROKERS
+  # ---------------------------------------------------------
+  /brokers:
+    get:
+      summary: Lister les data brokers
+      tags:
+        - Brokers
+      security: []
+      description: Liste publique des data brokers avec pagination et recherche.
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/BrokerCategory'
+        - name: region
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/BrokerRegion'
+        - name: difficulty
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/BrokerDifficulty'
+        - name: isVerified
+          in: query
+          required: false
+          schema:
+            type: boolean
+            example: true
+        - name: search
+          in: query
+          description: Recherche textuelle sur le nom
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Liste des brokers paginée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Broker'
+                  total:
+                    type: integer
+                    example: 50
+                  currentPage:
+                    type: integer
+                    example: 1
+                  lastPage:
+                    type: integer
+                    example: 3
+
+    post:
+      summary: Proposer un nouveau broker (Communautaire)
+      tags:
+        - Brokers
+      security: []
+      description: >
+        Crée un broker avec `isVerified: false`. Il devra être vérifié par un admin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - emailContact
+                - category
+                - region
+                - optOutMethod
+                - difficulty
+                - legalBasis
+              properties:
+                name:
+                  type: string
+                  example: "Exemple Broker Inc."
+                emailContact:
+                  type: string
+                  format: email
+                  example: "privacy@examplebroker.com"
+                website:
+                  type: string
+                  format: uri
+                  example: "https://examplebroker.com"
+                optOutUrl:
+                  type: string
+                  format: uri
+                  example: "https://examplebroker.com/opt-out"
+                category:
+                  $ref: '#/components/schemas/BrokerCategory'
+                region:
+                  $ref: '#/components/schemas/BrokerRegion'
+                country:
+                  type: string
+                  maxLength: 2
+                  description: Code pays à 2 lettres (ex FR, US)
+                  example: FR
+                optOutMethod:
+                  $ref: '#/components/schemas/OptOutMethod'
+                difficulty:
+                  $ref: '#/components/schemas/BrokerDifficulty'
+                legalBasis:
+                  $ref: '#/components/schemas/LegalBasis'
+                notes:
+                  type: string
+                  example: "Formulaire un peu long à remplir"
+      responses:
+        '201':
+          description: Broker créé en attente de vérification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Broker'
+        '400':
+          description: Données requises manquantes ou invalides
+        '409':
+          description: Un broker avec ce nom existe déjà
+
+  /brokers/export:
+    get:
+      summary: Exporter la liste des brokers
+      tags:
+        - Brokers
+      security: []
+      description: Exporte tous les brokers en JSON ou YAML.
+      parameters:
+        - name: format
+          in: query
+          required: false
+          description: Format d'export ('json' ou 'yaml')
+          schema:
+            type: string
+            enum: [json, yaml]
+            default: json
+      responses:
+        '200':
+          description: Fichier exporté avec succès
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: "attachment; filename=\"brokers-export-2026-06-10.json\""
+          content:
+            application/json:
+              schema:
+                type: object
+            application/yaml:
+              schema:
+                type: string
+
+  /brokers/import:
+    post:
+      summary: Importer des brokers en masse (Admin/Public)
+      tags:
+        - Brokers
+      security: []
+      description: Permet d'importer un flux de brokers sous format JSON ou YAML (détection automatique par Content-Type).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                brokers:
+                  type: array
+                  items:
+                    type: object
+          application/yaml:
+            schema:
+              type: string
+      responses:
+        '201':
+          description: Import réussi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported:
+                    type: integer
+                    example: 5
+                  skipped:
+                    type: integer
+                    example: 2
+                  brokers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Broker'
+
+  /brokers/{slug}:
+    get:
+      summary: Obtenir un broker par son slug
+      tags:
+        - Brokers
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+            example: exemple-broker-inc
+      responses:
+        '200':
+          description: Détail du broker
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Broker'
+        '404':
+          description: Broker introuvable
+
+    put:
+      summary: Modifier un broker (Admin uniquement)
+      tags:
+        - Brokers
+      description: Met à jour les infos d'un broker identifié par son slug.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                emailContact:
+                  type: string
+                  format: email
+                website:
+                  type: string
+                optOutUrl:
+                  type: string
+                category:
+                  $ref: '#/components/schemas/BrokerCategory'
+                region:
+                  $ref: '#/components/schemas/BrokerRegion'
+                country:
+                  type: string
+                optOutMethod:
+                  $ref: '#/components/schemas/OptOutMethod'
+                difficulty:
+                  $ref: '#/components/schemas/BrokerDifficulty'
+                legalBasis:
+                  $ref: '#/components/schemas/LegalBasis'
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Broker mis à jour
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Broker'
+        '401':
+          description: Non authentifié
+        '403':
+          description: Droits insuffisants (Admin requis)
+        '404':
+          description: Broker introuvable
+
+    delete:
+      summary: Supprimer un broker (Admin uniquement)
+      tags:
+        - Brokers
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Broker supprimé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  broker:
+                    $ref: '#/components/schemas/Broker'
+        '401':
+          description: Non authentifié
+        '403':
+          description: Droits insuffisants
+        '404':
+          description: Broker introuvable
+
+  /brokers/{slug}/verify:
+    patch:
+      summary: Valider/Vérifier un broker communautaire (Admin uniquement)
+      tags:
+        - Brokers
+      description: Passe `isVerified` à true et définit `lastVerifiedAt`.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Broker validé avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Broker'
+        '401':
+          description: Non authentifié
+        '403':
+          description: Droits insuffisants
+        '404':
+          description: Broker introuvable
+
+  # ---------------------------------------------------------
+  # TEMPLATES
+  # ---------------------------------------------------------
+  /templates:
+    get:
+      summary: Lister les templates de courrier RGPD/Légaux
+      tags:
+        - Templates
+      security: []
+      description: Récupère les templates de courriers d'envoi.
+      parameters:
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+            example: fr
+        - name: legal_basis
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/LegalBasis'
+      responses:
+        '200':
+          description: Liste des templates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EmailTemplate'
+                  count:
+                    type: integer
+                    example: 5
+
+  /templates/{id}:
+    get:
+      summary: Obtenir un template par son UUID
+      tags:
+        - Templates
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Template récupéré
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/EmailTemplate'
+        '400':
+          description: UUID invalide
+        '404':
+          description: Template introuvable
+
+  # ---------------------------------------------------------
+  # REMOVAL REQUESTS
+  # ---------------------------------------------------------
+  /requests:
+    get:
+      summary: Lister les demandes de suppression de l'utilisateur connecté
+      tags:
+        - Demandes (Requests)
+      description: Récupère les demandes créées par l'utilisateur connecté.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/RequestStatus'
+        - name: broker_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Liste de demandes récupérée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      description: Détails de la demande combinés avec les infos du broker.
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  totalPages:
+                    type: integer
+        '401':
+          description: Non authentifié
+
+  /requests/batch:
+    post:
+      summary: Envoyer des demandes en masse (Batch)
+      tags:
+        - Demandes (Requests)
+      description: Crée et met en file d'envoi automatique une liste de demandes de suppression pour plusieurs brokers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - templateId
+                - brokerIds
+              properties:
+                templateId:
+                  type: string
+                  format: uuid
+                  example: "123e4567-e89b-12d3-a456-426614174000"
+                brokerIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  example: ["uuid-broker-1", "uuid-broker-2"]
+      responses:
+        '201':
+          description: Processus batch démarré
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Batch queued"
+                  data:
+                    type: object
+                    properties:
+                      created:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RemovalRequest'
+                      failed:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            brokerId:
+                              type: string
+                            reason:
+                              type: string
+        '400':
+          description: Paramètres manquants
+        '401':
+          description: Non authentifié
+
+  /requests/{id}:
+    get:
+      summary: Consulter le détail complet d'une demande
+      tags:
+        - Demandes (Requests)
+      description: Retourne la demande, les infos associées du broker, le template utilisé et l'historique d'audit (events).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Détails complets de la demande
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    description: Objet demande incluant le broker, le template et le tableau events.
+        '404':
+          description: Demande introuvable
+
+    delete:
+      summary: Annuler et supprimer une demande de suppression
+      tags:
+        - Demandes (Requests)
+      description: Uniquement possible si le statut est DRAFT ou PENDING (non envoyé).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Demande annulée et supprimée avec succès
+        '400':
+          description: Impossible d'annuler une demande déjà envoyée (statut non modifiable ou expédié)
+        '404':
+          description: Demande introuvable
+
+  /requests/{id}/preview:
+    get:
+      summary: Prévisualiser l'email de demande généré
+      tags:
+        - Demandes (Requests)
+      description: Permet de voir le sujet et le corps de l'email généré avec les variables interpolées de l'utilisateur et du broker.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Prévisualisation générée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      subject:
+                        type: string
+                        example: "Demande de suppression de mes données personnelles - Jean Dupont"
+                      body:
+                        type: string
+                        example: "Madame, Monsieur, En vertu de l'article 17 du RGPD..."
+        '404':
+          description: Demande introuvable
+
+  /requests/{id}/send:
+    post:
+      summary: Envoyer manuellement une demande (DRAFT -> PENDING)
+      tags:
+        - Demandes (Requests)
+      description: Passe le statut de la demande de DRAFT à PENDING et l'ajoute à la file d'envoi de BullMQ.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Demande planifiée et ajoutée à la file d'attente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Ajouté à la queue"
+                  data:
+                    $ref: '#/components/schemas/RemovalRequest'
+        '400':
+          description: La demande n'est pas au statut DRAFT
+        '404':
+          description: Demande introuvable
+
+  /requests/{id}/status:
+    patch:
+      summary: Mettre à jour manuellement le statut d'une demande
+      tags:
+        - Demandes (Requests)
+      description: >
+        Permet de forcer une transition de statut. Transitions autorisées :
+        * DRAFT -> PENDING
+        * PENDING -> SENT
+        * SENT -> ACKNOWLEDGED, NO_RESPONSE
+        * ACKNOWLEDGED -> COMPLETED, REFUSED, SUPPRESSED
+        * REFUSED -> COMPLAINT
+        * NO_RESPONSE -> SENT, COMPLAINT
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  $ref: '#/components/schemas/RequestStatus'
+      responses:
+        '200':
+          description: Statut mis à jour
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RemovalRequest'
+        '400':
+          description: Transition de statut interdite
+
+  /requests/{id}/events:
+    get:
+      summary: Consulter le journal d'audit d'une demande
+      tags:
+        - Demandes (Requests)
+      description: Retourne l'historique complet des actions et changements d'états d'une demande.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Liste des événements
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RequestEvent'
+
+  /requests/{id}/remind:
+    post:
+      summary: Programmer une relance manuelle
+      tags:
+        - Demandes (Requests)
+      description: >
+        Crée une nouvelle demande de relance (statut PENDING) planifiée dans le futur.
+        Uniquement autorisé si la demande parente a pour statut SENT ou NO_RESPONSE.
+        Délais autorisés : 3, 7, 15, ou 30 jours.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - delayDays
+              properties:
+                delayDays:
+                  type: integer
+                  enum: [3, 7, 15, 30]
+                  description: Nombre de jours avant envoi automatique du rappel.
+                  example: 7
+      responses:
+        '201':
+          description: Relance planifiée créée avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RemovalRequest'
+        '400':
+          description: Données invalides ou statut de la demande parente incorrect
+
+  # ---------------------------------------------------------
+  # STATS
+  # ---------------------------------------------------------
+  /stats:
+    get:
+      summary: Obtenir les statistiques des demandes de l'utilisateur
+      tags:
+        - Statistiques
+      description: Calcule le nombre de demandes par statut et le délai moyen de réponse des brokers pour le compte connecté.
+      responses:
+        '200':
+          description: Statistiques calculées
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        example: 12
+                      byStatus:
+                        type: object
+                        properties:
+                          DRAFT:
+                            type: integer
+                          SENT:
+                            type: integer
+                          ACKNOWLEDGED:
+                            type: integer
+                          COMPLETED:
+                            type: integer
+                          REFUSED:
+                            type: integer
+                          NO_RESPONSE:
+                            type: integer
+                          COMPLAINT:
+                            type: integer
+                          SUPPRESSED:
+                            type: integer
+                      avgResponseDays:
+                        type: integer
+                        nullable: true
+                        description: Délai de réponse moyen en jours (null si aucune réponse reçue).
+                        example: 14
+
+components:
+  # ---------------------------------------------------------
+  # SECURITY SCHEMES
+  # ---------------------------------------------------------
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: accessToken
+      description: Le token JWT doit transiter dans le cookie HTTPOnly nommé `accessToken`.
+
+  # ---------------------------------------------------------
+  # SCHEMAS (DATA MODELS)
+  # ---------------------------------------------------------
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "a8e97fc8-0056-42d4-bb0b-f350c3d973c6"
+        email:
+          type: string
+          format: email
+          example: jean.dupont@example.com
+        firstName:
+          type: string
+          example: Jean
+        lastName:
+          type: string
+          example: Dupont
+        role:
+          type: string
+          enum: [user, admin]
+          example: user
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UserContact:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [email, phone, address]
+        value:
+          type: string
+          description: Valeur retournée en clair (déchiffrée à la volée par l'API)
+          example: "+33612345678"
+        isPrimary:
+          type: boolean
+        label:
+          type: string
+          nullable: true
+          example: "Perso"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Broker:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Acme Data Inc."
+        slug:
+          type: string
+          example: "acme-data-inc"
+        emailContact:
+          type: string
+          format: email
+        website:
+          type: string
+          format: uri
+          nullable: true
+        optOutUrl:
+          type: string
+          format: uri
+          nullable: true
+        category:
+          $ref: '#/components/schemas/BrokerCategory'
+        region:
+          $ref: '#/components/schemas/BrokerRegion'
+        country:
+          type: string
+          nullable: true
+          example: FR
+        optOutMethod:
+          $ref: '#/components/schemas/OptOutMethod'
+        difficulty:
+          $ref: '#/components/schemas/BrokerDifficulty'
+        legalBasis:
+          $ref: '#/components/schemas/LegalBasis'
+        notes:
+          type: string
+          nullable: true
+        isVerified:
+          type: boolean
+        lastVerifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    EmailTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Droit à l'oubli RGPD"
+        legalBasis:
+          $ref: '#/components/schemas/LegalBasis'
+        language:
+          type: string
+          example: "fr"
+        subject:
+          type: string
+          example: "Demande de suppression de données"
+        body:
+          type: string
+          description: Le corps du template contenant des variables comme {{user.first_name}}
+        isDefault:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    RemovalRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        brokerId:
+          type: string
+          format: uuid
+        templateId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/RequestStatus'
+        parentRequestId:
+          type: string
+          format: uuid
+          nullable: true
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+        respondedAt:
+          type: string
+          format: date-time
+          nullable: true
+        nextActionAt:
+          type: string
+          format: date-time
+          nullable: true
+        emailBody:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    RequestEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        requestId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          enum: [created, sent, reminder_sent, status_changed, note_added]
+        oldStatus:
+          $ref: '#/components/schemas/RequestStatus'
+          nullable: true
+        newStatus:
+          $ref: '#/components/schemas/RequestStatus'
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        requestId:
+          type: string
+          format: uuid
+          nullable: true
+        message:
+          type: string
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    # ---------------------------------------------------------
+    # SUB-SCHEMAS / ENUMS
+    # ---------------------------------------------------------
+    BrokerCategory:
+      type: string
+      enum: [people-search, marketing, risk-mitigation, recruitment, other]
+      example: marketing
+
+    BrokerRegion:
+      type: string
+      enum: [eu, us, global]
+      example: eu
+
+    OptOutMethod:
+      type: string
+      enum: [email, form, mixed]
+      example: email
+
+    BrokerDifficulty:
+      type: string
+      enum: [easy, medium, hard]
+      example: easy
+
+    LegalBasis:
+      type: string
+      enum: [gdpr_art17, gdpr_art15, ccpa, pipeda, other]
+      example: gdpr_art17
+
+    RequestStatus:
+      type: string
+      enum: [DRAFT, PENDING, SENT, ACKNOWLEDGED, COMPLETED, REFUSED, NO_RESPONSE, COMPLAINT, SUPPRESSED]
+      example: DRAFT
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Une erreur est survenue"
+        code:
+          type: string
+          example: "BAD_REQUEST"
