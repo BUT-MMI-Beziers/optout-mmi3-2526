@@ -52,7 +52,7 @@ export default function MainLayout() {
 
   useEffect(() => {
     getMe().then(setUser)
-    getNotifications().then((n) => setUnreadCount(n.filter((x) => !x.read).length))
+    getNotifications().then((n) => setUnreadCount(n.filter((x) => !x.isRead).length))
   }, [])
 
   const initials = user
