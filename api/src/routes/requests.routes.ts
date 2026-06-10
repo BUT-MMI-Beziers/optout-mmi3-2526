@@ -532,12 +532,20 @@ requestsRoutes.patch('/:id/status', authMiddleware, async (c) => {
       .where(eq(removalRequests.id, requestId))
       .returning()
 
-    await db.insert(requestEvents).values({
-      requestId,
-      eventType: 'status_changed',
-      oldStatus,
-      newStatus,
-    })
+    const terminalMessages: Record<string, string> = {
+      COMPLETED: 'Votre demande a été complétée : le broker a confirmé la suppression de vos données.',
+      REFUSED: 'Votre demande a été refusée par le broker. Vous pouvez déposer une plainte auprès de la CNIL (www.cnil.fr).',
+      SUPPRESSED: 'Vous avez été ajouté à la liste de suppression du broker.',
+    }
+    
+    if (terminalMessages[newStatus]) {
+      await db.insert(notifications).values({
+        userId,
+        requestId,
+        message: terminalMessages[newStatus],
+      })
+    }
+
 
     return c.json({ data: updated })
 
