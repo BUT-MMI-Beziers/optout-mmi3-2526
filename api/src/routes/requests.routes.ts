@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { randomUUID } from 'crypto'
 import { eq, and, getTableColumns } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { removalRequests, users, brokers, emailTemplates, userContacts, requestEvents, notifications } from '../db/schema.js'
@@ -71,6 +72,94 @@ requestsRoutes.get('/', authMiddleware, async (c) => {
     return c.json({ error: 'Impossible de récupérer la liste des demandes.', code: 'INTERNAL_SERVER_ERROR' }, 500)
   }
 })
+
+// ============================================================================
+// FEATURE 19 : CRÉER UNE DEMANDE (DRAFT)
+// Route finale : POST /api/v1/requests
+// ============================================================================
+
+requestsRoutes.post('/', authMiddleware, async (c) => {
+  try {
+    const userId = c.get('userId') as string
+    const body = await c.req.json()
+    const { brokerId, templateId, scheduledAt } = body
+
+    if (!brokerId || !templateId) {
+      return c.json({ error: 'Les champs brokerId et templateId sont obligatoires.', code: 'BAD_REQUEST' }, 400)
+    }
+    if (!uuidRegex.test(brokerId)) {
+      return c.json({ error: 'brokerId doit être un UUID valide.', code: 'BAD_REQUEST' }, 400)
+    }
+    if (!uuidRegex.test(templateId)) {
+      return c.json({ error: 'templateId doit être un UUID valide.', code: 'BAD_REQUEST' }, 400)
+    }
+
+    const [broker] = await db.select().from(brokers).where(eq(brokers.id, brokerId)).limit(1)
+    if (!broker) {
+      return c.json({ error: 'Le broker spécifié est introuvable.', code: 'NOT_FOUND' }, 404)
+    }
+
+    const [template] = await db.select().from(emailTemplates).where(eq(emailTemplates.id, templateId)).limit(1)
+    if (!template) {
+      return c.json({ error: 'Le template spécifié est introuvable.', code: 'NOT_FOUND' }, 404)
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1)
+    if (!user) {
+      return c.json({ error: 'Utilisateur introuvable.', code: 'NOT_FOUND' }, 404)
+    }
+
+    const [addressRow] = await db
+      .select()
+      .from(userContacts)
+      .where(and(eq(userContacts.userId, userId), eq(userContacts.type, 'address'), eq(userContacts.isPrimary, true)))
+      .limit(1)
+
+    const userAddress = addressRow?.value ? safeDecrypt(addressRow.value) : '[Adresse non renseignée]'
+
+    // Pré-générer l'ID pour l'injecter dans {{request.id}} dès la création
+    const requestId = randomUUID()
+    const now = new Date()
+
+    const context = {
+      user: {
+        firstName: safeDecrypt(user.firstName),
+        lastName: safeDecrypt(user.lastName),
+        email: user.email,
+      },
+      userAddress,
+      broker: { name: broker.name, emailContact: broker.emailContact },
+      request: { id: requestId, createdAt: now, referenceDate: now },
+      language: template.language,
+    }
+
+    const emailBody = renderTemplate(template.body, context)
+
+    const [newRequest] = await db.insert(removalRequests).values({
+      id: requestId,
+      userId,
+      brokerId,
+      templateId,
+      status: 'DRAFT',
+      emailBody,
+      scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+    }).returning()
+
+    await db.insert(requestEvents).values({
+      requestId: newRequest.id,
+      eventType: 'created',
+      newStatus: 'DRAFT',
+      note: `Demande créée — broker : ${broker.name}, template : ${template.name}`,
+    })
+
+    return c.json({ data: newRequest }, 201)
+
+  } catch (error) {
+    console.error('[POST /requests] Erreur critique :', error)
+    return c.json({ error: 'Impossible de créer la demande.', code: 'INTERNAL_SERVER_ERROR' }, 500)
+  }
+})
+
 
 // ============================================================================
 // FEATURE 12 : DÉTAIL COMPLET D'UNE DEMANDE
@@ -252,6 +341,27 @@ requestsRoutes.post('/batch', authMiddleware, async (c) => {
       return c.json({ error: 'templateId et brokerIds[] requis', code: 'BAD_REQUEST' }, 400)
     }
 
+    // Utilisateur, adresse et template sont communs à tout le batch → chargés une seule fois
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1)
+    if (!user) {
+      return c.json({ error: 'Utilisateur introuvable.', code: 'NOT_FOUND' }, 404)
+    }
+
+    const [template] = await db.select().from(emailTemplates).where(eq(emailTemplates.id, templateId)).limit(1)
+    if (!template) {
+      return c.json({ error: 'Le template spécifié est introuvable.', code: 'NOT_FOUND' }, 404)
+    }
+
+    const [addressRow] = await db
+      .select()
+      .from(userContacts)
+      .where(and(eq(userContacts.userId, userId), eq(userContacts.type, 'address'), eq(userContacts.isPrimary, true)))
+      .limit(1)
+    const userAddress = addressRow?.value ? safeDecrypt(addressRow.value) : '[Adresse non renseignée]'
+
+    const decryptedFirstName = safeDecrypt(user.firstName)
+    const decryptedLastName = safeDecrypt(user.lastName)
+
     const created = []
     const failed = []
     const now = new Date()
@@ -286,16 +396,27 @@ requestsRoutes.post('/batch', authMiddleware, async (c) => {
         continue
       }
 
-      // Create as DRAFT first, then immediately move to PENDING
+      // Pré-calculer l'ID pour l'injecter dans {{request.id}} dès la génération du corps
+      const requestId = randomUUID()
+      const context = {
+        user: { firstName: decryptedFirstName, lastName: decryptedLastName, email: user.email },
+        userAddress,
+        broker: { name: broker.name, emailContact: broker.emailContact },
+        request: { id: requestId, createdAt: now, referenceDate: now },
+        language: template.language,
+      }
+      const emailBody = renderTemplate(template.body, context)
+
       const [newRequest] = await db
         .insert(removalRequests)
         .values({
+          id: requestId,
           userId,
           brokerId,
           templateId,
           status: 'PENDING',
           scheduledAt: now,
-          emailBody: 'generated',
+          emailBody,
         })
         .returning()
 
@@ -325,6 +446,7 @@ requestsRoutes.post('/batch', authMiddleware, async (c) => {
     return c.json({ error: 'server error' }, 500)
   }
 })
+
 
 // ============================================================================
 // CANCEL : Annuler une demande DRAFT ou PENDING
@@ -443,12 +565,20 @@ requestsRoutes.patch('/:id/status', authMiddleware, async (c) => {
       .where(eq(removalRequests.id, requestId))
       .returning()
 
-    await db.insert(requestEvents).values({
-      requestId,
-      eventType: 'status_changed',
-      oldStatus,
-      newStatus,
-    })
+    const terminalMessages: Record<string, string> = {
+      COMPLETED: 'Votre demande a été complétée : le broker a confirmé la suppression de vos données.',
+      REFUSED: 'Votre demande a été refusée par le broker. Vous pouvez déposer une plainte auprès de la CNIL (www.cnil.fr).',
+      SUPPRESSED: 'Vous avez été ajouté à la liste de suppression du broker.',
+    }
+    
+    if (terminalMessages[newStatus]) {
+      await db.insert(notifications).values({
+        userId,
+        requestId,
+        message: terminalMessages[newStatus],
+      })
+    }
+
 
     return c.json({ data: updated })
 
