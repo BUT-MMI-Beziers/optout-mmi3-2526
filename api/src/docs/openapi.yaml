@@ -1363,9 +1363,12 @@ paths:
         Retourne pour l'utilisateur authentifié :
         - Le nombre de demandes par statut
         - Le délai moyen de réponse des brokers (en jours entiers)
+        - Le taux de réponse (% des demandes envoyées ayant reçu une réponse)
+        - Les brokers les plus réactifs (top 3 par délai moyen croissant)
         - Le nombre total de demandes
 
-        `avgResponseDays` est `null` si aucune demande n'a encore reçu de réponse.
+        `avgResponseDays` et `responseRate` sont `null` si aucune demande n'a
+        encore reçu de réponse (resp. n'a encore été envoyée).
       security:
         - cookieAuth: []
       responses:
@@ -1398,6 +1401,27 @@ paths:
                         type: integer
                         nullable: true
                         description: Délai moyen de réponse en jours (null si aucune réponse reçue)
+                      responseRate:
+                        type: integer
+                        nullable: true
+                        description: Pourcentage des demandes envoyées ayant reçu une réponse (null si aucune demande envoyée)
+                      mostResponsiveBrokers:
+                        type: array
+                        description: Top 3 des brokers les plus réactifs, triés par délai moyen croissant
+                        items:
+                          type: object
+                          properties:
+                            brokerId:
+                              type: string
+                              format: uuid
+                            brokerName:
+                              type: string
+                            avgResponseDays:
+                              type: integer
+                              description: Délai moyen de réponse de ce broker (en jours)
+                            responseCount:
+                              type: integer
+                              description: Nombre de demandes répondues prises en compte
               example:
                 data:
                   total: 12
@@ -1412,6 +1436,12 @@ paths:
                     COMPLAINT: 0
                     SUPPRESSED: 0
                   avgResponseDays: 8
+                  responseRate: 66
+                  mostResponsiveBrokers:
+                    - brokerId: "6300c1c1-9e12-4b96-91a7-9357d53fa468"
+                      brokerName: "Accenture"
+                      avgResponseDays: 4
+                      responseCount: 2
         '401':
           description: Cookie accessToken absent ou expiré
           content:
