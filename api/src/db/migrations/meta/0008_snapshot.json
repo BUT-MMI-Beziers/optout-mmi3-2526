@@ -1,0 +1,920 @@
+{
+  "id": "4c013f24-ef30-4118-a73c-4c117fb1fdc1",
+  "prevId": "a259881d-df80-43d4-b72e-69b0dea6b883",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.brokers": {
+      "name": "brokers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email_contact": {
+          "name": "email_contact",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "website": {
+          "name": "website",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "opt_out_url": {
+          "name": "opt_out_url",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "category": {
+          "name": "category",
+          "type": "broker_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "region": {
+          "name": "region",
+          "type": "broker_region",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "country": {
+          "name": "country",
+          "type": "varchar(2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "opt_out_method": {
+          "name": "opt_out_method",
+          "type": "opt_out_method",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "difficulty": {
+          "name": "difficulty",
+          "type": "broker_difficulty",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "legal_basis": {
+          "name": "legal_basis",
+          "type": "legal_basis",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_verified": {
+          "name": "is_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "last_verified_at": {
+          "name": "last_verified_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "brokers_slug_unique": {
+          "name": "brokers_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.email_templates": {
+      "name": "email_templates",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "legal_basis": {
+          "name": "legal_basis",
+          "type": "legal_basis",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "language": {
+          "name": "language",
+          "type": "varchar(5)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject": {
+          "name": "subject",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_default": {
+          "name": "is_default",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.notifications": {
+      "name": "notifications",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_read": {
+          "name": "is_read",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "notifications_user_id_users_id_fk": {
+          "name": "notifications_user_id_users_id_fk",
+          "tableFrom": "notifications",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "notifications_request_id_removal_requests_id_fk": {
+          "name": "notifications_request_id_removal_requests_id_fk",
+          "tableFrom": "notifications",
+          "tableTo": "removal_requests",
+          "columnsFrom": [
+            "request_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.removal_requests": {
+      "name": "removal_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "broker_id": {
+          "name": "broker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "template_id": {
+          "name": "template_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "request_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DRAFT'"
+        },
+        "parent_request_id": {
+          "name": "parent_request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scheduled_at": {
+          "name": "scheduled_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responded_at": {
+          "name": "responded_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_action_at": {
+          "name": "next_action_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email_body": {
+          "name": "email_body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "removal_requests_user_id_users_id_fk": {
+          "name": "removal_requests_user_id_users_id_fk",
+          "tableFrom": "removal_requests",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "removal_requests_broker_id_brokers_id_fk": {
+          "name": "removal_requests_broker_id_brokers_id_fk",
+          "tableFrom": "removal_requests",
+          "tableTo": "brokers",
+          "columnsFrom": [
+            "broker_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "removal_requests_template_id_email_templates_id_fk": {
+          "name": "removal_requests_template_id_email_templates_id_fk",
+          "tableFrom": "removal_requests",
+          "tableTo": "email_templates",
+          "columnsFrom": [
+            "template_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.request_events": {
+      "name": "request_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "event_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "old_status": {
+          "name": "old_status",
+          "type": "request_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "new_status": {
+          "name": "new_status",
+          "type": "request_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "request_events_request_id_removal_requests_id_fk": {
+          "name": "request_events_request_id_removal_requests_id_fk",
+          "tableFrom": "request_events",
+          "tableTo": "removal_requests",
+          "columnsFrom": [
+            "request_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.totp_challenges": {
+      "name": "totp_challenges",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "used_at": {
+          "name": "used_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "totp_challenges_user_id_users_id_fk": {
+          "name": "totp_challenges_user_id_users_id_fk",
+          "tableFrom": "totp_challenges",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_contacts": {
+      "name": "user_contacts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "contact_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_primary": {
+          "name": "is_primary",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "label": {
+          "name": "label",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_contacts_user_id_users_id_fk": {
+          "name": "user_contacts_user_id_users_id_fk",
+          "tableFrom": "user_contacts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_sessions": {
+      "name": "user_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ip": {
+          "name": "ip",
+          "type": "varchar(45)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_agent": {
+          "name": "user_agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "device": {
+          "name": "device",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "location": {
+          "name": "location",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_sessions_user_id_users_id_fk": {
+          "name": "user_sessions_user_id_users_id_fk",
+          "tableFrom": "user_sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "first_name": {
+          "name": "first_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "user_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'user'"
+        },
+        "refresh_token_hash": {
+          "name": "refresh_token_hash",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "totp_secret": {
+          "name": "totp_secret",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "totp_enabled": {
+          "name": "totp_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "totp_last_counter": {
+          "name": "totp_last_counter",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.broker_category": {
+      "name": "broker_category",
+      "schema": "public",
+      "values": [
+        "people-search",
+        "marketing",
+        "risk-mitigation",
+        "recruitment",
+        "other"
+      ]
+    },
+    "public.broker_difficulty": {
+      "name": "broker_difficulty",
+      "schema": "public",
+      "values": [
+        "easy",
+        "medium",
+        "hard"
+      ]
+    },
+    "public.broker_region": {
+      "name": "broker_region",
+      "schema": "public",
+      "values": [
+        "eu",
+        "us",
+        "global"
+      ]
+    },
+    "public.contact_type": {
+      "name": "contact_type",
+      "schema": "public",
+      "values": [
+        "email",
+        "phone",
+        "address"
+      ]
+    },
+    "public.event_type": {
+      "name": "event_type",
+      "schema": "public",
+      "values": [
+        "created",
+        "sent",
+        "reminder_sent",
+        "status_changed",
+        "note_added"
+      ]
+    },
+    "public.legal_basis": {
+      "name": "legal_basis",
+      "schema": "public",
+      "values": [
+        "gdpr_art17",
+        "gdpr_art15",
+        "ccpa",
+        "pipeda",
+        "other"
+      ]
+    },
+    "public.opt_out_method": {
+      "name": "opt_out_method",
+      "schema": "public",
+      "values": [
+        "email",
+        "form",
+        "mixed"
+      ]
+    },
+    "public.request_status": {
+      "name": "request_status",
+      "schema": "public",
+      "values": [
+        "DRAFT",
+        "PENDING",
+        "SENT",
+        "ACKNOWLEDGED",
+        "COMPLETED",
+        "REFUSED",
+        "NO_RESPONSE",
+        "COMPLAINT",
+        "SUPPRESSED"
+      ]
+    },
+    "public.user_role": {
+      "name": "user_role",
+      "schema": "public",
+      "values": [
+        "user",
+        "admin"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

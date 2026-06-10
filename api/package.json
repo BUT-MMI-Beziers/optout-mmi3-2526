@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.14",
+    "@simplewebauthn/server": "^13.3.1",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.78.0",

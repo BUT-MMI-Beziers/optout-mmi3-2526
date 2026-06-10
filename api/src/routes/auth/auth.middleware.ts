@@ -26,6 +26,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     const payload = await verify(token, secret, 'HS256') as unknown as JWTPayload
     c.set('userId', payload.sub)
     c.set('userRole', payload.role)
+    c.set('sessionId', payload.sid ?? '')
     await next()
   } catch {
     return c.json({ error: 'Unauthorized' }, 401)

@@ -10,6 +10,7 @@
 export interface JWTPayload {
   sub: string             // userId (UUID)
   role: 'user' | 'admin'
+  sid: string             // sessionId (UUID)
   exp: number             // timestamp d'expiration (Unix)
   iat: number             // timestamp d'émission (Unix)
 }
@@ -20,6 +21,7 @@ declare module 'hono' {
   interface ContextVariableMap {
     userId: string
     userRole: 'user' | 'admin'
+    sessionId: string
   }
 }
 

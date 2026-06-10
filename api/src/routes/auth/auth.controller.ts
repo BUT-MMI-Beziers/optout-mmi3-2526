@@ -73,7 +73,8 @@ export async function register(c: Context) {
     firstName,
     lastName,
   })
-  const tokens = await authService.generateTokens(user.id, user.role)
+  const session = await authService.createSession(user.id, getClientIp(c), c.req.header('user-agent'))
+  const tokens = await authService.generateTokens(user.id, user.role, session.id)
 
   c.header('Set-Cookie', buildCookie('accessToken', tokens.accessToken, tokens.accessExpiresIn), { append: true })
   c.header('Set-Cookie', buildCookie('refreshToken', tokens.refreshToken, tokens.refreshExpiresIn), { append: true })
@@ -108,7 +109,15 @@ export async function login(c: Context) {
     return c.json({ error: 'Identifiants invalides' }, 401)
   }
 
-  const tokens = await authService.generateTokens(user.id, user.role)
+  // Si 2FA activée → émettre un temp token, pas de cookies
+  if (user.totpEnabled) {
+    const { createChallenge } = await import('./totp.service.js')
+    const tempToken = await createChallenge(user.id)
+    return c.json({ requiresTOTP: true, userId: user.id, tempToken }, 200)
+  }
+
+  const session = await authService.createSession(user.id, getClientIp(c), c.req.header('user-agent'))
+  const tokens = await authService.generateTokens(user.id, user.role, session.id)
 
   c.header('Set-Cookie', buildCookie('accessToken', tokens.accessToken, tokens.accessExpiresIn), { append: true })
   c.header('Set-Cookie', buildCookie('refreshToken', tokens.refreshToken, tokens.refreshExpiresIn), { append: true })
@@ -137,7 +146,9 @@ export async function refresh(c: Context) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const tokens = await authService.generateTokens(user.id, user.role)
+  const sessionId = c.get('sessionId') as string | undefined
+  const tokens = await authService.generateTokens(user.id, user.role, sessionId ?? (await authService.createSession(user.id, getClientIp(c), c.req.header('user-agent'))).id)
+  if (sessionId) authService.touchSession(sessionId)
 
   c.header('Set-Cookie', buildCookie('accessToken', tokens.accessToken, tokens.accessExpiresIn), { append: true })
   c.header('Set-Cookie', buildCookie('refreshToken', tokens.refreshToken, tokens.refreshExpiresIn), { append: true })
@@ -150,12 +161,44 @@ export async function refresh(c: Context) {
 
 export async function logout(c: Context) {
   const userId = c.get('userId') as string | undefined
+  const sessionId = c.get('sessionId') as string | undefined
   if (userId) {
     await authService.revokeRefreshToken(userId)
+    if (sessionId) await authService.revokeSession(sessionId, userId)
   }
   c.header('Set-Cookie', clearCookie('accessToken'), { append: true })
   c.header('Set-Cookie', clearCookie('refreshToken'), { append: true })
   return c.json({ message: 'Déconnexion réussie' })
+}
+
+// ── GET /api/auth/sessions ──────────────────────────────────────────────────
+
+export async function getSessions(c: Context) {
+  const userId = c.get('userId')
+  const sessionId = c.get('sessionId')
+  const sessions = await authService.getSessionsByUser(userId)
+  return c.json(sessions.map(s => ({ ...s, current: s.id === sessionId })))
+}
+
+// ── DELETE /api/auth/sessions/:id ──────────────────────────────────────────
+
+export async function revokeSessionById(c: Context) {
+  const userId = c.get('userId')
+  const sessionId = c.get('sessionId')
+  const id = c.req.param('id')
+  if (id === sessionId) return c.json({ error: 'Impossible de révoquer la session courante' }, 400)
+  const ok = await authService.revokeSession(id, userId)
+  if (!ok) return c.json({ error: 'Session introuvable' }, 404)
+  return c.body(null, 204)
+}
+
+// ── DELETE /api/auth/sessions ───────────────────────────────────────────────
+
+export async function revokeOtherSessions(c: Context) {
+  const userId = c.get('userId')
+  const sessionId = c.get('sessionId')
+  await authService.revokeOtherSessions(userId, sessionId)
+  return c.json({ message: 'Autres sessions révoquées' })
 }
 
 // ── PATCH /api/auth/password ────────────────────────────────────────────────
@@ -204,4 +247,10 @@ function getCookieValue(c: Context, name: string): string | undefined {
     if (key === name) return rest.join('=')
   }
   return undefined
+}
+
+function getClientIp(c: Context): string | undefined {
+  return c.req.header('x-forwarded-for')?.split(',')[0].trim()
+    ?? c.req.header('x-real-ip')
+    ?? undefined
 }
