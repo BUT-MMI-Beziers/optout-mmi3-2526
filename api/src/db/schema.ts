@@ -218,6 +218,7 @@ export const removalRequests = pgTable('removal_requests', {
   respondedAt: timestamp('responded_at'),      // date de réponse du broker
   nextActionAt: timestamp('next_action_at'),   // prochaine relance (utilisé par le scheduler)
   emailBody: text('email_body').notNull(),     // corps généré conservé pour traçabilité
+  archivedAt: timestamp('archived_at'),        // null = active, valeur = archivée (lecture seule)
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

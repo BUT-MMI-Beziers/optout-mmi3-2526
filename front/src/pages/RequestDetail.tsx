@@ -5,13 +5,13 @@ import { motion, type Variants } from 'framer-motion'
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
 const fadeUp: Variants = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } }
 const fadeLeft: Variants = { hidden: { opacity: 0, x: -12 }, show: { opacity: 1, x: 0, transition: { duration: 0.24 } } }
-import { ArrowLeft, Send, RefreshCw, FileText, CheckCircle2, XCircle, AlertTriangle, Loader2, X, Clock, AlertCircle, Flag, Archive, Calendar, Hourglass, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Send, RefreshCw, FileText, CheckCircle2, XCircle, AlertTriangle, Loader2, X, Clock, AlertCircle, Flag, Archive, Calendar, Hourglass, ChevronRight, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useRequestDetail } from '@/hooks/useRequestDetail'
-import { apiFetch, sendReminder, getEmailPreview, cancelRequest } from '@/lib/api'
+import { apiFetch, sendReminder, getEmailPreview, cancelRequest, archiveRequest } from '@/lib/api'
 import {
   statusConfig, categoryLabels, difficultyLabels, methodLabels,
   type RequestStatus,
@@ -92,6 +92,30 @@ export default function RequestDetail() {
 
   const [reminderModalOpen, setReminderModalOpen] = useState(false)
   const [selectedDelay, setSelectedDelay] = useState<ReminderDelay>(7)
+  const [unarchiving, setUnarchiving] = useState(false)
+  const [archiving, setArchiving] = useState(false)
+
+  const handleUnarchive = async () => {
+    if (!id) return
+    setUnarchiving(true)
+    try {
+      const ok = await archiveRequest(id, false)
+      if (ok) refetch()
+    } finally {
+      setUnarchiving(false)
+    }
+  }
+
+  const handleArchive = async () => {
+    if (!id) return
+    setArchiving(true)
+    try {
+      const ok = await archiveRequest(id, true)
+      if (ok) refetch()
+    } finally {
+      setArchiving(false)
+    }
+  }
 
   const broker = request?.broker ?? null
   const cfg = request ? statusConfig[request.status] : null
@@ -194,6 +218,19 @@ export default function RequestDetail() {
         <span>›</span>
         <span className="text-foreground">{request.brokerName}</span>
       </nav>
+
+      {request.archivedAt && (
+        <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-lg bg-slate-100 border border-slate-200">
+          <div className="flex items-center gap-2 text-sm text-slate-600">
+            <Archive className="w-4 h-4 shrink-0" />
+            <span>Demande archivée — lecture seule. Une relance a été lancée depuis cette demande.</span>
+          </div>
+          <Button variant="outline" size="sm" className="shrink-0 h-8 gap-1.5 text-xs" onClick={handleUnarchive} disabled={unarchiving}>
+            {unarchiving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Archive className="w-3 h-3" />}
+            Désarchiver
+          </Button>
+        </div>
+      )}
 
       <motion.div className="flex items-center gap-4" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
         <Button variant="outline" size="icon" className="w-9 h-9 shrink-0" onClick={() => navigate(-1)}>
@@ -345,7 +382,7 @@ export default function RequestDetail() {
                 </div>
               </div>
 
-              {['REFUSED', 'NO_RESPONSE', 'COMPLAINT', 'SUPPRESSED'].includes(request.status) && cfg && (
+              {['REFUSED', 'NO_RESPONSE', 'COMPLAINT', 'SUPPRESSED'].includes(request.status) && cfg && !request.activeRelance && (
                 <div className={`flex items-center gap-2 text-sm p-3 rounded-lg ${cfg.bg}`}>
                   {request.status === 'REFUSED'     && <XCircle className="w-4 h-4 text-red-600" />}
                   {request.status === 'NO_RESPONSE' && <AlertTriangle className="w-4 h-4 text-orange-600" />}
@@ -353,6 +390,30 @@ export default function RequestDetail() {
                   <span className={`font-medium ${cfg.color}`}>Statut actuel : {cfg.label}</span>
                 </div>
               )}
+
+              {request.activeRelance && (() => {
+                const rel = request.activeRelance!
+                const relCfg = statusConfig[rel.status as RequestStatus]
+                const relDate = rel.sentAt
+                  ? `Envoyée le ${formatDate(rel.sentAt)}`
+                  : rel.scheduledAt
+                    ? `Prévue le ${formatDate(rel.scheduledAt)}`
+                    : null
+                return (
+                  <Link to={`/requests/${rel.id}`} className="block">
+                    <div className="flex items-center gap-3 p-3 rounded-lg border border-violet-200 bg-violet-50 hover:bg-violet-100 transition-colors">
+                      <RefreshCw className="w-4 h-4 text-violet-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-violet-700">
+                          Relance · {relCfg?.label ?? rel.status}
+                        </p>
+                        {relDate && <p className="text-xs text-violet-500 mt-0.5">{relDate}</p>}
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-violet-400 shrink-0" />
+                    </div>
+                  </Link>
+                )
+              })()}
 
               <Separator />
 
@@ -395,6 +456,13 @@ export default function RequestDetail() {
               <CardTitle className="text-xl font-medium">Actions</CardTitle>
             </CardHeader>
             <CardContent className="px-6 pb-5 space-y-2">
+              {request.archivedAt ? (
+                <div className="flex flex-col items-center gap-3 py-6 text-center">
+                  <Archive className="w-8 h-8 text-slate-300" />
+                  <p className="text-sm text-muted-foreground">Demande archivée.<br />Désarchivez-la pour effectuer des actions.</p>
+                </div>
+              ) : (<>
+
               {/* Scheduled relance banner — PENDING request already sent once */}
               {isScheduledRelance && (
                 <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 text-xs text-muted-foreground bg-violet-50 border border-violet-200 rounded-md px-3 py-2">
@@ -442,12 +510,26 @@ export default function RequestDetail() {
                 </>
               )}
 
-              {!isTerminal && request.status !== 'DRAFT' && request.status !== 'PENDING' && (
+              {request.status === 'NO_RESPONSE' && (
                 <>
-                  <Button className="w-full gap-2 h-10 text-white bg-[#FC7E34] hover:bg-[#e06e28]" onClick={() => setReminderModalOpen(true)}>
-                    <RefreshCw className="w-4 h-4" />
-                    Programmer une relance
-                  </Button>
+                  {request.activeRelance && ['PENDING', 'SENT'].includes(request.activeRelance.status) ? (
+                    <Link to={`/requests/${request.activeRelance.id}`} className="block">
+                      <Button variant="outline" className="w-full gap-2 h-10 border-violet-200 text-violet-700 hover:bg-violet-50">
+                        <RefreshCw className="w-4 h-4" />
+                        {request.activeRelance.status === 'SENT' ? 'Relance envoyée' : 'Relance programmée'}
+                        {(request.activeRelance.sentAt ?? request.activeRelance.scheduledAt) && (
+                          <span className="ml-auto text-xs font-normal text-violet-400">
+                            {new Date((request.activeRelance.sentAt ?? request.activeRelance.scheduledAt)!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                          </span>
+                        )}
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Button className="w-full gap-2 h-10 text-white bg-[#FC7E34] hover:bg-[#e06e28]" onClick={() => setReminderModalOpen(true)}>
+                      <RefreshCw className="w-4 h-4" />
+                      Programmer une relance
+                    </Button>
+                  )}
 
                   <Button variant="outline" className="w-full gap-2 h-10" onClick={handleViewEmail} disabled={loadingPreview}>
                     {loadingPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
@@ -466,7 +548,9 @@ export default function RequestDetail() {
                   <Separator />
                   <div className="space-y-2">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Mettre à jour le statut</p>
-                    {TRANSITIONS[request.status]!.map((next) => (
+                    {TRANSITIONS[request.status]!
+                      .filter(next => !(next === 'SENT' && request.activeRelance && ['PENDING', 'SENT'].includes(request.activeRelance.status)))
+                      .map((next) => (
                       <Button
                         key={next}
                         variant="outline"
@@ -484,9 +568,18 @@ export default function RequestDetail() {
                 </>
               )}
 
+              {request.status === 'NO_RESPONSE' && request.activeRelance && ['PENDING', 'SENT'].includes(request.activeRelance.status) && !request.archivedAt && (
+                <Button variant="outline" className="w-full gap-2 h-10 border-slate-200 text-slate-500 hover:bg-slate-50" onClick={handleArchive} disabled={archiving}>
+                  {archiving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+                  Archiver la demande
+                </Button>
+              )}
+
               <Button variant="outline" className="w-full h-10 text-muted-foreground" onClick={() => navigate('/requests')}>
                 Retour aux demandes
               </Button>
+
+              </>)}
 
               <Separator className="mt-4" />
 

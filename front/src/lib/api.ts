@@ -252,6 +252,14 @@ export async function updateRequestStatus(
   return raw?.data ?? null
 }
 
+export async function archiveRequest(id: string, archived: boolean): Promise<boolean> {
+  const res = await apiFetch(`${BASE}/requests/${id}/archive`, {
+    method: 'PATCH',
+    body: JSON.stringify({ archived }),
+  })
+  return res.ok
+}
+
 export async function cancelRequest(id: string): Promise<boolean> {
   const raw = await request<{ message: string } | null>(
     `/requests/${id}`,

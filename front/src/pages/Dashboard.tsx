@@ -44,18 +44,35 @@ export default function Dashboard() {
   useEffect(() => {
     Promise.all([
       getStats(),
-      getRequests({ page: 1, perPage: 5 }),
       getMe(),
       getNotifications(),
       getRequests({ page: 1, perPage: 50 }),
-    ]).then(([s, r, u, notifs, all]) => {
+    ]).then(([s, u, notifs, all]) => {
       setStats(s)
-      setRecentRequests(r.data)
       setUserName(u?.firstName ?? '')
       setNotifications(notifs.slice(0, 3))
+
+      const activeRelanceParentIds = new Set(
+        all.data
+          .filter(req => req.parentRequestId && req.status === 'PENDING')
+          .map(req => req.parentRequestId!)
+      )
+
+      // Demandes récentes : masquer les parents NO_RESPONSE qui ont une relance enfant active.
+      // Les relances enfant (PENDING avec parentRequestId) s'affichent normalement.
+      setRecentRequests(
+        [...all.data]
+          .filter(req => !(req.status === 'NO_RESPONSE' && activeRelanceParentIds.has(req.id)))
+          .sort((a, b) => +(new Date(b.createdAt)) - +(new Date(a.createdAt)))
+          .slice(0, 5)
+      )
+
       setReminders(
         all.data
-          .filter((req) => req.status === 'PENDING' || req.status === 'NO_RESPONSE' || req.nextActionAt)
+          .filter((req) => {
+            if (req.status === 'NO_RESPONSE' && activeRelanceParentIds.has(req.id)) return false
+            return req.status === 'PENDING' || req.status === 'NO_RESPONSE' || req.nextActionAt
+          })
           .sort((a, b) => {
             const da = +(new Date(a.scheduledAt ?? a.nextActionAt ?? a.createdAt))
             const db = +(new Date(b.scheduledAt ?? b.nextActionAt ?? b.createdAt))
@@ -156,7 +173,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="px-6 pt-4 pb-2">
               <div className="grid grid-cols-[2fr_1fr] sm:grid-cols-[2fr_1.5fr_1fr] pb-2 border-b border-border">
-                {['Broker', "Date d'envoi", 'Statut'].map((h) => (
+                {['Broker', 'Date', 'Statut'].map((h) => (
                   <span key={h} className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     {h}
                   </span>
@@ -171,7 +188,8 @@ export default function Dashboard() {
                   {recentRequests.map((req) => {
                     const cfg = statusConfig[req.status]
                     const StatusIcon = statusIcons[req.status]
-                    const date = new Date(req.sentAt).toLocaleDateString('fr-FR', {
+                    const dateRef = req.sentAt ?? req.scheduledAt ?? req.createdAt
+                    const date = new Date(dateRef).toLocaleDateString('fr-FR', {
                       day: 'numeric', month: 'short', year: 'numeric',
                     })
                     return (

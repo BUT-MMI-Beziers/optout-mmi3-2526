@@ -84,11 +84,13 @@ export interface RemovalRequest {
   respondedAt?: string | null
   nextActionAt?: string | null
   emailBody: string
+  archivedAt?: string | null
   createdAt: string
   updatedAt: string
   broker?: Broker
   template?: EmailTemplate
   events?: RequestEvent[]
+  activeRelance?: { id: string; scheduledAt: string | null; sentAt: string | null; status: string } | null
 }
 
 export interface EmailTemplate {
