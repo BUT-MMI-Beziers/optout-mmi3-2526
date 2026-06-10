@@ -172,16 +172,15 @@ export async function sendReminder(
 
 export interface AppNotification {
   id: string
-  title: string
-  message: string
-  type: 'warning' | 'info' | 'success'
-  read: boolean
+  userId: string
   requestId?: string
+  message: string
+  isRead: boolean
   createdAt: string
 }
 
 export async function getNotifications(): Promise<AppNotification[]> {
-  return request<AppNotification[]>('/notifications', {}, [])
+  return request<AppNotification[]>('/users/me/notifications', {}, [])
 }
 
 export async function sendBatch(payload: {
