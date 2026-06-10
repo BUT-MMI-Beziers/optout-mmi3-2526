@@ -9,21 +9,6 @@ import { apiFetch, getSessions, revokeSession, revokeOtherSessions, type ActiveS
 
 const API = '/api/v1'
 
-async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const opts: RequestInit = {
-    ...options,
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...((options as any).headers ?? {}) },
-  }
-  let res = await fetch(url, opts)
-  if (res.status === 401) {
-    const refresh = await fetch('/api/v1/auth/refresh', { method: 'POST', credentials: 'include' })
-    if (!refresh.ok) { window.location.href = '/login'; return res }
-    res = await fetch(url, opts)
-  }
-  return res
-}
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ContactType = 'email' | 'phone' | 'address'

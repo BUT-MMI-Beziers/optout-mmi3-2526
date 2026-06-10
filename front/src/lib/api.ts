@@ -17,9 +17,34 @@ import {
 
 const BASE = '/api/v1'
 
-async function refreshToken(): Promise<boolean> {
-  const res = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' })
-  return res.ok
+// Verrou singleton — un seul refresh à la fois.
+// Si plusieurs appels 401 arrivent en parallèle, ils attendent tous la même
+// promesse au lieu de lancer chacun leur refresh (race condition → déconnexion forcée).
+let refreshing: Promise<boolean> | null = null
+
+function refreshOnce(): Promise<boolean> {
+  if (!refreshing) {
+    refreshing = fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' })
+      .then(r => r.ok)
+      .finally(() => { refreshing = null })
+  }
+  return refreshing
+}
+
+// Fetch générique avec refresh automatique — utilisable depuis n'importe quelle page.
+export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const opts: RequestInit = {
+    ...options,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...(options.headers ?? {}) },
+  }
+  let res = await fetch(url, opts)
+  if (res.status === 401) {
+    const ok = await refreshOnce()
+    if (!ok) { window.location.href = '/login'; return res }
+    res = await fetch(url, opts)
+  }
+  return res
 }
 
 async function request<T>(
@@ -36,11 +61,8 @@ async function request<T>(
     let res = await fetch(`${BASE}${path}`, opts)
 
     if (res.status === 401) {
-      const refreshed = await refreshToken()
-      if (!refreshed) {
-        window.location.href = '/login'
-        return fallback
-      }
+      const ok = await refreshOnce()
+      if (!ok) { window.location.href = '/login'; return fallback }
       res = await fetch(`${BASE}${path}`, opts)
     }
 
@@ -193,14 +215,7 @@ export interface AppNotification {
 }
 
 export async function getNotifications(): Promise<AppNotification[]> {
-  const user = await getMe()
-  if (!user) return []
-  const raw = await request<{ data: AppNotification[] }>(
-    `/users/me/notifications?user_id=${user.id}`,
-    {},
-    { data: [] }
-  )
-  return raw.data ?? []
+  return request<AppNotification[]>('/users/me/notifications', {}, [])
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
