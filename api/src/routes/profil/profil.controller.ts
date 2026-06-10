@@ -92,7 +92,7 @@ export async function exportData(c: Context) {
 
   c.header('Content-Disposition', `attachment; filename="export-${userId}.json"`)
   c.header('Content-Type', 'application/json')
-  return c.json(data)
+  return c.body(JSON.stringify(data, null, 2))
 }
 
 // ── Notifications ─────────────────────────────────────────────
