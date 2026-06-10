@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
+import { motion, type Variants } from "framer-motion"
+
+const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } }
+const fadeUp: Variants = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.28 } } }
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -116,19 +120,26 @@ export default function BrokerDetail() {
   }
 
   const diffStyle = difficultyColor[broker.difficulty]
-  const websiteUrl = "https://" + broker.website
+  const websiteUrl = /^https?:\/\//i.test(broker.website) ? broker.website : "https://" + broker.website
   const mailtoUrl = "mailto:" + broker.emailContact
   const MethodIcon = methodIconMap[broker.optOutMethod]
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <motion.div
+      className="p-8 space-y-6 max-w-7xl mx-auto"
+      variants={stagger}
+      initial="hidden"
+      animate="show"
+    >
 
-      <Link to="/brokers" className="text-sm font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors">
-        <ArrowLeft className="w-4 h-4" />
-        Retour au registre
-      </Link>
+      <motion.div variants={fadeUp}>
+        <Link to="/brokers" className="text-sm font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          Retour au registre
+        </Link>
+      </motion.div>
 
-      <div className="flex items-start justify-between gap-6 flex-wrap">
+      <motion.div variants={fadeUp} className="flex items-start justify-between gap-6 flex-wrap">
         <div className="flex-1 min-w-0 space-y-3">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-5xl font-bold uppercase tracking-wide" style={{ color: "#000401" }}>{broker.name}</h1>
@@ -163,11 +174,11 @@ export default function BrokerDetail() {
             </Badge>
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      <Separator />
+      <motion.div variants={fadeUp}><Separator /></motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         <div className="lg:col-span-2 space-y-6">
 
@@ -240,12 +251,16 @@ export default function BrokerDetail() {
               ) : (
                 <div className="space-y-3">
                   {requestHistory.map((req) => {
+                    const isRelanced = !!req.archivedAt && req.status === 'NO_RESPONSE'
                     const status = statusConfig[req.status]
+                    const displayLabel = isRelanced ? 'Archivée' : status.label
+                    const displayBg    = isRelanced ? 'bg-slate-100' : status.bg
+                    const displayColor = isRelanced ? 'text-slate-500' : status.color
                     const linkTo = "/requests/" + req.id
                     return (
                       <Link key={req.id} to={linkTo} className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted transition-colors">
                         <div className="flex items-center gap-3">
-                          <span className={"w-2 h-2 rounded-full " + status.dot} />
+                          <span className={"w-2 h-2 rounded-full " + (isRelanced ? 'bg-slate-400' : status.dot)} />
                           <div>
                             <p className="text-sm font-medium">Demande du {formatDate(req.createdAt)}</p>
                             <p className="text-xs text-muted-foreground">
@@ -254,7 +269,7 @@ export default function BrokerDetail() {
                             </p>
                           </div>
                         </div>
-                        <span className={"text-xs font-semibold px-2 py-1 rounded-full " + status.bg + " " + status.color}>{status.label}</span>
+                        <span className={"text-xs font-semibold px-2 py-1 rounded-full " + displayBg + " " + displayColor}>{displayLabel}</span>
                       </Link>
                     )
                   })}
@@ -322,7 +337,7 @@ export default function BrokerDetail() {
           </div>
         </div>
 
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
