@@ -5,24 +5,9 @@ import { Mail, MapPin, Phone, Plus, Trash2, Pencil, Download, Eye, EyeOff, Finge
 import { Button } from '@/components/ui/button'
 import { QRCodeSVG } from 'qrcode.react'
 import { startRegistration } from '@simplewebauthn/browser'
-import { getSessions, revokeSession, revokeOtherSessions, type ActiveSession } from '@/lib/api'
+import { apiFetch, getSessions, revokeSession, revokeOtherSessions, type ActiveSession } from '@/lib/api'
 
 const API = '/api/v1'
-
-async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const opts: RequestInit = {
-    ...options,
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...((options as any).headers ?? {}) },
-  }
-  let res = await fetch(url, opts)
-  if (res.status === 401) {
-    const refresh = await fetch('/api/v1/auth/refresh', { method: 'POST', credentials: 'include' })
-    if (!refresh.ok) { window.location.href = '/login'; return res }
-    res = await fetch(url, opts)
-  }
-  return res
-}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -259,7 +244,7 @@ export default function Profile() {
   async function startTotpSetup() {
     setTotpError(''); setTotpLoading(true)
     try {
-      const res = await fetch('/api/v1/auth/totp/setup', { credentials: 'include' })
+      const res = await apiFetch('/api/v1/auth/totp/setup')
       const data = await res.json()
       if (!res.ok) { setTotpError(data.error ?? 'Erreur'); return }
       setTotpUri(data.uri); setTotpSecret(data.secret); setTotpStep('setup')
@@ -269,9 +254,8 @@ export default function Profile() {
   async function activateTotp() {
     setTotpError(''); setTotpLoading(true)
     try {
-      const res = await fetch('/api/v1/auth/totp/activate', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await apiFetch('/api/v1/auth/totp/activate', {
+        method: 'POST',
         body: JSON.stringify({ secret: totpSecret, code: totpCode }),
       })
       const data = await res.json()
@@ -283,9 +267,8 @@ export default function Profile() {
   async function deactivateTotp() {
     setTotpError(''); setTotpLoading(true)
     try {
-      const res = await fetch('/api/v1/auth/totp', {
-        method: 'DELETE', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await apiFetch('/api/v1/auth/totp', {
+        method: 'DELETE',
         body: JSON.stringify({ code: totpCode }),
       })
       const data = await res.json()
@@ -295,21 +278,21 @@ export default function Profile() {
   }
 
   async function loadPasskeys() {
-    const res = await fetch('/api/v1/auth/passkeys', { credentials: 'include' })
+    const res = await apiFetch('/api/v1/auth/passkeys')
     if (res.ok) setPasskeys(await res.json())
   }
 
   async function handleRegisterPasskey() {
     setPasskeyError(''); setPasskeyLoading(true)
     try {
-      const optsRes = await fetch('/api/v1/auth/passkey/register/start', { credentials: 'include' })
+      const optsRes = await apiFetch('/api/v1/auth/passkey/register/start')
       if (!optsRes.ok) { setPasskeyError("Impossible de démarrer l'enregistrement"); return }
       const opts = await optsRes.json()
       let reg
       try { reg = await startRegistration({ optionsJSON: opts }) }
       catch { setPasskeyError('Enregistrement annulé ou non disponible'); return }
-      const finishRes = await fetch('/api/v1/auth/passkey/register/finish', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      const finishRes = await apiFetch('/api/v1/auth/passkey/register/finish', {
+        method: 'POST',
         body: JSON.stringify({ ...reg, _keyName: newKeyName || undefined }),
       })
       const finishData = await finishRes.json()
@@ -320,16 +303,15 @@ export default function Profile() {
   }
 
   async function handleDeletePasskey(id: string) {
-    const res = await fetch(`/api/v1/auth/passkeys/${id}`, { method: 'DELETE', credentials: 'include' })
+    const res = await apiFetch(`/api/v1/auth/passkeys/${id}`, { method: 'DELETE' })
     if (res.ok) { setPasskeys((prev) => prev.filter((k) => k.id !== id)); setConfirmDeletePasskeyId(null) }
   }
 
   async function handleChangePassword() {
     setPwdError(''); setPwdLoading(true)
     try {
-      const res = await fetch('/api/v1/auth/password', {
-        method: 'PATCH', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await apiFetch('/api/v1/auth/password', {
+        method: 'PATCH',
         body: JSON.stringify({ currentPassword: currentPwd, newPassword: newPwd }),
       })
       const data = await res.json()
@@ -340,7 +322,7 @@ export default function Profile() {
   }
 
   useEffect(() => {
-    authFetch(`${API}/users/me`)
+    apiFetch(`${API}/users/me`)
       .then((r) => r.json())
       .then((data: Profil & { totpEnabled?: boolean }) => {
         setProfil(data)
@@ -353,7 +335,7 @@ export default function Profile() {
   async function updateField(field: 'firstName' | 'lastName', value: string) {
     if (!profil) return
     const payload = { firstName: profil.firstName, lastName: profil.lastName, [field]: value }
-    const res = await authFetch(`${API}/users/me`, { method: 'PUT', body: JSON.stringify(payload) })
+    const res = await apiFetch(`${API}/users/me`, { method: 'PUT', body: JSON.stringify(payload) })
     if (res.ok) setProfil(await res.json())
   }
 
@@ -365,7 +347,7 @@ export default function Profile() {
     )
     if (alreadyExists) { setContactError('Cette valeur est déjà enregistrée.'); return }
 
-    const res = await authFetch(`${API}/users/me/contacts`, {
+    const res = await apiFetch(`${API}/users/me/contacts`, {
       method: 'POST',
       body: JSON.stringify({ type, value, label: null }),
     })
@@ -375,12 +357,12 @@ export default function Profile() {
   }
 
   async function deleteContact(id: string) {
-    const res = await authFetch(`${API}/users/me/contacts/${id}`, { method: 'DELETE' })
+    const res = await apiFetch(`${API}/users/me/contacts/${id}`, { method: 'DELETE' })
     if (res.ok) setProfil((p) => (p ? { ...p, contacts: p.contacts.filter((c) => c.id !== id) } : p))
   }
 
   async function exportData() {
-    const res = await authFetch(`${API}/users/me/export`)
+    const res = await apiFetch(`${API}/users/me/export`)
     if (!res.ok) return
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
@@ -394,9 +376,9 @@ export default function Profile() {
   async function deleteAccount() {
     if (!window.confirm('Supprimer définitivement votre compte ? Cette action est irréversible.')) return
     setDeleting(true)
-    const res = await authFetch(`${API}/users/me`, { method: 'DELETE' })
+    const res = await apiFetch(`${API}/users/me`, { method: 'DELETE' })
     if (res.ok) {
-      await authFetch(`${API}/auth/logout`, { method: 'POST' })
+      await apiFetch(`${API}/auth/logout`, { method: 'POST' })
       window.location.href = '/'
     } else {
       setDeleting(false)
