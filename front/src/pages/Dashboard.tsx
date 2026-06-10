@@ -10,21 +10,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
   Plus, Send, CheckCircle2, AlertCircle, Clock,
-  XCircle, FileText, Flag, Archive, Info,
+  XCircle, FileText, Flag, Archive, Hourglass,
 } from 'lucide-react'
 import { getStats, getRequests, getMe, getNotifications, type DashboardStats, type AppNotification } from '@/lib/api'
 import { statusConfig, type RemovalRequest, type RequestStatus } from '@/lib/mock-data'
 
-// Icon per notification type
-const notifIcons: Record<AppNotification['type'], React.ComponentType<{ className?: string }>> = {
-  warning: AlertCircle,
-  info: Info,
-  success: CheckCircle2,
-}
 
 // Icon per status — replaces colored dots
 const statusIcons: Record<RequestStatus, React.ComponentType<{ className?: string }>> = {
   DRAFT: FileText,
+  PENDING: Hourglass,
   SENT: Send,
   ACKNOWLEDGED: Clock,
   COMPLETED: CheckCircle2,
@@ -60,8 +55,12 @@ export default function Dashboard() {
       setNotifications(notifs.slice(0, 3))
       setReminders(
         all.data
-          .filter((req) => req.nextActionAt)
-          .sort((a, b) => +new Date(a.nextActionAt!) - +new Date(b.nextActionAt!))
+          .filter((req) => req.status === 'PENDING' || req.status === 'NO_RESPONSE' || req.nextActionAt)
+          .sort((a, b) => {
+            const da = +(new Date(a.scheduledAt ?? a.nextActionAt ?? a.createdAt))
+            const db = +(new Date(b.scheduledAt ?? b.nextActionAt ?? b.createdAt))
+            return da - db
+          })
           .slice(0, 3)
       )
       setLoading(false)
@@ -222,9 +221,11 @@ export default function Dashboard() {
                   <div className="py-8 text-center text-sm text-muted-foreground">Aucune relance prévue.</div>
                 ) : (
                   reminders.map((r) => {
-                    const date = new Date(r.nextActionAt!).toLocaleDateString('fr-FR', {
-                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                    const actionDate = r.scheduledAt ?? r.nextActionAt ?? r.createdAt
+                    const date = new Date(actionDate).toLocaleDateString('fr-FR', {
+                      day: 'numeric', month: 'short',
                     })
+                    const label = r.status === 'PENDING' ? 'Envoi programmé' : 'Sans réponse'
                     return (
                       <div key={r.id} className="flex items-center justify-between py-3 border-b border-border last:border-0">
                         <div className="flex items-center gap-2.5">
@@ -236,7 +237,7 @@ export default function Dashboard() {
                           />
                           <div>
                             <p className="text-sm font-medium">{r.brokerName}</p>
-                            <p className="text-xs text-muted-foreground">{date}</p>
+                            <p className="text-xs text-muted-foreground">{label} · {date}</p>
                           </div>
                         </div>
                         <Link to={`/requests/${r.id}`}>
@@ -264,12 +265,11 @@ export default function Dashboard() {
                   <div className="py-8 text-center text-sm text-muted-foreground">Aucune action recommandée.</div>
                 ) : (
                   notifications.map((n) => {
-                    const NotifIcon = notifIcons[n.type]
                     return (
                       <div key={n.id} className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
                         <div className="flex items-center gap-2.5">
-                          <NotifIcon className="w-4 h-4 shrink-0 text-muted-foreground" />
-                          <p className="text-sm">{n.title}</p>
+                          <AlertCircle className="w-4 h-4 shrink-0 text-muted-foreground" />
+                          <p className="text-sm">{n.message}</p>
                         </div>
                         {n.requestId && (
                           <Link to={`/requests/${n.requestId}`}>
