@@ -341,6 +341,27 @@ requestsRoutes.post('/batch', authMiddleware, async (c) => {
       return c.json({ error: 'templateId et brokerIds[] requis', code: 'BAD_REQUEST' }, 400)
     }
 
+    // Utilisateur, adresse et template sont communs à tout le batch → chargés une seule fois
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1)
+    if (!user) {
+      return c.json({ error: 'Utilisateur introuvable.', code: 'NOT_FOUND' }, 404)
+    }
+
+    const [template] = await db.select().from(emailTemplates).where(eq(emailTemplates.id, templateId)).limit(1)
+    if (!template) {
+      return c.json({ error: 'Le template spécifié est introuvable.', code: 'NOT_FOUND' }, 404)
+    }
+
+    const [addressRow] = await db
+      .select()
+      .from(userContacts)
+      .where(and(eq(userContacts.userId, userId), eq(userContacts.type, 'address'), eq(userContacts.isPrimary, true)))
+      .limit(1)
+    const userAddress = addressRow?.value ? safeDecrypt(addressRow.value) : '[Adresse non renseignée]'
+
+    const decryptedFirstName = safeDecrypt(user.firstName)
+    const decryptedLastName = safeDecrypt(user.lastName)
+
     const created = []
     const failed = []
     const now = new Date()
@@ -375,16 +396,27 @@ requestsRoutes.post('/batch', authMiddleware, async (c) => {
         continue
       }
 
-      // Create as DRAFT first, then immediately move to PENDING
+      // Pré-calculer l'ID pour l'injecter dans {{request.id}} dès la génération du corps
+      const requestId = randomUUID()
+      const context = {
+        user: { firstName: decryptedFirstName, lastName: decryptedLastName, email: user.email },
+        userAddress,
+        broker: { name: broker.name, emailContact: broker.emailContact },
+        request: { id: requestId, createdAt: now, referenceDate: now },
+        language: template.language,
+      }
+      const emailBody = renderTemplate(template.body, context)
+
       const [newRequest] = await db
         .insert(removalRequests)
         .values({
+          id: requestId,
           userId,
           brokerId,
           templateId,
           status: 'PENDING',
           scheduledAt: now,
-          emailBody: 'generated',
+          emailBody,
         })
         .returning()
 
@@ -414,6 +446,7 @@ requestsRoutes.post('/batch', authMiddleware, async (c) => {
     return c.json({ error: 'server error' }, 500)
   }
 })
+
 
 // ============================================================================
 // CANCEL : Annuler une demande DRAFT ou PENDING
