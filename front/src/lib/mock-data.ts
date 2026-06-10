@@ -131,7 +131,7 @@ export const statusConfig: Record<RequestStatus, { label: string; color: string;
   DRAFT:        { label: 'Brouillon',  color: 'text-gray-500',    dot: 'bg-gray-400',    bg: 'bg-gray-100' },
   PENDING:      { label: 'En attente d\'envoi', color: 'text-violet-600', dot: 'bg-violet-500', bg: 'bg-violet-50' },
   SENT:         { label: 'Envoyée',    color: 'text-blue-600',    dot: 'bg-blue-500',    bg: 'bg-blue-50' },
-  ACKNOWLEDGED: { label: 'En attente', color: 'text-amber-600',   dot: 'bg-amber-500',   bg: 'bg-amber-50' },
+  ACKNOWLEDGED: { label: 'Pris en compte', color: 'text-amber-600', dot: 'bg-amber-500', bg: 'bg-amber-50' },
   COMPLETED:    { label: 'Confirmée',  color: 'text-green-600',   dot: 'bg-green-500',   bg: 'bg-green-50' },
   REFUSED:      { label: 'Refusée',    color: 'text-red-600',     dot: 'bg-red-500',     bg: 'bg-red-50' },
   NO_RESPONSE:  { label: 'À relancer', color: 'text-orange-600',  dot: 'bg-orange-500',  bg: 'bg-orange-50' },
