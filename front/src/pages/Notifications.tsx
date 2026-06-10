@@ -12,7 +12,7 @@ import {
   Mail,
   Loader2,
 } from "lucide-react"
-import { getNotifications, type AppNotification } from "@/lib/api"
+import { getNotifications, markNotificationRead, type AppNotification } from "@/lib/api"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -99,6 +99,7 @@ export default function Notifications() {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
     )
+    markNotificationRead(id)
   }
 
   const markAllAsRead = () => {
