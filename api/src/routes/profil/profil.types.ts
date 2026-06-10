@@ -27,6 +27,7 @@ export interface ProfilDto {
   firstName: string       // déchiffré
   lastName: string        // déchiffré
   role: 'user' | 'admin'
+  totpEnabled: boolean
   createdAt: string
   updatedAt: string
   contacts: ContactDto[]

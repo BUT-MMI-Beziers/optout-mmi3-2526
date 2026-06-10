@@ -23,14 +23,19 @@ async function request<T>(
   fallback: T
 ): Promise<T> {
   try {
-    const res = await fetch(`${BASE}${path}`, {
+    const opts: RequestInit = {
       ...options,
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    })
+      headers: { 'Content-Type': 'application/json', ...options.headers },
+    }
+    let res = await fetch(`${BASE}${path}`, opts)
+
+    if (res.status === 401) {
+      const refreshed = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' })
+      if (!refreshed.ok) { window.location.href = '/login'; return fallback }
+      res = await fetch(`${BASE}${path}`, opts)
+    }
+
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return (await res.json()) as T
   } catch {
@@ -277,4 +282,28 @@ export async function getStats(): Promise<DashboardStats> {
     refused: b.REFUSED,
     responseRate: d.total > 0 ? Math.round((responded / d.total) * 100) : 0,
   }
+}
+
+// ─── Sessions ─────────────────────────────────────────────────────────────────
+
+export interface ActiveSession {
+  id: string
+  device: string | null
+  location: string | null
+  ip: string | null
+  createdAt: string
+  lastSeenAt: string
+  current: boolean
+}
+
+export async function getSessions(): Promise<ActiveSession[]> {
+  return request<ActiveSession[]>('/auth/sessions', {}, [])
+}
+
+export async function revokeSession(id: string): Promise<void> {
+  await request<null>(`/auth/sessions/${id}`, { method: 'DELETE' }, null)
+}
+
+export async function revokeOtherSessions(): Promise<void> {
+  await request<null>('/auth/sessions', { method: 'DELETE' }, null)
 }

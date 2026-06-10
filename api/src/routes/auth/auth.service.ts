@@ -5,9 +5,9 @@
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'node:crypto'
 import { sign } from 'hono/jwt'
-import { eq } from 'drizzle-orm'
+import { eq, and, ne } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { users } from '../../db/schema.js'
+import { users, userSessions } from '../../db/schema.js'
 import { encrypt } from '../../utils/crypto.util.js'
 
 // 12 rounds bcrypt = bon équilibre sécurité / performance (~300ms par hash)
@@ -64,14 +64,69 @@ export async function updatePassword(userId: string, newPassword: string): Promi
     .where(eq(users.id, userId))
 }
 
+// Parse un User-Agent brut en label lisible ex: "MacBook · Chrome 124"
+export function parseUserAgent(ua: string | undefined): string {
+  if (!ua) return 'Appareil inconnu'
+  if (/iphone/i.test(ua)) return 'iPhone · ' + (ua.match(/Version\/([\d.]+)/)?.[1] ? 'Safari' : 'App')
+  if (/ipad/i.test(ua)) return 'iPad · Safari'
+  if (/android/i.test(ua)) return 'Android · ' + (ua.match(/Chrome\/([\d]+)/)?.[1] ? `Chrome ${ua.match(/Chrome\/([\d]+)/)?.[1]}` : 'Navigateur')
+  if (/macintosh/i.test(ua)) {
+    const browser = ua.match(/Chrome\/([\d]+)/)?.[1] ? `Chrome ${ua.match(/Chrome\/([\d]+)/)?.[1]}`
+      : ua.match(/Firefox\/([\d]+)/)?.[1] ? `Firefox ${ua.match(/Firefox\/([\d]+)/)?.[1]}`
+      : 'Safari'
+    return `Mac · ${browser}`
+  }
+  if (/windows/i.test(ua)) {
+    const browser = ua.match(/Chrome\/([\d]+)/)?.[1] ? `Chrome ${ua.match(/Chrome\/([\d]+)/)?.[1]}`
+      : ua.match(/Firefox\/([\d]+)/)?.[1] ? `Firefox ${ua.match(/Firefox\/([\d]+)/)?.[1]}`
+      : 'Edge'
+    return `Windows · ${browser}`
+  }
+  if (/linux/i.test(ua)) return 'Linux · Navigateur'
+  return 'Appareil inconnu'
+}
+
+export async function createSession(userId: string, ip: string | undefined, userAgent: string | undefined) {
+  const [session] = await db
+    .insert(userSessions)
+    .values({ userId, ip: ip ?? null, userAgent: userAgent ?? null, device: parseUserAgent(userAgent), location: null })
+    .returning()
+  return session
+}
+
+export async function getSessionsByUser(userId: string) {
+  return db.select().from(userSessions).where(eq(userSessions.userId, userId))
+}
+
+export async function revokeSession(sessionId: string, userId: string): Promise<boolean> {
+  const result = await db
+    .delete(userSessions)
+    .where(and(eq(userSessions.id, sessionId), eq(userSessions.userId, userId)))
+    .returning()
+  return result.length > 0
+}
+
+export async function revokeOtherSessions(userId: string, currentSessionId: string): Promise<void> {
+  await db
+    .delete(userSessions)
+    .where(and(eq(userSessions.userId, userId), ne(userSessions.id, currentSessionId)))
+}
+
+export async function touchSession(sessionId: string): Promise<void> {
+  await db
+    .update(userSessions)
+    .set({ lastSeenAt: new Date() })
+    .where(eq(userSessions.id, sessionId))
+}
+
 // Génère access token JWT (15 min) + refresh token opaque (7 jours).
 // Le refresh token brut est retourné pour être placé en cookie HttpOnly.
 // Seul son hash bcrypt est stocké en base — jamais la valeur brute.
-export async function generateTokens(userId: string, role: 'user' | 'admin') {
+export async function generateTokens(userId: string, role: 'user' | 'admin', sessionId: string) {
   const now = Math.floor(Date.now() / 1000)
 
   const accessToken = await sign(
-    { sub: userId, role, iat: now, exp: now + ACCESS_TOKEN_EXPIRY_SECONDS },
+    { sub: userId, role, sid: sessionId, iat: now, exp: now + ACCESS_TOKEN_EXPIRY_SECONDS },
     jwtSecret()
   )
 

@@ -57,6 +57,7 @@ export async function getProfil(userId: string): Promise<ProfilDto | null> {
     firstName: decrypt(user.firstName),  // déchiffrement AES-256-GCM
     lastName: decrypt(user.lastName),    // déchiffrement AES-256-GCM
     role: user.role,
+    totpEnabled: user.totpEnabled,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
     contacts: contactRows.map(mapContact),
