@@ -552,6 +552,10 @@ paths:
         Crée une demande PENDING pour chaque broker de la liste et la place
         en file d'attente BullMQ pour envoi asynchrone.
 
+        Le corps de l'email (`emailBody`) de chaque demande est généré et persisté
+        à la création, en interpolant les variables du template avec les données
+        réelles de l'utilisateur (déchiffrées) et du broker ciblé.
+
         **Comportement partiel** : les échecs individuels (broker introuvable,
         UUID invalide, demande PENDING déjà existante pour ce broker) sont
         signalés dans `data.failed` sans bloquer le traitement des autres brokers.
@@ -647,6 +651,23 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: Unauthorized
+        '404':
+          description: Template ou utilisateur introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                template_not_found:
+                  summary: Template inexistant
+                  value:
+                    error: Le template spécifié est introuvable.
+                    code: NOT_FOUND
+                user_not_found:
+                  summary: Utilisateur inexistant
+                  value:
+                    error: Utilisateur introuvable.
+                    code: NOT_FOUND
         '500':
           description: Erreur interne
           content:
