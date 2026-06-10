@@ -64,6 +64,13 @@
       "when": 1781080517955,
       "tag": "0009_add_passkeys",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781098603435,
+      "tag": "0010_first_venus",
+      "breakpoints": true
     }
   ]
 }

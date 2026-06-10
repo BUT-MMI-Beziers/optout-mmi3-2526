@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { randomUUID } from 'crypto'
-import { eq, and, count, getTableColumns } from 'drizzle-orm'
+import { eq, and, count, getTableColumns, ilike, desc } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { removalRequests, users, brokers, emailTemplates, userContacts, requestEvents, notifications } from '../db/schema.js'
 import { renderTemplate } from '../services/template.service.js'
@@ -23,6 +23,7 @@ requestsRoutes.get('/', authMiddleware, async (c) => {
 
     const statusParam = c.req.query('status')
     const brokerIdParam = c.req.query('broker_id')
+    const searchParam = c.req.query('search')
     const pageParam = c.req.query('page')
     const limitParam = c.req.query('limit')
 
@@ -42,6 +43,7 @@ requestsRoutes.get('/', authMiddleware, async (c) => {
     const conditions = [eq(removalRequests.userId, userId)]
     if (statusParam) conditions.push(eq(removalRequests.status, statusParam as any))
     if (brokerIdParam) conditions.push(eq(removalRequests.brokerId, brokerIdParam))
+    if (searchParam) conditions.push(ilike(brokers.name, `%${searchParam}%`))
 
     const requestsList = await db
       .select({
@@ -60,6 +62,7 @@ requestsRoutes.get('/', authMiddleware, async (c) => {
     const [{ value: total }] = await db
       .select({ value: count() })
       .from(removalRequests)
+      .leftJoin(brokers, eq(removalRequests.brokerId, brokers.id))
       .where(and(...conditions))
 
     const totalPages = Math.ceil(total / limit)
@@ -194,12 +197,28 @@ requestsRoutes.get('/:id', authMiddleware, async (c) => {
       .where(eq(requestEvents.requestId, requestId))
       .orderBy(requestEvents.createdAt)
 
+    const [activeRelance] = await db
+      .select({
+        id: removalRequests.id,
+        scheduledAt: removalRequests.scheduledAt,
+        sentAt: removalRequests.sentAt,
+        status: removalRequests.status,
+      })
+      .from(removalRequests)
+      .where(and(
+        eq(removalRequests.parentRequestId, requestId),
+        eq(removalRequests.userId, userId),
+      ))
+      .orderBy(desc(removalRequests.createdAt))
+      .limit(1)
+
     return c.json({
       data: {
         ...data.request,
         broker: data.broker,
         template: data.template,
         events,
+        activeRelance: activeRelance ?? null,
       }
     }, 200)
 
@@ -505,6 +524,60 @@ requestsRoutes.delete('/:id', authMiddleware, async (c) => {
 })
 
 // ============================================================================
+// ARCHIVE : Archiver / désarchiver une demande
+// Route finale : PATCH /api/v1/requests/:id/archive
+// Body : { archived: true | false }
+// ============================================================================
+
+requestsRoutes.patch('/:id/archive', authMiddleware, async (c) => {
+  try {
+    const requestId = c.req.param('id')
+    const userId = c.get('userId') as string
+
+    if (!uuidRegex.test(requestId)) {
+      return c.json({ error: 'UUID invalide', code: 'BAD_REQUEST' }, 400)
+    }
+
+    let body: any
+    try { body = await c.req.json() } catch {
+      return c.json({ error: 'Body JSON invalide', code: 'BAD_REQUEST' }, 400)
+    }
+
+    if (typeof body?.archived !== 'boolean') {
+      return c.json({ error: 'archived (boolean) requis', code: 'BAD_REQUEST' }, 400)
+    }
+
+    const [request] = await db
+      .select()
+      .from(removalRequests)
+      .where(and(eq(removalRequests.id, requestId), eq(removalRequests.userId, userId)))
+      .limit(1)
+
+    if (!request) {
+      return c.json({ error: 'Demande introuvable', code: 'NOT_FOUND' }, 404)
+    }
+
+    const now = new Date()
+    const [updated] = await db
+      .update(removalRequests)
+      .set({ archivedAt: body.archived ? now : null, updatedAt: now })
+      .where(eq(removalRequests.id, requestId))
+      .returning()
+
+    await db.insert(requestEvents).values({
+      requestId,
+      eventType: 'note_added',
+      note: body.archived ? 'Demande archivée manuellement' : 'Demande désarchivée',
+    })
+
+    return c.json({ data: updated }, 200)
+  } catch (e) {
+    console.error('[PATCH /requests/:id/archive] Erreur :', e)
+    return c.json({ error: 'Erreur serveur', code: 'INTERNAL_SERVER_ERROR' }, 500)
+  }
+})
+
+// ============================================================================
 // FEATURE 14 : MISE À JOUR MANUELLE DU STATUT
 // Route finale : PATCH /api/v1/requests/:id/status
 // ============================================================================
@@ -549,6 +622,10 @@ requestsRoutes.patch('/:id/status', authMiddleware, async (c) => {
 
     if (!request) {
       return c.json({ error: 'Request introuvable', code: 'NOT_FOUND' }, 404)
+    }
+
+    if (request.archivedAt) {
+      return c.json({ error: 'Demande archivée — désarchivez-la avant de modifier son statut.', code: 'FORBIDDEN' }, 403)
     }
 
     const oldStatus = request.status
@@ -674,8 +751,8 @@ requestsRoutes.post('/:id/remind', authMiddleware, async (c) => {
       return c.json({ error: 'Demande introuvable', code: 'NOT_FOUND' }, 404)
     }
 
-    if (!['SENT', 'NO_RESPONSE'].includes(request.status)) {
-      return c.json({ error: 'Une relance ne peut être programmée que pour les demandes SENT ou NO_RESPONSE', code: 'BAD_REQUEST' }, 400)
+    if (request.status !== 'NO_RESPONSE') {
+      return c.json({ error: 'Une relance ne peut être programmée que pour les demandes sans réponse (NO_RESPONSE)', code: 'BAD_REQUEST' }, 400)
     }
 
     const now = new Date()
@@ -709,6 +786,12 @@ requestsRoutes.post('/:id/remind', authMiddleware, async (c) => {
       eventType: 'note_added',
       note: `Relance programmée pour le ${scheduledAt.toISOString().slice(0, 10)}`,
     })
+
+    // Archiver le parent : il devient lecture seule tant que la relance est active.
+    await db
+      .update(removalRequests)
+      .set({ archivedAt: now, updatedAt: now })
+      .where(eq(removalRequests.id, request.id))
 
     return c.json({ data: relance }, 201)
 

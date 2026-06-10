@@ -187,6 +187,10 @@ export default function Requests() {
             {requests.map((req) => {
               const cfg = statusConfig[req.status]
               const StatusIcon = statusIcons[req.status]
+              const isRelanced = !!req.archivedAt && req.status === 'NO_RESPONSE'
+              const displayLabel = isRelanced ? 'Archivée' : cfg.label
+              const DisplayIcon = isRelanced ? Archive : StatusIcon
+              const displayColor = isRelanced ? 'text-slate-500' : ''
               return (
                 <motion.div key={req.id} variants={rowVariant}>
                   <Link
@@ -204,9 +208,9 @@ export default function Requests() {
                         <p className="text-base font-medium truncate">{req.brokerName}</p>
                         <p className="text-sm text-muted-foreground truncate">{req.brokerUrl}</p>
                       </div>
-                      <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
-                        <StatusIcon className="w-4 h-4" />
-                        <span className="text-sm font-medium">{cfg.label}</span>
+                      <div className={`flex items-center gap-1.5 shrink-0 ${displayColor || 'text-muted-foreground'}`}>
+                        <DisplayIcon className="w-4 h-4" />
+                        <span className="text-sm font-medium">{displayLabel}</span>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -270,6 +274,10 @@ export default function Requests() {
           {requests.map((req) => {
             const cfg = statusConfig[req.status]
             const StatusIcon = statusIcons[req.status]
+            const isRelanced = !!req.archivedAt && req.status === 'NO_RESPONSE'
+            const displayLabel = isRelanced ? 'Archivée' : cfg.label
+            const DisplayIcon = isRelanced ? Archive : StatusIcon
+            const displayColor = isRelanced ? 'text-slate-500' : ''
             return (
               <motion.div key={req.id} variants={rowVariant}>
               <Link
@@ -309,9 +317,9 @@ export default function Requests() {
                     </>
                   )}
                 </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <StatusIcon className="w-4 h-4 shrink-0" />
-                  <span className="text-sm font-medium">{cfg.label}</span>
+                <div className={`flex items-center gap-2 ${displayColor || 'text-muted-foreground'}`}>
+                  <DisplayIcon className="w-4 h-4 shrink-0" />
+                  <span className="text-sm font-medium">{displayLabel}</span>
                 </div>
               </Link>
               </motion.div>
