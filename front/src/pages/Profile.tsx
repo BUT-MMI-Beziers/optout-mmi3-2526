@@ -362,7 +362,7 @@ export default function Profile() {
   }
 
   async function exportData() {
-    const res = await authFetch(`${API}/users/me/export`)
+    const res = await apiFetch(`${API}/users/me/export`)
     if (!res.ok) return
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
