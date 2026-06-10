@@ -969,6 +969,12 @@ paths:
 
         Un événement `status_changed` est tracé automatiquement.
         La demande doit appartenir à l'utilisateur connecté.
+
+        **Effets de bord selon le statut cible :**
+        - `ACKNOWLEDGED`, `COMPLETED`, `REFUSED` → le champ `respondedAt` est renseigné
+          (date de réponse du broker), utilisé par le calcul de `avgResponseDays` de `GET /stats`.
+        - `COMPLETED`, `REFUSED`, `SUPPRESSED` (statuts terminaux) → une notification in-app
+          est créée pour l'utilisateur (CDC §4.5.4), consultable via `GET /users/me/notifications`.
       security:
         - cookieAuth: []
       parameters:
