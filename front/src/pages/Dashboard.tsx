@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
   Plus, Send, CheckCircle2, AlertCircle, Clock,
-  XCircle, FileText, Flag, Archive,
+  XCircle, FileText, Flag, Archive, Hourglass,
 } from 'lucide-react'
 import { getStats, getRequests, getMe, getNotifications, type DashboardStats, type AppNotification } from '@/lib/api'
 import { statusConfig, type RemovalRequest, type RequestStatus } from '@/lib/mock-data'
@@ -19,6 +19,7 @@ import { statusConfig, type RemovalRequest, type RequestStatus } from '@/lib/moc
 // Icon per status — replaces colored dots
 const statusIcons: Record<RequestStatus, React.ComponentType<{ className?: string }>> = {
   DRAFT: FileText,
+  PENDING: Hourglass,
   SENT: Send,
   ACKNOWLEDGED: Clock,
   COMPLETED: CheckCircle2,
