@@ -415,6 +415,135 @@ paths:
                 error: Impossible de récupérer la liste des demandes.
                 code: INTERNAL_SERVER_ERROR
 
+    post:
+      tags: [Requests]
+      summary: Créer une demande (DRAFT)
+      description: |
+        Crée une nouvelle demande de suppression en statut **DRAFT** pour
+        l'utilisateur connecté.
+
+        Le corps de l'email (`emailBody`) est généré immédiatement en interpolant
+        les variables du template avec les données réelles de l'utilisateur
+        (déchiffrées), du broker et de la demande. Il est persisté pour traçabilité.
+
+        L'adresse postale est lue depuis `user_contacts` (type `address`,
+        `isPrimary = true`). Si elle est absente, la valeur `[Adresse non renseignée]`
+        est utilisée.
+
+        Un événement `created` est tracé automatiquement.
+
+        La demande créée peut ensuite être prévisualisée (`GET /requests/{id}/preview`)
+        puis envoyée (`POST /requests/{id}/send`).
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brokerId, templateId]
+              properties:
+                brokerId:
+                  type: string
+                  format: uuid
+                  description: UUID du broker ciblé
+                templateId:
+                  type: string
+                  format: uuid
+                  description: UUID du template email à utiliser
+                scheduledAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: Date d'envoi planifié optionnelle
+            example:
+              brokerId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+              templateId: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '201':
+          description: Demande créée en statut DRAFT
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RemovalRequest'
+              example:
+                data:
+                  id: "uuid-request"
+                  userId: "uuid-user"
+                  brokerId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+                  templateId: "550e8400-e29b-41d4-a716-446655440000"
+                  status: DRAFT
+                  emailBody: "Madame, Monsieur,\n\nJe vous adresse..."
+                  scheduledAt: null
+                  sentAt: null
+                  createdAt: "2026-06-10T09:00:00.000Z"
+                  updatedAt: "2026-06-10T09:00:00.000Z"
+        '400':
+          description: Champ obligatoire manquant ou UUID invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missing_fields:
+                  summary: brokerId ou templateId absent
+                  value:
+                    error: Les champs brokerId et templateId sont obligatoires.
+                    code: BAD_REQUEST
+                invalid_broker_id:
+                  summary: brokerId non UUID
+                  value:
+                    error: brokerId doit être un UUID valide.
+                    code: BAD_REQUEST
+                invalid_template_id:
+                  summary: templateId non UUID
+                  value:
+                    error: templateId doit être un UUID valide.
+                    code: BAD_REQUEST
+        '401':
+          description: Cookie accessToken absent ou expiré
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Unauthorized
+        '404':
+          description: Broker, template ou utilisateur introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                broker_not_found:
+                  summary: Broker inexistant
+                  value:
+                    error: Le broker spécifié est introuvable.
+                    code: NOT_FOUND
+                template_not_found:
+                  summary: Template inexistant
+                  value:
+                    error: Le template spécifié est introuvable.
+                    code: NOT_FOUND
+                user_not_found:
+                  summary: Utilisateur inexistant
+                  value:
+                    error: Utilisateur introuvable.
+                    code: NOT_FOUND
+        '500':
+          description: Erreur interne
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Impossible de créer la demande.
+                code: INTERNAL_SERVER_ERROR
+
   /requests/batch:
     post:
       tags: [Requests]
