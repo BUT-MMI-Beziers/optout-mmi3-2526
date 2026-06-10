@@ -1,4 +1,8 @@
 import { useState, useMemo, useEffect } from "react"
+import { motion, type Variants } from "framer-motion"
+
+const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } }
+const cardVar: Variants = { hidden: { opacity: 0, x: -12 }, show: { opacity: 1, x: 0, transition: { duration: 0.22 } } }
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -300,7 +304,12 @@ export default function Brokers() {
       ) : null}
 
       {/* ─── Grille des brokers ─────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <motion.div
+        variants={stagger}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+      >
         {loading
           ? Array.from({ length: itemsPerPage }).map((_, i) => (
               <Card key={"skeleton-" + i} className="bg-white border-border">
@@ -319,9 +328,9 @@ export default function Brokers() {
           : paginated.map((broker) => {
           const MethodIcon = methodIconMap[broker.optOutMethod]
           return (
+            <motion.div key={broker.id} variants={cardVar} layout>
             <Card
-              key={broker.id}
-              className="cursor-pointer hover:shadow-md transition-shadow bg-white border-border"
+              className="cursor-pointer hover:shadow-md transition-shadow bg-white border-border h-full"
               onClick={() => navigate("/brokers/" + broker.slug)}
             >
               <CardHeader className="pb-2">
@@ -383,9 +392,10 @@ export default function Brokers() {
                 </Link>
               </CardContent>
             </Card>
+            </motion.div>
           )
         })}
-      </div>
+      </motion.div>
 
       {/* ─── État vide ──────────────────────────────────────── */}
       {!loading && !error && paginated.length === 0 ? (
