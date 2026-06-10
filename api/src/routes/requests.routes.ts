@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { randomUUID } from 'crypto'
-import { eq, and, getTableColumns } from 'drizzle-orm'
+import { eq, and, count, getTableColumns } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { removalRequests, users, brokers, emailTemplates, userContacts, requestEvents, notifications } from '../db/schema.js'
 import { renderTemplate } from '../services/template.service.js'
@@ -57,12 +57,11 @@ requestsRoutes.get('/', authMiddleware, async (c) => {
       .limit(limit)
       .offset(offset)
 
-    const allRequests = await db
-      .select({ id: removalRequests.id })
+    const [{ value: total }] = await db
+      .select({ value: count() })
       .from(removalRequests)
       .where(and(...conditions))
 
-    const total = allRequests.length
     const totalPages = Math.ceil(total / limit)
 
     return c.json({ data: requestsList, total, page, limit, totalPages }, 200)
@@ -166,9 +165,10 @@ requestsRoutes.post('/', authMiddleware, async (c) => {
 // Route finale : GET /api/v1/requests/:id
 // ============================================================================
 
-requestsRoutes.get('/:id', async (c) => {
+requestsRoutes.get('/:id', authMiddleware, async (c) => {
   try {
     const requestId = c.req.param('id')
+    const userId = c.get('userId') as string
 
     if (!uuidRegex.test(requestId)) {
       return c.json({ error: "Format d'identifiant de demande invalide. Un UUID est attendu.", code: 'BAD_REQUEST' }, 400)
@@ -179,7 +179,7 @@ requestsRoutes.get('/:id', async (c) => {
       .from(removalRequests)
       .innerJoin(brokers, eq(removalRequests.brokerId, brokers.id))
       .innerJoin(emailTemplates, eq(removalRequests.templateId, emailTemplates.id))
-      .where(eq(removalRequests.id, requestId))
+      .where(and(eq(removalRequests.id, requestId), eq(removalRequests.userId, userId)))
       .limit(1)
 
     if (rows.length === 0) {
@@ -214,9 +214,10 @@ requestsRoutes.get('/:id', async (c) => {
 // Route finale : GET /api/v1/requests/:id/preview
 // ============================================================================
 
-requestsRoutes.get('/:id/preview', async (c) => {
+requestsRoutes.get('/:id/preview', authMiddleware, async (c) => {
   try {
     const requestId = c.req.param('id')
+    const userId = c.get('userId') as string
 
     if (!uuidRegex.test(requestId)) {
       return c.json({ error: "Format d'identifiant de demande invalide. Un UUID est attendu.", code: 'BAD_REQUEST' }, 400)
@@ -228,7 +229,7 @@ requestsRoutes.get('/:id/preview', async (c) => {
       .innerJoin(users, eq(removalRequests.userId, users.id))
       .innerJoin(brokers, eq(removalRequests.brokerId, brokers.id))
       .innerJoin(emailTemplates, eq(removalRequests.templateId, emailTemplates.id))
-      .where(eq(removalRequests.id, requestId))
+      .where(and(eq(removalRequests.id, requestId), eq(removalRequests.userId, userId)))
       .limit(1)
 
     if (requestData.length === 0) {
@@ -510,11 +511,13 @@ requestsRoutes.delete('/:id', authMiddleware, async (c) => {
 
 const TRANSITIONS: Record<string, string[]> = {
   DRAFT:        ['PENDING'],
-  PENDING:      ['SENT'],          // handled by worker normally, but allowed manually
-  SENT:         ['ACKNOWLEDGED', 'NO_RESPONSE'],
+  // SENT → terminal directement : un broker confirme souvent la suppression sans
+  // passer par un accusé de réception explicite (ACKNOWLEDGED).
+  SENT:         ['ACKNOWLEDGED', 'COMPLETED', 'REFUSED', 'SUPPRESSED', 'NO_RESPONSE'],
   ACKNOWLEDGED: ['COMPLETED', 'REFUSED', 'SUPPRESSED'],
   REFUSED:      ['COMPLAINT'],
-  NO_RESPONSE:  ['SENT', 'COMPLAINT'],
+  // Réponse tardive possible après un passage en NO_RESPONSE, sinon plainte.
+  NO_RESPONSE:  ['COMPLETED', 'REFUSED', 'SUPPRESSED', 'COMPLAINT'],
 }
 
 requestsRoutes.patch('/:id/status', authMiddleware, async (c) => {
@@ -559,11 +562,20 @@ requestsRoutes.patch('/:id/status', authMiddleware, async (c) => {
       .update(removalRequests)
       .set({
         status: newStatus,
-        respondedAt: ['ACKNOWLEDGED', 'COMPLETED', 'REFUSED'].includes(newStatus) ? new Date() : request.respondedAt,
+        respondedAt: ['ACKNOWLEDGED', 'COMPLETED', 'REFUSED', 'SUPPRESSED'].includes(newStatus) ? new Date() : request.respondedAt,
         updatedAt: new Date(),
       })
       .where(eq(removalRequests.id, requestId))
       .returning()
+
+    // Tracer le changement manuel dans le journal d'audit (comme les transitions auto)
+    await db.insert(requestEvents).values({
+      requestId,
+      eventType: 'status_changed',
+      oldStatus,
+      newStatus,
+      note: `Statut mis à jour manuellement : ${oldStatus} → ${newStatus}`,
+    })
 
     const terminalMessages: Record<string, string> = {
       COMPLETED: 'Votre demande a été complétée : le broker a confirmé la suppression de vos données.',
@@ -592,12 +604,24 @@ requestsRoutes.patch('/:id/status', authMiddleware, async (c) => {
 // Route finale : GET /api/v1/requests/:id/events
 // ============================================================================
 
-requestsRoutes.get('/:id/events', async (c) => {
+requestsRoutes.get('/:id/events', authMiddleware, async (c) => {
   try {
     const requestId = c.req.param('id')
+    const userId = c.get('userId') as string
 
     if (!uuidRegex.test(requestId)) {
       return c.json({ error: 'UUID invalide' }, 400)
+    }
+
+    // Vérifier que la demande appartient bien à l'utilisateur avant d'exposer son journal
+    const [owned] = await db
+      .select({ id: removalRequests.id })
+      .from(removalRequests)
+      .where(and(eq(removalRequests.id, requestId), eq(removalRequests.userId, userId)))
+      .limit(1)
+
+    if (!owned) {
+      return c.json({ error: 'Demande introuvable', code: 'NOT_FOUND' }, 404)
     }
 
     const events = await db
