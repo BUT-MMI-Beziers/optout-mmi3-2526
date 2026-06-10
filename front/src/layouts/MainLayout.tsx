@@ -40,7 +40,7 @@ const bottomNavMobile = [
 ]
 
 const bottomNavItems = [
-  { label: "Profil",     icon: User,     to: "/profile" },
+  { label: "Mon compte",  icon: User,     to: "/profile" },
   { label: "Paramètres", icon: Settings, to: "/settings" },
 ]
 
@@ -117,7 +117,7 @@ export default function MainLayout() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={() => navigate("/profile")}>Mon profil</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/profile")}>Mon compte</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/settings")}>Paramètres</DropdownMenuItem>
                 <DropdownMenuItem
                   className="text-destructive"

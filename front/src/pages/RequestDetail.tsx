@@ -11,13 +11,28 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useRequestDetail } from '@/hooks/useRequestDetail'
-import { sendReminder, getEmailPreview, cancelRequest } from '@/lib/api'
+import { apiFetch, sendReminder, getEmailPreview, cancelRequest } from '@/lib/api'
 import {
   statusConfig, categoryLabels, difficultyLabels, methodLabels,
   type RequestStatus,
 } from '@/lib/mock-data'
 
-const STATUS_STEPS: RequestStatus[] = ['DRAFT', 'SENT', 'ACKNOWLEDGED', 'COMPLETED']
+const STATUS_STEPS: RequestStatus[] = ['DRAFT', 'PENDING', 'SENT', 'ACKNOWLEDGED', 'COMPLETED']
+
+const TRANSITIONS: Partial<Record<RequestStatus, RequestStatus[]>> = {
+  SENT:         ['ACKNOWLEDGED', 'NO_RESPONSE'],
+  ACKNOWLEDGED: ['COMPLETED', 'REFUSED', 'SUPPRESSED'],
+  NO_RESPONSE:  ['SENT'],
+}
+
+const NEXT_STATUS_LABELS: Partial<Record<RequestStatus, string>> = {
+  ACKNOWLEDGED: 'Pris en compte par le broker',
+  NO_RESPONSE:  'Sans réponse',
+  COMPLETED:    'Confirmer la suppression',
+  REFUSED:      'Marquer comme refusée',
+  SUPPRESSED:   'Marquer comme supprimée',
+  SENT:         'Marquer comme renvoyée',
+}
 
 const statusIcons: Record<RequestStatus, LucideIcon> = {
   DRAFT:        FileText,
@@ -66,9 +81,10 @@ type ReminderDelay = typeof REMINDER_DELAYS[number]
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { request, events, template, loading, error } = useRequestDetail(id ?? '')
+  const { request, events, template, loading, error, refetch } = useRequestDetail(id ?? '')
 
   const [sendingReminder, setSendingReminder] = useState(false)
+  const [updatingStatus, setUpdatingStatus] = useState<RequestStatus | null>(null)
   const [emailPreview, setEmailPreview] = useState<string | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -102,6 +118,20 @@ export default function RequestDetail() {
     if (relance?.id) navigate(`/requests/${relance.id}`)
   }
 
+  const handleUpdateStatus = async (newStatus: RequestStatus) => {
+    if (!request || !id) return
+    setUpdatingStatus(newStatus)
+    try {
+      const res = await apiFetch(`/api/v1/requests/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (res.ok) refetch()
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
   const handleCancel = async () => {
     if (!request) return
     setCancelling(true)
@@ -121,10 +151,18 @@ export default function RequestDetail() {
     setLoadingPreview(false)
   }
 
-  const isTerminal = request
-    ? ['COMPLETED', 'REFUSED', 'COMPLAINT', 'SUPPRESSED'].includes(request.status)
-    : false
-  const currentStep = request ? STATUS_STEPS.indexOf(request.status as RequestStatus) : -1
+  const TERMINAL_STATUSES: RequestStatus[] = ['COMPLETED', 'REFUSED', 'COMPLAINT', 'SUPPRESSED']
+  const isTerminal = request ? TERMINAL_STATUSES.includes(request.status) : false
+  // Pour les statuts terminaux hors du chemin principal, on pointe sur la dernière étape
+  const currentStep = request
+    ? (TERMINAL_STATUSES.includes(request.status)
+        ? STATUS_STEPS.length - 1
+        : STATUS_STEPS.indexOf(request.status as RequestStatus))
+    : -1
+  // La dernière étape affiche le vrai statut terminal si atteint
+  const lastStepStatus: RequestStatus = (request && TERMINAL_STATUSES.includes(request.status))
+    ? request.status
+    : 'COMPLETED'
 
   const formatDate = (iso: string | null | undefined) => {
     if (!iso) return '—'
@@ -280,15 +318,21 @@ export default function RequestDetail() {
                 )}
                 <div className="relative flex justify-between z-[1]">
                   {STATUS_STEPS.map((step, i) => {
-                    const stepCfg = statusConfig[step]
+                    const isLast = i === STATUS_STEPS.length - 1
+                    const displayStep = isLast ? lastStepStatus : step
+                    const stepCfg = isLast && !isTerminal
+                      ? { ...statusConfig['COMPLETED'], label: 'Clôturée' }
+                      : statusConfig[displayStep]
                     const isPast = i < currentStep
                     const isCurrent = i === currentStep
+                    const isNegativeTerminal = isLast && isCurrent && ['REFUSED', 'COMPLAINT'].includes(lastStepStatus)
                     return (
                       <div key={step} className="flex flex-col items-center gap-1.5">
                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center border-2 ${
-                          isCurrent ? 'bg-[#FC7E34] border-[#FC7E34] text-white'
-                          : isPast   ? 'bg-[#253550] border-[#253550] text-white'
-                          :            'bg-muted border-border text-muted-foreground'
+                          isCurrent && isNegativeTerminal ? 'bg-red-500 border-red-500 text-white'
+                          : isCurrent ? 'bg-[#FC7E34] border-[#FC7E34] text-white'
+                          : isPast    ? 'bg-[#253550] border-[#253550] text-white'
+                          :             'bg-muted border-border text-muted-foreground'
                         }`}>
                           {isPast ? <CheckCircle2 className="w-4 h-4" /> : <span className="text-xs font-bold">{i + 1}</span>}
                         </div>
@@ -417,6 +461,29 @@ export default function RequestDetail() {
                   Déposer une plainte CNIL
                 </Button>
               )}
+              {TRANSITIONS[request.status] && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Mettre à jour le statut</p>
+                    {TRANSITIONS[request.status]!.map((next) => (
+                      <Button
+                        key={next}
+                        variant="outline"
+                        className="w-full gap-2 h-10 text-sm"
+                        onClick={() => handleUpdateStatus(next)}
+                        disabled={!!updatingStatus}
+                      >
+                        {updatingStatus === next
+                          ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : <RefreshCw className="w-4 h-4" />}
+                        {NEXT_STATUS_LABELS[next] ?? next}
+                      </Button>
+                    ))}
+                  </div>
+                </>
+              )}
+
               <Button variant="outline" className="w-full h-10 text-muted-foreground" onClick={() => navigate('/requests')}>
                 Retour aux demandes
               </Button>

@@ -17,6 +17,36 @@ import {
 
 const BASE = '/api/v1'
 
+// Verrou singleton — un seul refresh à la fois.
+// Si plusieurs appels 401 arrivent en parallèle, ils attendent tous la même
+// promesse au lieu de lancer chacun leur refresh (race condition → déconnexion forcée).
+let refreshing: Promise<boolean> | null = null
+
+function refreshOnce(): Promise<boolean> {
+  if (!refreshing) {
+    refreshing = fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' })
+      .then(r => r.ok)
+      .finally(() => { refreshing = null })
+  }
+  return refreshing
+}
+
+// Fetch générique avec refresh automatique — utilisable depuis n'importe quelle page.
+export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const opts: RequestInit = {
+    ...options,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...(options.headers ?? {}) },
+  }
+  let res = await fetch(url, opts)
+  if (res.status === 401) {
+    const ok = await refreshOnce()
+    if (!ok) { window.location.href = '/login'; return res }
+    res = await fetch(url, opts)
+  }
+  return res
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -31,8 +61,8 @@ async function request<T>(
     let res = await fetch(`${BASE}${path}`, opts)
 
     if (res.status === 401) {
-      const refreshed = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' })
-      if (!refreshed.ok) { window.location.href = '/login'; return fallback }
+      const ok = await refreshOnce()
+      if (!ok) { window.location.href = '/login'; return fallback }
       res = await fetch(`${BASE}${path}`, opts)
     }
 
@@ -185,14 +215,7 @@ export interface AppNotification {
 }
 
 export async function getNotifications(): Promise<AppNotification[]> {
-  const user = await getMe()
-  if (!user) return []
-  const raw = await request<{ data: AppNotification[] }>(
-    `/users/me/notifications?user_id=${user.id}`,
-    {},
-    { data: [] }
-  )
-  return raw.data ?? []
+  return request<AppNotification[]>('/users/me/notifications', {}, [])
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
@@ -242,6 +265,7 @@ export async function cancelRequest(id: string): Promise<boolean> {
 
 export interface DashboardStats {
   total: number
+  pending: number
   sent: number
   acknowledged: number
   completed: number
@@ -253,7 +277,7 @@ export interface DashboardStats {
 interface RawStats {
   total: number
   byStatus: {
-    DRAFT: number; SENT: number; ACKNOWLEDGED: number; COMPLETED: number
+    DRAFT: number; PENDING: number; SENT: number; ACKNOWLEDGED: number; COMPLETED: number
     REFUSED: number; NO_RESPONSE: number; COMPLAINT: number; SUPPRESSED: number
   }
   avgResponseDays: number | null
@@ -263,7 +287,7 @@ export async function getStats(): Promise<DashboardStats> {
   const fallback: RawStats = {
     total: 0,
     byStatus: {
-      DRAFT: 0, SENT: 0, ACKNOWLEDGED: 0, COMPLETED: 0,
+      DRAFT: 0, PENDING: 0, SENT: 0, ACKNOWLEDGED: 0, COMPLETED: 0,
       REFUSED: 0, NO_RESPONSE: 0, COMPLAINT: 0, SUPPRESSED: 0,
     },
     avgResponseDays: null,
@@ -275,6 +299,7 @@ export async function getStats(): Promise<DashboardStats> {
   const responded = b.COMPLETED + b.REFUSED
   return {
     total: d.total,
+    pending: b.PENDING ?? 0,
     sent: b.SENT,
     acknowledged: b.ACKNOWLEDGED,
     completed: b.COMPLETED,
