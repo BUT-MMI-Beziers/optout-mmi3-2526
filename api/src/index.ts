@@ -4,6 +4,7 @@ import { cors } from 'hono/cors'
 import { readFileSync } from 'fs'
 import path from 'path'
 import * as yaml from 'js-yaml'
+import { load } from 'js-yaml'
 import brokersRoute from './routes/brokers.routes.js'
 import templatesRoutes from './routes/templates.routes.js'
 import requestsRoutes from './routes/requests.routes.js'
@@ -12,8 +13,6 @@ import { usersRoutes } from './routes/users.routes.js'
 import authRouter from './routes/auth/auth.router.js'
 import profilRouter from './routes/profil/profil.router.js'
 import { swaggerUI } from '@hono/swagger-ui'
-import { readFileSync } from 'node:fs'
-import { load } from 'js-yaml'  // déjà installé dans ton projet
 
 const spec = load(readFileSync('./src/docs/openapi.yaml', 'utf-8'))
 const app = new Hono()
