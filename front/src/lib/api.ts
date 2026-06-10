@@ -187,7 +187,7 @@ export async function getNotifications(): Promise<AppNotification[]> {
     {},
     { data: [] }
   )
-  return raw.data
+  return raw.data ?? []
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
