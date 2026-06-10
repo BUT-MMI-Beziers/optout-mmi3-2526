@@ -17,6 +17,11 @@ import {
 
 const BASE = '/api/v1'
 
+async function refreshToken(): Promise<boolean> {
+  const res = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' })
+  return res.ok
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -31,8 +36,11 @@ async function request<T>(
     let res = await fetch(`${BASE}${path}`, opts)
 
     if (res.status === 401) {
-      const refreshed = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' })
-      if (!refreshed.ok) { window.location.href = '/login'; return fallback }
+      const refreshed = await refreshToken()
+      if (!refreshed) {
+        window.location.href = '/login'
+        return fallback
+      }
       res = await fetch(`${BASE}${path}`, opts)
     }
 
