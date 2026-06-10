@@ -9,6 +9,21 @@ import { apiFetch, getSessions, revokeSession, revokeOtherSessions, type ActiveS
 
 const API = '/api/v1'
 
+async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const opts: RequestInit = {
+    ...options,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...((options as any).headers ?? {}) },
+  }
+  let res = await fetch(url, opts)
+  if (res.status === 401) {
+    const refresh = await fetch('/api/v1/auth/refresh', { method: 'POST', credentials: 'include' })
+    if (!refresh.ok) { window.location.href = '/login'; return res }
+    res = await fetch(url, opts)
+  }
+  return res
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ContactType = 'email' | 'phone' | 'address'
@@ -362,7 +377,7 @@ export default function Profile() {
   }
 
   async function exportData() {
-    const res = await apiFetch(`${API}/users/me/export`)
+    const res = await authFetch(`${API}/users/me/export`)
     if (!res.ok) return
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
@@ -420,6 +435,12 @@ export default function Profile() {
 
       {/* Bannière */}
       <div className="relative rounded-2xl bg-[#253550] overflow-hidden" style={{ height: '160px' }}>
+        <Button onClick={exportData} variant="ghost" size="sm" className="absolute top-4 right-4 h-9 gap-2 text-white/80 hover:text-white hover:bg-white/10 border border-white/20 text-sm font-medium">
+          <Download className="w-4 h-4" />
+          Exporter mes données
+        </Button>
+
+
         <div className="absolute bottom-5 left-6 flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl border-2 border-white/20 bg-white/10 flex items-center justify-center shadow-lg">
             <span className="text-2xl font-bold text-white">{initials || '?'}</span>
