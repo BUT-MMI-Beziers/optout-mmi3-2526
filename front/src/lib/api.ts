@@ -172,16 +172,26 @@ export async function sendReminder(
 
 export interface AppNotification {
   id: string
-  title: string
-  message: string
-  type: 'warning' | 'info' | 'success'
-  read: boolean
+  userId: string
   requestId?: string
+  message: string
+  isRead: boolean
   createdAt: string
 }
 
 export async function getNotifications(): Promise<AppNotification[]> {
-  return request<AppNotification[]>('/notifications', {}, [])
+  const user = await getMe()
+  if (!user) return []
+  const raw = await request<{ data: AppNotification[] }>(
+    `/users/me/notifications?user_id=${user.id}`,
+    {},
+    { data: [] }
+  )
+  return raw.data
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  await request<unknown>(`/users/me/notifications/${id}`, { method: 'PATCH' }, null)
 }
 
 export async function sendBatch(payload: {
