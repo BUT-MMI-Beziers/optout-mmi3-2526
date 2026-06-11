@@ -319,6 +319,43 @@ export async function getStats(): Promise<DashboardStats> {
   }
 }
 
+// ─── Préférences (paramètres) ───────────────────────────────────────────────
+
+export interface UserPreferences {
+  notifications: {
+    confirmation: boolean
+    relance: boolean
+    refus: boolean
+  }
+  reminders: {
+    enabled: boolean
+    delayDays: number
+  }
+}
+
+export const DEFAULT_PREFERENCES: UserPreferences = {
+  notifications: { confirmation: true, relance: true, refus: true },
+  reminders: { enabled: true, delayDays: 30 },
+}
+
+// Patch partiel — on n'envoie que ce qui change (un toggle ou le délai).
+export interface PreferencesPatch {
+  notifications?: Partial<UserPreferences['notifications']>
+  reminders?: Partial<UserPreferences['reminders']>
+}
+
+export async function getPreferences(): Promise<UserPreferences> {
+  return request<UserPreferences>('/users/me/preferences', {}, DEFAULT_PREFERENCES)
+}
+
+export async function updatePreferences(patch: PreferencesPatch): Promise<UserPreferences | null> {
+  return request<UserPreferences | null>(
+    '/users/me/preferences',
+    { method: 'PATCH', body: JSON.stringify(patch) },
+    null,
+  )
+}
+
 // ─── Sessions ─────────────────────────────────────────────────────────────────
 
 export interface ActiveSession {
