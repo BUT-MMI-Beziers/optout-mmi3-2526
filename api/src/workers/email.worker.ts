@@ -1,6 +1,6 @@
 import { Worker, Job } from 'bullmq'
 import nodemailer from 'nodemailer'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, ilike } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import {
   removalRequests,
@@ -11,21 +11,13 @@ import {
   requestEvents,
 } from '../db/schema.js'
 import { renderTemplate } from '../services/template.service.js'
-
-// ============================================================
-// CONNEXION REDIS (mÃªme config que queue.service.ts cÃ´tÃ© API)
-// ============================================================
+import { safeDecrypt } from '../utils/crypto.util.js'
 
 const redisUrl = new URL(process.env.REDIS_URL || 'redis://redis:6379')
 const connection = {
   host: redisUrl.hostname,
   port: parseInt(redisUrl.port) || 6379,
 }
-
-// ============================================================
-// TRANSPORTEUR SMTP
-// En dev : Mailpit capture tout (rien ne part vraiment)
-// ============================================================
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'mailpit',
@@ -35,32 +27,18 @@ const transporter = nodemailer.createTransport({
 
 const smtpFrom = process.env.SMTP_FROM || 'noreply@float.local'
 
-// ============================================================
-// FEATURE 7 : WORKER emailQueue
-// Consomme les jobs ajoutÃ©s par POST /api/v1/requests/:id/send
-// (cf. requests.routes.ts) et :
-//  1. Charge la demande complÃ¨te (user + broker + template + adresse)
-//  2. Interpole le template via le service template.service.ts
-//  3. Envoie l'email via SMTP (Mailpit en dev)
-//  4. Logge un request_event de type 'sent' (audit RGPD)
-//
-// Note : le statut DRAFT -> SENT est dÃ©jÃ  fait par la route Fabien.
-// Le worker ne s'occupe que de l'envoi + de l'audit.
-//
-// Rate limit : 1 job toutes les 2 secondes (CDC Â§4.4.4)
-// ============================================================
-
-type SendEmailJobData = {
+interface SendEmailJobData {
   requestId: string
+  isReminder?: boolean  // true when queued by the NO_RESPONSE scheduler
 }
 
-const worker = new Worker<SendEmailJobData>(
+export const worker: Worker<SendEmailJobData> = new Worker<SendEmailJobData>(
   'emailQueue',
   async (job: Job<SendEmailJobData>) => {
-    const { requestId } = job.data
-    console.log(`[worker] Job ${job.id} - traitement de la demande ${requestId}`)
+    const { requestId, isReminder = false } = job.data
 
-    // 1. RÃ©cupÃ©rer la demande + user + broker + template
+    console.log(`[worker] Processing ${requestId} (reminder=${isReminder})`)
+
     const rows = await db
       .select({
         request: removalRequests,
@@ -76,12 +54,62 @@ const worker = new Worker<SendEmailJobData>(
       .limit(1)
 
     if (rows.length === 0) {
-      throw new Error(`Request ${requestId} introuvable en base`)
+      throw new Error(`Request ${requestId} not found`)
     }
 
     const data = rows[0]
 
-    // 2. RÃ©cupÃ©rer l'adresse principale
+    // A manual relance is a SEPARATE request linked to an original (parentRequestId set).
+    // An auto 30-day relance reuses the same request (no parent) and is flagged via the job.
+    const isManualRelance = data.request.parentRequestId !== null
+    const isAutoRelance = isReminder && !isManualRelance
+    const useRelanceTemplate = isReminder || isManualRelance
+
+    // Guard against double-processing: anything that should be PENDING (initial send or a
+    // scheduled relance request) must still be PENDING. Auto relances are NO_RESPONSE.
+    if (!isAutoRelance && data.request.status !== 'PENDING') {
+      console.warn(`[worker] Skipping ${requestId} — expected PENDING, got ${data.request.status}`)
+      return { requestId, skipped: true }
+    }
+
+    const now = new Date()
+
+    // For relances, use the relance/reminder template in the same language as the original.
+    // The template name differs per language ('Relance' / 'Reminder'), so the keyword is
+    // language-aware. Fall back to the original template if not found.
+    let templateToUse = data.template
+    if (useRelanceTemplate) {
+      const keyword = data.template.language === 'en' ? '%reminder%' : '%relance%'
+      const relanceRows = await db
+        .select()
+        .from(emailTemplates)
+        .where(
+          and(
+            ilike(emailTemplates.name, keyword),
+            eq(emailTemplates.language, data.template.language),
+          )
+        )
+        .limit(1)
+
+      if (relanceRows.length > 0) {
+        templateToUse = relanceRows[0]
+      } else {
+        console.warn(`[worker] No reminder template found for language=${data.template.language}, falling back to original`)
+      }
+    }
+
+    // The relance template cites the ORIGINAL send date. For a manual relance (separate
+    // request), that date lives on the parent, not on this request.
+    let originalSentAt = data.request.sentAt
+    if (isManualRelance && data.request.parentRequestId) {
+      const [parent] = await db
+        .select({ sentAt: removalRequests.sentAt })
+        .from(removalRequests)
+        .where(eq(removalRequests.id, data.request.parentRequestId))
+        .limit(1)
+      originalSentAt = parent?.sentAt ?? data.request.sentAt
+    }
+
     const addressRows = await db
       .select()
       .from(userContacts)
@@ -94,15 +122,14 @@ const worker = new Worker<SendEmailJobData>(
       )
       .limit(1)
 
-    const userAddress = addressRows.length > 0
-      ? addressRows[0].value
-      : '[Adresse non renseignÃ©e]'
+    // firstName / lastName et l'adresse sont chiffrés en base → déchiffrer pour l'email.
+    // (users.email n'est pas chiffré.)
+    const userAddress = addressRows[0]?.value ? safeDecrypt(addressRows[0].value) : '[Adresse non renseignée]'
 
-    // 3. Construire le contexte attendu par renderTemplate()
     const context = {
       user: {
-        firstName: data.user.firstName,
-        lastName: data.user.lastName,
+        firstName: safeDecrypt(data.user.firstName),
+        lastName: safeDecrypt(data.user.lastName),
         email: data.user.email,
       },
       userAddress,
@@ -113,53 +140,79 @@ const worker = new Worker<SendEmailJobData>(
       request: {
         id: data.request.id,
         createdAt: data.request.createdAt,
+        sentAt: originalSentAt,
+        // {{request.date}} = today's date (initial send date, or relance date for reminders)
+        referenceDate: now,
       },
+      language: templateToUse.language,
     }
 
-    // 4. Interpoler subject + body via le service partagÃ©
-    const subject = renderTemplate(data.template.subject, context)
-    const body = renderTemplate(data.template.body, context)
+    const subject = renderTemplate(templateToUse.subject, context)
+    const body = renderTemplate(templateToUse.body, context)
 
-    // 5. Envoi SMTP
     const info = await transporter.sendMail({
       from: smtpFrom,
       to: data.broker.emailContact,
       subject,
       text: body,
     })
-    console.log(`[worker] Email envoyÃ© Ã  ${data.broker.emailContact} (messageId: ${info.messageId})`)
 
-    // 6. Log d'Ã©vÃ©nement pour la traÃ§abilitÃ© (audit RGPD)
-    await db.insert(requestEvents).values({
-      requestId,
-      eventType: 'sent',
-      oldStatus: 'DRAFT',
-      newStatus: 'SENT',
-      note: `Email envoyÃ© Ã  ${data.broker.emailContact}`,
-    })
+    console.log(`[worker] sent ${info.messageId}`)
 
-    return { requestId, messageId: info.messageId }
+    if (isManualRelance) {
+      // Scheduled relance (separate request): PENDING → SENT with its own send date.
+      await db
+        .update(removalRequests)
+        .set({ status: 'SENT', sentAt: now, scheduledAt: null, updatedAt: now })
+        .where(eq(removalRequests.id, requestId))
+
+      await db.insert(requestEvents).values({
+        requestId,
+        eventType: 'reminder_sent',
+        oldStatus: 'PENDING',
+        newStatus: 'SENT',
+        note: `Relance envoyée — messageId: ${info.messageId}`,
+      })
+    } else if (!isReminder) {
+      // Initial send: PENDING → SENT
+      await db
+        .update(removalRequests)
+        .set({ status: 'SENT', sentAt: now, scheduledAt: null, updatedAt: now })
+        .where(eq(removalRequests.id, requestId))
+
+      await db.insert(requestEvents).values({
+        requestId,
+        eventType: 'sent',
+        oldStatus: 'PENDING',
+        newStatus: 'SENT',
+        note: `Email envoyé — messageId: ${info.messageId}`,
+      })
+    } else {
+      // Auto 30-day relance: status is already NO_RESPONSE (set by the scheduler).
+      // Keep it so the 60-day formal-notice logic can still fire. Just log the send.
+      await db.insert(requestEvents).values({
+        requestId,
+        eventType: 'reminder_sent',
+        note: `Relance automatique envoyée — messageId: ${info.messageId}`,
+      })
+    }
+
+    return { requestId, messageId: info.messageId, isReminder }
   },
   {
     connection,
     concurrency: 1,
     limiter: {
       max: 1,
-      duration: 2000,  // 1 envoi max toutes les 2000ms (CDC Â§4.4.4)
+      duration: 30000,
     },
   }
 )
 
-worker.on('completed', (job, result) => {
-  console.log(`[worker] âœ… Job ${job.id} terminÃ© (request ${result?.requestId})`)
+worker.on('failed', (job: Job<SendEmailJobData> | undefined, err: Error) => {
+  console.error(`[worker] Job failed for request ${job?.data?.requestId}:`, err.message)
 })
 
-worker.on('failed', (job, err) => {
-  console.error(`[worker] âŒ Job ${job?.id} Ã©chouÃ© :`, err.message)
+worker.on('completed', (job: Job<SendEmailJobData>) => {
+  console.log(`[worker] Job completed for request ${job?.data?.requestId}`)
 })
-
-worker.on('error', (err) => {
-  console.error('[worker] Erreur worker :', err)
-})
-
-console.log('[worker] Worker emailQueue dÃ©marrÃ©, en attente de jobs...')

@@ -1,105 +1,74 @@
 import { Hono } from 'hono'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, getTableColumns } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { removalRequests, users, brokers, emailTemplates, userContacts, requestEvents } from '../db/schema.js'
+import { removalRequests, users, brokers, emailTemplates, userContacts, requestEvents, notifications } from '../db/schema.js'
 import { renderTemplate } from '../services/template.service.js'
+import { safeDecrypt } from '../utils/crypto.util.js'
 import { emailQueue } from '../services/queue.service.js'
+import { authMiddleware } from './auth/auth.middleware.js'
 
 export const requestsRoutes = new Hono()
 
-const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // ============================================================================
 // FEATURE 11 : LISTER LES DEMANDES AVEC FILTRES ET PAGINATION
 // Route finale : GET /api/v1/requests
 // ============================================================================
-/*
- * Query params disponibles :
- *  - status     : filtre par statut (DRAFT, SENT, NO_RESPONSE, RESPONDED, CLOSED)
- *  - broker_id  : filtre par broker UUID
- *  - page       : numéro de page (défaut: 1)
- *  - limit      : nombre de résultats par page (défaut: 10, max: 100)
- *
- * Réponse :
- *  - data       : tableau des demandes
- *  - total      : nombre total de résultats (avant pagination)
- *  - page       : page actuelle
- *  - limit      : limite actuelle
- *  - totalPages : nombre total de pages
- */
-requestsRoutes.get('/', async (c) => {
+
+requestsRoutes.get('/', authMiddleware, async (c) => {
   try {
-    // 1. Récupérer et valider les query params
+    const userId = c.get('userId') as string
+
     const statusParam = c.req.query('status')
     const brokerIdParam = c.req.query('broker_id')
     const pageParam = c.req.query('page')
     const limitParam = c.req.query('limit')
 
-    // Valider le statut si fourni
-    const validStatuses = ['DRAFT', 'SENT', 'NO_RESPONSE', 'RESPONDED', 'CLOSED']
+    const validStatuses = ['DRAFT', 'PENDING', 'SENT', 'ACKNOWLEDGED', 'COMPLETED', 'REFUSED', 'NO_RESPONSE', 'COMPLAINT', 'SUPPRESSED']
     if (statusParam && !validStatuses.includes(statusParam)) {
-      return c.json({
-        error: `Statut invalide. Valeurs acceptées : ${validStatuses.join(', ')}`,
-        code: "BAD_REQUEST"
-      }, 400)
+      return c.json({ error: `Statut invalide. Valeurs acceptées : ${validStatuses.join(', ')}`, code: 'BAD_REQUEST' }, 400)
     }
 
-    // Valider le broker_id si fourni
     if (brokerIdParam && !uuidRegex.test(brokerIdParam)) {
-      return c.json({
-        error: "broker_id doit être un UUID valide.",
-        code: "BAD_REQUEST"
-      }, 400)
+      return c.json({ error: 'broker_id doit être un UUID valide.', code: 'BAD_REQUEST' }, 400)
     }
 
-    // Parser et valider page + limit
     const page = Math.max(1, parseInt(pageParam || '1'))
     const limit = Math.min(100, Math.max(1, parseInt(limitParam || '10')))
     const offset = (page - 1) * limit
 
-    // 2. Construire les conditions de filtre
-    const conditions = []
+    const conditions = [eq(removalRequests.userId, userId)]
+    if (statusParam) conditions.push(eq(removalRequests.status, statusParam as any))
+    if (brokerIdParam) conditions.push(eq(removalRequests.brokerId, brokerIdParam))
 
-    if (statusParam) {
-      conditions.push(eq(removalRequests.status, statusParam as any))
-    }
-
-    if (brokerIdParam) {
-      conditions.push(eq(removalRequests.brokerId, brokerIdParam))
-    }
-
-    // 3. Récupérer les demandes avec filtres + pagination
     const requestsList = await db
-      .select()
+      .select({
+        ...getTableColumns(removalRequests),
+        brokerName: brokers.name,
+        brokerUrl: brokers.website,
+        brokerCategory: brokers.category,
+      })
       .from(removalRequests)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .leftJoin(brokers, eq(removalRequests.brokerId, brokers.id))
+      .where(and(...conditions))
       .orderBy(removalRequests.createdAt)
       .limit(limit)
       .offset(offset)
 
-    // 4. Compter le total (pour calculer totalPages)
     const allRequests = await db
       .select({ id: removalRequests.id })
       .from(removalRequests)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .where(and(...conditions))
 
     const total = allRequests.length
     const totalPages = Math.ceil(total / limit)
 
-    return c.json({
-      data: requestsList,
-      total,
-      page,
-      limit,
-      totalPages,
-    }, 200)
+    return c.json({ data: requestsList, total, page, limit, totalPages }, 200)
 
   } catch (error) {
-    console.error("[GET /requests] Erreur critique :", error)
-    return c.json({
-      error: "Impossible de récupérer la liste des demandes.",
-      code: "INTERNAL_SERVER_ERROR"
-    }, 500)
+    console.error('[GET /requests] Erreur critique :', error)
+    return c.json({ error: 'Impossible de récupérer la liste des demandes.', code: 'INTERNAL_SERVER_ERROR' }, 500)
   }
 })
 
@@ -107,31 +76,17 @@ requestsRoutes.get('/', async (c) => {
 // FEATURE 12 : DÉTAIL COMPLET D'UNE DEMANDE
 // Route finale : GET /api/v1/requests/:id
 // ============================================================================
-/*
- * Retourne une demande complète avec :
- *  - le broker associé
- *  - le template associé
- *  - l'historique des événements (request_events)
- */
+
 requestsRoutes.get('/:id', async (c) => {
   try {
     const requestId = c.req.param('id')
 
-    // SÉCURITÉ : Validation stricte du format UUID
     if (!uuidRegex.test(requestId)) {
-      return c.json({
-        error: "Format d'identifiant de demande invalide. Un UUID est attendu.",
-        code: "BAD_REQUEST"
-      }, 400)
+      return c.json({ error: "Format d'identifiant de demande invalide. Un UUID est attendu.", code: 'BAD_REQUEST' }, 400)
     }
 
-    // 1. Récupérer la demande avec broker + template (jointures)
     const rows = await db
-      .select({
-        request: removalRequests,
-        broker: brokers,
-        template: emailTemplates,
-      })
+      .select({ request: removalRequests, broker: brokers, template: emailTemplates })
       .from(removalRequests)
       .innerJoin(brokers, eq(removalRequests.brokerId, brokers.id))
       .innerJoin(emailTemplates, eq(removalRequests.templateId, emailTemplates.id))
@@ -139,22 +94,17 @@ requestsRoutes.get('/:id', async (c) => {
       .limit(1)
 
     if (rows.length === 0) {
-      return c.json({
-        error: "La demande spécifiée est introuvable.",
-        code: "NOT_FOUND"
-      }, 404)
+      return c.json({ error: 'La demande spécifiée est introuvable.', code: 'NOT_FOUND' }, 404)
     }
 
     const data = rows[0]
 
-    // 2. Récupérer l'historique des événements
     const events = await db
       .select()
       .from(requestEvents)
       .where(eq(requestEvents.requestId, requestId))
       .orderBy(requestEvents.createdAt)
 
-    // 3. Retourner le tout assemblé
     return c.json({
       data: {
         ...data.request,
@@ -166,35 +116,25 @@ requestsRoutes.get('/:id', async (c) => {
 
   } catch (error) {
     console.error(`[GET /requests/${c.req.param('id')}] Erreur critique :`, error)
-    return c.json({
-      error: "Une erreur interne est survenue lors de la récupération de la demande.",
-      code: "INTERNAL_SERVER_ERROR"
-    }, 500)
+    return c.json({ error: 'Une erreur interne est survenue lors de la récupération de la demande.', code: 'INTERNAL_SERVER_ERROR' }, 500)
   }
 })
 
 // ============================================================================
-// FEATURE 6/3 : PRÉVISUALISATION D'UNE DEMANDE (Refactorisée)
+// FEATURE 6/3 : PRÉVISUALISATION D'UNE DEMANDE
 // Route finale : GET /api/v1/requests/:id/preview
 // ============================================================================
+
 requestsRoutes.get('/:id/preview', async (c) => {
   try {
     const requestId = c.req.param('id')
 
     if (!uuidRegex.test(requestId)) {
-      return c.json({
-        error: "Format d'identifiant de demande invalide. Un UUID est attendu.",
-        code: "BAD_REQUEST"
-      }, 400)
+      return c.json({ error: "Format d'identifiant de demande invalide. Un UUID est attendu.", code: 'BAD_REQUEST' }, 400)
     }
 
     const requestData = await db
-      .select({
-        request: removalRequests,
-        user: users,
-        broker: brokers,
-        template: emailTemplates
-      })
+      .select({ request: removalRequests, user: users, broker: brokers, template: emailTemplates })
       .from(removalRequests)
       .innerJoin(users, eq(removalRequests.userId, users.id))
       .innerJoin(brokers, eq(removalRequests.brokerId, brokers.id))
@@ -203,10 +143,7 @@ requestsRoutes.get('/:id/preview', async (c) => {
       .limit(1)
 
     if (requestData.length === 0) {
-      return c.json({
-        error: "La demande de suppression spécifiée est introuvable.",
-        code: "NOT_FOUND"
-      }, 404)
+      return c.json({ error: 'La demande de suppression spécifiée est introuvable.', code: 'NOT_FOUND' }, 404)
     }
 
     const data = requestData[0]
@@ -214,275 +151,416 @@ requestsRoutes.get('/:id/preview', async (c) => {
     const addressData = await db
       .select()
       .from(userContacts)
-      .where(
-        and(
-          eq(userContacts.userId, data.user.id),
-          eq(userContacts.type, 'address'),
-          eq(userContacts.isPrimary, true)
-        )
-      )
+      .where(and(eq(userContacts.userId, data.user.id), eq(userContacts.type, 'address'), eq(userContacts.isPrimary, true)))
       .limit(1)
 
-    const userAddress = addressData.length > 0 ? addressData[0].value : "[Adresse non renseignée]"
+    const userAddress = addressData.length > 0 ? safeDecrypt(addressData[0].value) : '[Adresse non renseignée]'
 
-    // Création du contexte propre pour le service
     const context = {
-      user: {
-        firstName: data.user.firstName,
-        lastName: data.user.lastName,
-        email: data.user.email
-      },
-      userAddress: userAddress,
-      broker: {
-        name: data.broker.name,
-        emailContact: data.broker.emailContact
-      },
+      user: { firstName: safeDecrypt(data.user.firstName), lastName: safeDecrypt(data.user.lastName), email: data.user.email },
+      userAddress,
+      broker: { name: data.broker.name, emailContact: data.broker.emailContact },
       request: {
         id: data.request.id,
-        createdAt: data.request.createdAt
-      }
+        createdAt: data.request.createdAt,
+        sentAt: data.request.sentAt,
+      },
+      language: data.template.language,
     }
-
-    // Appel du service pour générer le texte final
-    const previewSubject = renderTemplate(data.template.subject, context)
-    const previewBody = renderTemplate(data.template.body, context)
 
     return c.json({
       data: {
-        subject: previewSubject,
-        body: previewBody
+        subject: renderTemplate(data.template.subject, context),
+        body: renderTemplate(data.template.body, context),
       }
     }, 200)
 
   } catch (error) {
     console.error(`[GET /requests/${c.req.param('id')}/preview] Erreur critique :`, error)
-    return c.json({
-      error: "Une erreur interne est survenue lors de la prévisualisation de la demande.",
-      code: "INTERNAL_SERVER_ERROR"
-    }, 500)
+    return c.json({ error: 'Une erreur interne est survenue lors de la prévisualisation de la demande.', code: 'INTERNAL_SERVER_ERROR' }, 500)
   }
 })
 
 // ============================================================================
 // FEATURE 9 : ENVOI D'UNE DEMANDE (Mise en file d'attente)
 // Route finale : POST /api/v1/requests/:id/send
+// DRAFT → PENDING (scheduledAt = now) puis worker → SENT
 // ============================================================================
-/*
- * Utilité : Récupère une demande au statut DRAFT, l'ajoute dans la file d'attente 
- * BullMQ (Redis) pour envoi asynchrone par le Worker, et met à jour son statut à SENT.
- */
-requestsRoutes.post('/:id/send', async (c) => {
+
+requestsRoutes.post('/:id/send', authMiddleware, async (c) => {
   try {
     const requestId = c.req.param('id')
+    const userId = c.get('userId') as string
 
-    // SÉCURITÉ : Validation stricte du format UUID
     if (!uuidRegex.test(requestId)) {
-      return c.json({
-        error: "Format d'identifiant de demande invalide. Un UUID est attendu.",
-        code: "BAD_REQUEST"
-      }, 400)
+      return c.json({ error: "Format d'identifiant invalide", code: 'BAD_REQUEST' }, 400)
     }
 
-    // 1. Récupérer la demande existante
-    const requestData = await db
+    const [request] = await db
       .select()
       .from(removalRequests)
-      .where(eq(removalRequests.id, requestId))
+      .where(and(eq(removalRequests.id, requestId), eq(removalRequests.userId, userId)))
       .limit(1)
 
-    if (requestData.length === 0) {
-      return c.json({
-        error: "La demande spécifiée est introuvable.",
-        code: "NOT_FOUND"
-      }, 404)
+    if (!request) {
+      return c.json({ error: 'Demande introuvable', code: 'NOT_FOUND' }, 404)
     }
 
-    const request = requestData[0]
-
-    // 2. Vérifier les conditions d'envoi
     if (request.status !== 'DRAFT') {
-      return c.json({
-        error: "La demande doit être au statut DRAFT pour être envoyée.",
-        code: "BAD_REQUEST"
-      }, 400)
+      return c.json({ error: 'La demande doit être en statut DRAFT pour être envoyée', code: 'BAD_REQUEST' }, 400)
     }
 
-    if (!request.emailBody) {
-      return c.json({
-        error: "Impossible d'envoyer l'email : le corps du message est vide.",
-        code: "BAD_REQUEST"
-      }, 400)
-    }
+    const now = new Date()
 
-    // 3. Ajouter un "Job" dans la file d'attente Redis (BullMQ)
-    await emailQueue.add('send-request', { 
-      requestId: request.id 
-    })
-    
-    console.log(`[Queue] Job ajouté pour la demande : ${request.id}`)
-
-    // 4. Mettre à jour le statut en base de données
-    const updatedRequest = await db
+    const [updated] = await db
       .update(removalRequests)
-      .set({
-        status: 'SENT',
-        sentAt: new Date(),
-        updatedAt: new Date()
-      })
+      .set({ status: 'PENDING', scheduledAt: now, updatedAt: now })
       .where(eq(removalRequests.id, requestId))
       .returning()
 
-    // 5. Réponse de succès
-    return c.json({
-      message: "Demande ajoutée à la file d'attente avec succès.",
-      data: updatedRequest[0]
-    }, 200)
+    await db.insert(requestEvents).values({
+      requestId,
+      eventType: 'status_changed',
+      oldStatus: 'DRAFT',
+      newStatus: 'PENDING',
+      note: 'Demande mise en file d\'envoi',
+    })
+
+    await emailQueue.add('send-request', { requestId }, { attempts: 3, removeOnComplete: true, removeOnFail: false })
+
+    return c.json({ message: 'Ajouté à la queue', data: updated })
 
   } catch (error) {
-    console.error(`[POST /requests/${c.req.param('id')}/send] Erreur critique :`, error)
-    return c.json({
-      error: "Erreur serveur lors de la mise en file d'attente de la demande.",
-      code: "INTERNAL_SERVER_ERROR"
-    }, 500)
+    console.error(error)
+    return c.json({ error: 'server error' }, 500)
   }
 })
 
 // ============================================================================
 // FEATURE 10 : ENVOI EN MASSE (BATCH)
 // Route finale : POST /api/v1/requests/batch
+// Crée les demandes en DRAFT puis les passe PENDING + queue
 // ============================================================================
-/*
- * Utilité : Crée et envoie des demandes à plusieurs brokers en une seule requête.
- * Body attendu : { userId, templateId, brokerIds: string[] }
- * Comportement partiel : si un broker est invalide, on continue avec les autres
- * et on signale l'échec dans le résultat.
- */
-requestsRoutes.post('/batch', async (c) => {
+
+requestsRoutes.post('/batch', authMiddleware, async (c) => {
   try {
     const body = await c.req.json()
-    const { userId, templateId, brokerIds } = body
+    const { templateId, brokerIds } = body
+    const userId = c.get('userId') as string
 
-    // 1. Validation du body
-    if (!userId || !templateId || !Array.isArray(brokerIds) || brokerIds.length === 0) {
-      return c.json({
-        error: "userId, templateId et brokerIds (tableau non vide) sont requis.",
-        code: "BAD_REQUEST"
-      }, 400)
+    if (!templateId || !Array.isArray(brokerIds) || brokerIds.length === 0) {
+      return c.json({ error: 'templateId et brokerIds[] requis', code: 'BAD_REQUEST' }, 400)
     }
 
-    if (!uuidRegex.test(userId) || !uuidRegex.test(templateId)) {
-      return c.json({
-        error: "userId et templateId doivent être des UUIDs valides.",
-        code: "BAD_REQUEST"
-      }, 400)
-    }
-
-    // 2. Vérifier que l'utilisateur existe
-    const userRows = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1)
-
-    if (userRows.length === 0) {
-      return c.json({
-        error: "Utilisateur introuvable.",
-        code: "NOT_FOUND"
-      }, 404)
-    }
-
-    // 3. Vérifier que le template existe
-    const templateRows = await db
-      .select()
-      .from(emailTemplates)
-      .where(eq(emailTemplates.id, templateId))
-      .limit(1)
-
-    if (templateRows.length === 0) {
-      return c.json({
-        error: "Template introuvable.",
-        code: "NOT_FOUND"
-      }, 404)
-    }
-
-    // 4. Traiter chaque broker un par un
     const created = []
     const failed = []
+    const now = new Date()
 
     for (const brokerId of brokerIds) {
-      // Valider le format UUID du brokerId
       if (!uuidRegex.test(brokerId)) {
-        failed.push({ brokerId, reason: "Format UUID invalide" })
+        failed.push({ brokerId, reason: 'UUID invalide' })
         continue
       }
 
-      // Vérifier que le broker existe
-      const brokerRows = await db
-        .select()
-        .from(brokers)
-        .where(eq(brokers.id, brokerId))
+      const [broker] = await db.select().from(brokers).where(eq(brokers.id, brokerId)).limit(1)
+      if (!broker) {
+        failed.push({ brokerId, reason: 'Broker introuvable' })
+        continue
+      }
+
+      // Check: no existing active request for this broker
+      const [existing] = await db
+        .select({ id: removalRequests.id })
+        .from(removalRequests)
+        .where(
+          and(
+            eq(removalRequests.userId, userId),
+            eq(removalRequests.brokerId, brokerId),
+            eq(removalRequests.status, 'PENDING'),
+          )
+        )
         .limit(1)
 
-      if (brokerRows.length === 0) {
-        failed.push({ brokerId, reason: "Broker introuvable" })
+      if (existing) {
+        failed.push({ brokerId, reason: 'Une demande PENDING existe déjà pour ce broker' })
         continue
       }
 
-      try {
-        // Créer la demande en DRAFT
-        const [newRequest] = await db
-          .insert(removalRequests)
-          .values({
-            userId,
-            brokerId,
-            templateId,
-            emailBody: "Généré automatiquement par le batch.",
-          })
-          .returning()
-
-        // Ajouter dans la queue
-        await emailQueue.add('send-request', {
-          requestId: newRequest.id
+      // Create as DRAFT first, then immediately move to PENDING
+      const [newRequest] = await db
+        .insert(removalRequests)
+        .values({
+          userId,
+          brokerId,
+          templateId,
+          status: 'PENDING',
+          scheduledAt: now,
+          emailBody: 'generated',
         })
+        .returning()
 
-        console.log(`[POST /batch] Job ajouté pour la demande : ${newRequest.id}`)
+      await db.insert(requestEvents).values({
+        requestId: newRequest.id,
+        eventType: 'created',
+        note: 'Demande créée et mise en file d\'envoi',
+      })
 
-        // Mettre à jour le statut SENT (cohérent avec POST /:id/send de Fabien)
-        const [updatedRequest] = await db
-          .update(removalRequests)
-          .set({
-            status: 'SENT',
-            sentAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(removalRequests.id, newRequest.id))
-          .returning()
+      await emailQueue.add(
+        'send-request',
+        { requestId: newRequest.id },
+        { attempts: 3, removeOnComplete: true, removeOnFail: false }
+      )
 
-        created.push(updatedRequest)
-
-      } catch (brokerError) {
-        console.error(`[POST /batch] Erreur pour le broker ${brokerId} :`, brokerError)
-        failed.push({ brokerId, reason: "Erreur lors de la création de la demande" })
-      }
+      created.push(newRequest)
+      console.log(`[batch] queued ${newRequest.id}`)
     }
 
-    // 5. Réponse avec le récap complet
     return c.json({
-      message: `${created.length} demande(s) créée(s) et mise(s) en file d'attente.`,
-      data: {
-        created: created.length,
-        failed: failed.length,
-        requests: created,
-        errors: failed.length > 0 ? failed : undefined,
-      }
+      message: 'Batch queued',
+      data: { created, failed },
     }, 201)
 
-  } catch (error) {
-    console.error("[POST /requests/batch] Erreur critique :", error)
-    return c.json({
-      error: "Erreur serveur lors du traitement du batch.",
-      code: "INTERNAL_SERVER_ERROR"
-    }, 500)
+  } catch (e) {
+    console.error('[batch] error:', e)
+    return c.json({ error: 'server error' }, 500)
+  }
+})
+
+// ============================================================================
+// CANCEL : Annuler une demande DRAFT ou PENDING
+// Route finale : DELETE /api/v1/requests/:id
+// ============================================================================
+
+requestsRoutes.delete('/:id', authMiddleware, async (c) => {
+  try {
+    const requestId = c.req.param('id')
+    const userId = c.get('userId') as string
+
+    if (!uuidRegex.test(requestId)) {
+      return c.json({ error: 'UUID invalide', code: 'BAD_REQUEST' }, 400)
+    }
+
+    const [request] = await db
+      .select()
+      .from(removalRequests)
+      .where(and(eq(removalRequests.id, requestId), eq(removalRequests.userId, userId)))
+      .limit(1)
+
+    if (!request) {
+      return c.json({ error: 'Demande introuvable', code: 'NOT_FOUND' }, 404)
+    }
+
+    const cancellable = ['DRAFT', 'PENDING']
+    if (!cancellable.includes(request.status)) {
+      return c.json({
+        error: `Impossible d'annuler une demande en statut ${request.status}. Seules les demandes DRAFT ou PENDING peuvent être annulées.`,
+        code: 'BAD_REQUEST',
+      }, 400)
+    }
+
+    // Annulation = suppression. Vaut pour un brouillon, un envoi initial en file,
+    // ou une relance programmée (qui est une demande PENDING distincte, pas encore envoyée).
+    // La demande initiale liée (parentRequestId) n'est pas touchée.
+    const isRelance = request.parentRequestId !== null
+
+    if (isRelance) {
+      await db.insert(requestEvents).values({
+        requestId: request.parentRequestId!,
+        eventType: 'note_added',
+        note: 'Relance programmée annulée par l\'utilisateur',
+      })
+    }
+
+    await db.delete(removalRequests).where(eq(removalRequests.id, requestId))
+
+    return c.json({ message: isRelance ? 'Relance annulée' : 'Demande annulée et supprimée' }, 200)
+
+  } catch (e) {
+    console.error('[DELETE /requests/:id] error:', e)
+    return c.json({ error: 'server error' }, 500)
+  }
+})
+
+// ============================================================================
+// FEATURE 14 : MISE À JOUR MANUELLE DU STATUT
+// Route finale : PATCH /api/v1/requests/:id/status
+// ============================================================================
+
+const TRANSITIONS: Record<string, string[]> = {
+  DRAFT:        ['PENDING'],
+  PENDING:      ['SENT'],          // handled by worker normally, but allowed manually
+  SENT:         ['ACKNOWLEDGED', 'NO_RESPONSE'],
+  ACKNOWLEDGED: ['COMPLETED', 'REFUSED', 'SUPPRESSED'],
+  REFUSED:      ['COMPLAINT'],
+  NO_RESPONSE:  ['SENT', 'COMPLAINT'],
+}
+
+requestsRoutes.patch('/:id/status', authMiddleware, async (c) => {
+  try {
+    const requestId = c.req.param('id')
+    const userId = c.get('userId') as string
+
+    if (!uuidRegex.test(requestId)) {
+      return c.json({ error: 'UUID invalide', code: 'BAD_REQUEST' }, 400)
+    }
+
+    let body: any
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'Body JSON invalide', code: 'BAD_REQUEST' }, 400)
+    }
+
+    const newStatus = body?.status
+    if (!newStatus) {
+      return c.json({ error: 'status requis', code: 'BAD_REQUEST' }, 400)
+    }
+
+    const [request] = await db
+      .select()
+      .from(removalRequests)
+      .where(and(eq(removalRequests.id, requestId), eq(removalRequests.userId, userId)))
+      .limit(1)
+
+    if (!request) {
+      return c.json({ error: 'Request introuvable', code: 'NOT_FOUND' }, 404)
+    }
+
+    const oldStatus = request.status
+    const allowed = TRANSITIONS[oldStatus] ?? []
+
+    if (!allowed.includes(newStatus)) {
+      return c.json({ error: `Transition invalide ${oldStatus} → ${newStatus}`, code: 'BAD_REQUEST' }, 400)
+    }
+
+    const [updated] = await db
+      .update(removalRequests)
+      .set({
+        status: newStatus,
+        respondedAt: ['ACKNOWLEDGED', 'COMPLETED', 'REFUSED'].includes(newStatus) ? new Date() : request.respondedAt,
+        updatedAt: new Date(),
+      })
+      .where(eq(removalRequests.id, requestId))
+      .returning()
+
+    await db.insert(requestEvents).values({
+      requestId,
+      eventType: 'status_changed',
+      oldStatus,
+      newStatus,
+    })
+
+    return c.json({ data: updated })
+
+  } catch (e) {
+    return c.json({ error: 'server error' }, 500)
+  }
+})
+
+// ============================================================================
+// EVENTS : Journal d'audit d'une demande
+// Route finale : GET /api/v1/requests/:id/events
+// ============================================================================
+
+requestsRoutes.get('/:id/events', async (c) => {
+  try {
+    const requestId = c.req.param('id')
+
+    if (!uuidRegex.test(requestId)) {
+      return c.json({ error: 'UUID invalide' }, 400)
+    }
+
+    const events = await db
+      .select()
+      .from(requestEvents)
+      .where(eq(requestEvents.requestId, requestId))
+      .orderBy(requestEvents.createdAt)
+
+    return c.json({ data: events })
+  } catch (e) {
+    return c.json({ error: 'server error' }, 500)
+  }
+})
+
+// ============================================================================
+// REMIND : Programmer une relance manuelle
+// Route finale : POST /api/v1/requests/:id/remind
+// ============================================================================
+
+const ALLOWED_REMINDER_DELAYS = [3, 7, 15, 30]
+
+requestsRoutes.post('/:id/remind', authMiddleware, async (c) => {
+  try {
+    const requestId = c.req.param('id')
+    const userId = c.get('userId') as string
+
+    if (!uuidRegex.test(requestId)) {
+      return c.json({ error: 'UUID invalide', code: 'BAD_REQUEST' }, 400)
+    }
+
+    let body: any
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'Body JSON invalide', code: 'BAD_REQUEST' }, 400)
+    }
+
+    const delayDays = Number(body?.delayDays)
+    if (!ALLOWED_REMINDER_DELAYS.includes(delayDays)) {
+      return c.json({ error: `delayDays doit être l'un de ${ALLOWED_REMINDER_DELAYS.join(', ')}`, code: 'BAD_REQUEST' }, 400)
+    }
+
+    const [request] = await db
+      .select()
+      .from(removalRequests)
+      .where(and(eq(removalRequests.id, requestId), eq(removalRequests.userId, userId)))
+      .limit(1)
+
+    if (!request) {
+      return c.json({ error: 'Demande introuvable', code: 'NOT_FOUND' }, 404)
+    }
+
+    if (!['SENT', 'NO_RESPONSE'].includes(request.status)) {
+      return c.json({ error: 'Une relance ne peut être programmée que pour les demandes SENT ou NO_RESPONSE', code: 'BAD_REQUEST' }, 400)
+    }
+
+    const now = new Date()
+    const scheduledAt = new Date(now.getTime() + delayDays * 24 * 60 * 60 * 1000)
+
+    // Une relance est une NOUVELLE demande, liée à la demande initiale (parentRequestId).
+    // La demande initiale reste inchangée (SENT/NO_RESPONSE) ; la relance apparaît comme
+    // une ligne PENDING distincte, en file, annulable tant qu'elle n'est pas partie.
+    const [relance] = await db
+      .insert(removalRequests)
+      .values({
+        userId,
+        brokerId: request.brokerId,
+        templateId: request.templateId,
+        parentRequestId: request.id,
+        status: 'PENDING',
+        scheduledAt,
+        emailBody: 'generated',
+      })
+      .returning()
+
+    await db.insert(requestEvents).values({
+      requestId: relance.id,
+      eventType: 'created',
+      note: `Relance programmée pour le ${scheduledAt.toISOString().slice(0, 10)} (dans ${delayDays} jours)`,
+    })
+
+    // Tracer aussi sur la demande initiale pour l'historique.
+    await db.insert(requestEvents).values({
+      requestId: request.id,
+      eventType: 'note_added',
+      note: `Relance programmée pour le ${scheduledAt.toISOString().slice(0, 10)}`,
+    })
+
+    return c.json({ data: relance }, 201)
+
+  } catch (e) {
+    console.error('[POST /requests/:id/remind] Erreur :', e)
+    return c.json({ error: 'Erreur serveur', code: 'INTERNAL_SERVER_ERROR' }, 500)
   }
 })
 

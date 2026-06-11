@@ -49,3 +49,14 @@ export function decrypt(ciphertext: string): string {
 
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8')
 }
+
+// Déchiffre si possible, sinon retourne la valeur d'origine.
+// Utile côté worker/preview où une donnée peut, selon le seed, être déjà en clair.
+export function safeDecrypt(value: string | null | undefined): string {
+  if (!value) return ''
+  try {
+    return decrypt(value)
+  } catch {
+    return value
+  }
+}
