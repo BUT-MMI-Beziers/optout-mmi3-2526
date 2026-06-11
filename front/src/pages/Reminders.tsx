@@ -44,9 +44,16 @@ export default function Reminders() {
   const pendingQ  = useRequests({ page: 1, perPage: 100, status: 'PENDING' })
   const noRespQ   = useRequests({ page: 1, perPage: 100, status: 'NO_RESPONSE' })
 
+  const pendingRelances = (pendingQ.data?.data ?? []).filter(r => r.parentRequestId)
+  const activeRelanceParentIds = new Set(pendingRelances.map(r => r.parentRequestId as string))
+
+  const noRespFiltered = (noRespQ.data?.data ?? []).filter(
+    r => !r.archivedAt && !activeRelanceParentIds.has(r.id)
+  )
+
   const allReminders = [
-    ...(pendingQ.data?.data ?? []).filter(r => r.parentRequestId),
-    ...(noRespQ.data?.data ?? []),
+    ...pendingRelances,
+    ...noRespFiltered,
   ]
 
   const filtered = tab === 'all'
@@ -67,8 +74,8 @@ export default function Reminders() {
 
   const loading = pendingQ.loading || noRespQ.loading
 
-  const countPending  = (pendingQ.data?.data ?? []).filter(r => r.parentRequestId).length
-  const countNoResp   = noRespQ.data?.total ?? 0
+  const countPending  = pendingRelances.length
+  const countNoResp   = noRespFiltered.length
 
   useEffect(() => { setPage(1) }, [tab])
 
