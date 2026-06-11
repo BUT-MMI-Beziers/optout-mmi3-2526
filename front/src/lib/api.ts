@@ -225,8 +225,8 @@ export async function markNotificationRead(id: string): Promise<void> {
 export async function sendBatch(payload: {
   brokerIds: string[]
   templateId: string
-}): Promise<{ success: boolean; created: number; failed: number }> {
-  const raw = await request<{ message: string; data: { created: unknown[]; failed: unknown[] } } | null>(
+}): Promise<{ success: boolean; created: number; failed: number; createdIds: string[] }> {
+  const raw = await request<{ message: string; data: { created: { id: string }[]; failed: unknown[] } } | null>(
     '/requests/batch',
     {
       method: 'POST',
@@ -234,10 +234,10 @@ export async function sendBatch(payload: {
     },
     null
   )
-  if (!raw) return { success: false, created: 0, failed: payload.brokerIds.length }
-  const created = raw.data.created.length
+  if (!raw) return { success: false, created: 0, failed: payload.brokerIds.length, createdIds: [] }
+  const createdIds = raw.data.created.map((r) => r.id)
   const failed = raw.data.failed.length
-  return { success: failed === 0, created, failed }
+  return { success: failed === 0, created: createdIds.length, failed, createdIds }
 }
 
 export async function updateRequestStatus(
