@@ -8,8 +8,35 @@ import {
   timestamp,
   integer,
   bigint,
+  jsonb,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
+
+// ============================================================
+// PRÉFÉRENCES UTILISATEUR (stockées en JSONB sur users)
+// Catégories de notifs alignées sur de vrais évènements backend :
+//  - confirmation : demande complétée / ajout liste suppression
+//  - relance      : relance auto 30j, relance programmée, mise en demeure 60j
+//  - refus        : broker qui refuse la demande
+// reminders.delayDays pilote le scheduler de relance automatique.
+// ============================================================
+
+export interface UserPreferences {
+  notifications: {
+    confirmation: boolean
+    relance: boolean
+    refus: boolean
+  }
+  reminders: {
+    enabled: boolean
+    delayDays: number
+  }
+}
+
+export const DEFAULT_PREFERENCES: UserPreferences = {
+  notifications: { confirmation: true, relance: true, refus: true },
+  reminders: { enabled: true, delayDays: 30 },
+}
 
 // ============================================================
 // ENUMS
@@ -78,6 +105,7 @@ export const users = pgTable('users', {
   totpSecret: text('totp_secret'),            // chiffré AES-256-GCM
   totpEnabled: boolean('totp_enabled').notNull().default(false),
   totpLastCounter: integer('totp_last_counter'), // anti-replay : dernier compteur TOTP utilisé
+  preferences: jsonb('preferences').$type<UserPreferences>().notNull().default(DEFAULT_PREFERENCES),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
