@@ -1,42 +1,50 @@
 import { lt, lte, eq, and, isNotNull } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { removalRequests, requestEvents, notifications } from '../db/schema.js'
+import { removalRequests, requestEvents, users, DEFAULT_PREFERENCES } from '../db/schema.js'
 import { emailQueue } from '../services/queue.service.js'
+import { notifyUser } from '../services/notification.service.js'
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
 
 // ============================================================
-// FEATURE 16 : SCHEDULER — Relance automatique 30j
-// Détecte les demandes SENT sans réponse depuis 30j,
-// les passe NO_RESPONSE, et envoie un email de relance
-// (isReminder=true → le worker cherche le template 'relance').
+// FEATURE 16 : SCHEDULER — Relance automatique
+// Détecte les demandes SENT sans réponse depuis le délai choisi par
+// l'utilisateur (préférence reminders.delayDays, 30j par défaut),
+// les passe NO_RESPONSE, et envoie un email de relance.
+// Respecte reminders.enabled : si l'utilisateur a coupé les relances
+// automatiques, ses demandes sont ignorées.
 // ============================================================
 
 export async function runReminderScheduler() {
-  console.log('[scheduler] Lancement du scheduler de relance 30j...')
+  console.log('[scheduler] Lancement du scheduler de relance automatique...')
 
   const now = new Date()
-  const thirtyDaysAgo = new Date(now.getTime() - THIRTY_DAYS_MS)
 
-  const staleRequests = await db
-    .select()
+  // On joint users pour lire le délai et l'activation propres à chaque utilisateur,
+  // puis on filtre en JS (le seuil dépend de la préférence, pas d'une constante globale).
+  const candidates = await db
+    .select({ request: removalRequests, preferences: users.preferences })
     .from(removalRequests)
-    .where(
-      and(
-        eq(removalRequests.status, 'SENT'),
-        lt(removalRequests.sentAt, thirtyDaysAgo)
-      )
-    )
+    .innerJoin(users, eq(removalRequests.userId, users.id))
+    .where(and(eq(removalRequests.status, 'SENT'), isNotNull(removalRequests.sentAt)))
 
-  console.log(`[scheduler] ${staleRequests.length} demande(s) sans réponse depuis 30j`)
+  let dueCount = 0
 
-  for (const request of staleRequests) {
+  for (const { request, preferences } of candidates) {
+    const prefs = preferences ?? DEFAULT_PREFERENCES
+    if (!prefs.reminders.enabled) continue
+
+    const delayMs = prefs.reminders.delayDays * DAY_MS
+    if (!request.sentAt || now.getTime() - request.sentAt.getTime() < delayMs) continue
+
+    dueCount++
+
     try {
       await db
         .update(removalRequests)
         .set({
           status: 'NO_RESPONSE',
-          nextActionAt: new Date(now.getTime() + THIRTY_DAYS_MS), // used by 60d scheduler
+          nextActionAt: new Date(now.getTime() + delayMs), // 2e étape (mise en demeure) au même rythme
           updatedAt: now,
         })
         .where(eq(removalRequests.id, request.id))
@@ -46,7 +54,7 @@ export async function runReminderScheduler() {
         eventType: 'status_changed',
         oldStatus: 'SENT',
         newStatus: 'NO_RESPONSE',
-        note: 'Aucune réponse reçue après 30 jours — relance automatique déclenchée',
+        note: `Aucune réponse reçue après ${prefs.reminders.delayDays} jours — relance automatique déclenchée`,
       })
 
       // Pass isReminder=true so the worker uses the relance template
@@ -55,19 +63,18 @@ export async function runReminderScheduler() {
         isReminder: true,
       })
 
-      await db.insert(notifications).values({
-        userId: request.userId,
+      await notifyUser(request.userId, 'relance', {
         requestId: request.id,
-        message: 'Aucune réponse depuis 30 jours pour votre demande. Un email de relance a été envoyé automatiquement.',
+        message: `Aucune réponse depuis ${prefs.reminders.delayDays} jours pour votre demande. Un email de relance a été envoyé automatiquement.`,
       })
 
-      console.log(`[scheduler] Relance 30j déclenchée pour ${request.id}`)
+      console.log(`[scheduler] Relance déclenchée pour ${request.id}`)
     } catch (error) {
       console.error(`[scheduler] Erreur pour la demande ${request.id} :`, error)
     }
   }
 
-  console.log('[scheduler] Scheduler 30j terminé.')
+  console.log(`[scheduler] ${dueCount} relance(s) déclenchée(s). Scheduler terminé.`)
 }
 
 // ============================================================
@@ -104,8 +111,7 @@ export async function runFormalNoticeScheduler() {
         note: 'Délai de 60 jours dépassé — une mise en demeure peut être déposée (CNIL ou équivalent)',
       })
 
-      await db.insert(notifications).values({
-        userId: request.userId,
+      await notifyUser(request.userId, 'relance', {
         requestId: request.id,
         message: 'Votre demande est sans réponse depuis plus de 60 jours. Vous pouvez désormais déposer une mise en demeure ou une plainte auprès de la CNIL (www.cnil.fr).',
       })
@@ -158,8 +164,7 @@ export async function runManualReminderScheduler() {
         isReminder: true,
       })
 
-      await db.insert(notifications).values({
-        userId: request.userId,
+      await notifyUser(request.userId, 'relance', {
         requestId: request.id,
         message: 'Votre relance programmée a été envoyée au broker.',
       })

@@ -2,10 +2,11 @@ import { Hono } from 'hono'
 import { randomUUID } from 'crypto'
 import { eq, and, count, getTableColumns, ilike, desc } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { removalRequests, users, brokers, emailTemplates, userContacts, requestEvents, notifications } from '../db/schema.js'
+import { removalRequests, users, brokers, emailTemplates, userContacts, requestEvents } from '../db/schema.js'
 import { renderTemplate } from '../services/template.service.js'
 import { safeDecrypt } from '../utils/crypto.util.js'
 import { emailQueue } from '../services/queue.service.js'
+import { notifyUser, type NotificationCategory } from '../services/notification.service.js'
 import { authMiddleware } from './auth/auth.middleware.js'
 
 export const requestsRoutes = new Hono()
@@ -654,18 +655,15 @@ requestsRoutes.patch('/:id/status', authMiddleware, async (c) => {
       note: `Statut mis à jour manuellement : ${oldStatus} → ${newStatus}`,
     })
 
-    const terminalMessages: Record<string, string> = {
-      COMPLETED: 'Votre demande a été complétée : le broker a confirmé la suppression de vos données.',
-      REFUSED: 'Votre demande a été refusée par le broker. Vous pouvez déposer une plainte auprès de la CNIL (www.cnil.fr).',
-      SUPPRESSED: 'Vous avez été ajouté à la liste de suppression du broker.',
+    const terminalNotifs: Record<string, { category: NotificationCategory; message: string }> = {
+      COMPLETED: { category: 'confirmation', message: 'Votre demande a été complétée : le broker a confirmé la suppression de vos données.' },
+      REFUSED: { category: 'refus', message: 'Votre demande a été refusée par le broker. Vous pouvez déposer une plainte auprès de la CNIL (www.cnil.fr).' },
+      SUPPRESSED: { category: 'confirmation', message: 'Vous avez été ajouté à la liste de suppression du broker.' },
     }
-    
-    if (terminalMessages[newStatus]) {
-      await db.insert(notifications).values({
-        userId,
-        requestId,
-        message: terminalMessages[newStatus],
-      })
+
+    const notif = terminalNotifs[newStatus]
+    if (notif) {
+      await notifyUser(userId, notif.category, { message: notif.message, requestId })
     }
 
 
