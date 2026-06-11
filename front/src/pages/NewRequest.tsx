@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
 
@@ -15,7 +15,8 @@ import {
   categoryLabels, difficultyLabels, methodLabels, regionLabels,
   type BrokerCategory, type Broker,
 } from '@/lib/mock-data'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { getBroker } from '@/lib/api'
 
 type CategoryFilter = 'all' | BrokerCategory
 
@@ -36,6 +37,19 @@ export default function NewRequest() {
   const [perPage, setPerPage] = useState(12)
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Map<string, Broker>>(new Map())
+
+  // Pré-sélection du broker passé dans l'URL (?broker=slug), ex: depuis la fiche broker.
+  // Le broker peut ne pas être sur la page courante de la liste → on le charge par slug.
+  const [searchParams] = useSearchParams()
+  const preselectDone = useRef(false)
+  useEffect(() => {
+    const slug = searchParams.get('broker')
+    if (!slug || preselectDone.current) return
+    preselectDone.current = true
+    getBroker(slug).then((b) => {
+      if (b) setSelected((prev) => new Map(prev).set(b.id, b))
+    })
+  }, [searchParams])
 
   const { data, loading } = useBrokers({
     page,
