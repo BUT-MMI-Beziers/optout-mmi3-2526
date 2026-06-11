@@ -7,17 +7,19 @@
 // validation des limites de contacts, export RGPD, gestion des notifications.
 import { eq, and } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { users, userContacts, notifications, removalRequests } from '../../db/schema.js'
+import { users, userContacts, notifications, removalRequests, DEFAULT_PREFERENCES } from '../../db/schema.js'
+import type { UserPreferences } from '../../db/schema.js'
 import { encrypt, decrypt } from '../../utils/crypto.util.js'
 import type {
   ProfilDto,
   ContactDto,
   NotificationDto,
   UpdateProfilBody,
+  UpdatePreferencesBody,
   CreateContactBody,
   ContactType,
 } from './profil.types.js'
-import { CONTACT_LIMITS } from './profil.types.js'
+import { CONTACT_LIMITS, REMINDER_DELAY } from './profil.types.js'
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -81,6 +83,60 @@ export async function updateProfil(userId: string, body: UpdateProfilBody): Prom
 // les contacts, demandes de suppression et notifications associés
 export async function deleteProfil(userId: string): Promise<void> {
   await db.delete(users).where(eq(users.id, userId))
+}
+
+// ── Préférences ───────────────────────────────────────────────
+
+// Retourne les préférences de l'utilisateur (fallback sur les valeurs par défaut
+// si la colonne est vide — sécurise les comptes créés avant la migration).
+export async function getPreferences(userId: string): Promise<UserPreferences | null> {
+  const rows = await db
+    .select({ preferences: users.preferences })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  if (!rows.length) return null
+  return rows[0].preferences ?? DEFAULT_PREFERENCES
+}
+
+// Applique un patch partiel sur les préférences existantes.
+// delayDays est borné, tout le reste est coercé en booléen pour ne jamais stocker d'input bancal.
+export async function updatePreferences(
+  userId: string,
+  patch: UpdatePreferencesBody,
+): Promise<UserPreferences | null> {
+  const current = await getPreferences(userId)
+  if (!current) return null
+
+  const merged: UserPreferences = {
+    notifications: {
+      confirmation: patch.notifications?.confirmation ?? current.notifications.confirmation,
+      relance: patch.notifications?.relance ?? current.notifications.relance,
+      refus: patch.notifications?.refus ?? current.notifications.refus,
+    },
+    reminders: {
+      enabled: patch.reminders?.enabled ?? current.reminders.enabled,
+      delayDays: patch.reminders?.delayDays ?? current.reminders.delayDays,
+    },
+  }
+
+  // Coercition booléenne + clamp du délai
+  merged.notifications.confirmation = Boolean(merged.notifications.confirmation)
+  merged.notifications.relance = Boolean(merged.notifications.relance)
+  merged.notifications.refus = Boolean(merged.notifications.refus)
+  merged.reminders.enabled = Boolean(merged.reminders.enabled)
+  merged.reminders.delayDays = Math.min(
+    REMINDER_DELAY.max,
+    Math.max(REMINDER_DELAY.min, Math.round(merged.reminders.delayDays)),
+  )
+
+  await db
+    .update(users)
+    .set({ preferences: merged, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+
+  return merged
 }
 
 // ── Contacts ──────────────────────────────────────────────────

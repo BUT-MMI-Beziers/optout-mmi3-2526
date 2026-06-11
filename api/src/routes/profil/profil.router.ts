@@ -24,6 +24,13 @@ profil.put('/users/me', ctrl.updateMe)
 // DELETE /api/users/me        — supprime définitivement le compte
 profil.delete('/users/me', ctrl.deleteMe)
 
+// ── Préférences ───────────────────────────────────────────────
+// GET   /api/users/me/preferences   — préférences notifications + relances
+profil.get('/users/me/preferences', ctrl.getPreferences)
+
+// PATCH /api/users/me/preferences   — patch partiel des préférences
+profil.patch('/users/me/preferences', ctrl.updatePreferences)
+
 // ── Contacts ──────────────────────────────────────────────────
 // GET  /api/users/me/contacts         — liste tous les contacts (emails, adresses, téléphones)
 profil.get('/users/me/contacts', ctrl.getContacts)

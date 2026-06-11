@@ -225,8 +225,8 @@ export async function markNotificationRead(id: string): Promise<void> {
 export async function sendBatch(payload: {
   brokerIds: string[]
   templateId: string
-}): Promise<{ success: boolean; created: number; failed: number }> {
-  const raw = await request<{ message: string; data: { created: unknown[]; failed: unknown[] } } | null>(
+}): Promise<{ success: boolean; created: number; failed: number; createdIds: string[] }> {
+  const raw = await request<{ message: string; data: { created: { id: string }[]; failed: unknown[] } } | null>(
     '/requests/batch',
     {
       method: 'POST',
@@ -234,10 +234,10 @@ export async function sendBatch(payload: {
     },
     null
   )
-  if (!raw) return { success: false, created: 0, failed: payload.brokerIds.length }
-  const created = raw.data.created.length
+  if (!raw) return { success: false, created: 0, failed: payload.brokerIds.length, createdIds: [] }
+  const createdIds = raw.data.created.map((r) => r.id)
   const failed = raw.data.failed.length
-  return { success: failed === 0, created, failed }
+  return { success: failed === 0, created: createdIds.length, failed, createdIds }
 }
 
 export async function updateRequestStatus(
@@ -317,6 +317,43 @@ export async function getStats(): Promise<DashboardStats> {
     refused,
     responseRate: sentTotal > 0 ? Math.round((responded / sentTotal) * 100) : 0,
   }
+}
+
+// ─── Préférences (paramètres) ───────────────────────────────────────────────
+
+export interface UserPreferences {
+  notifications: {
+    confirmation: boolean
+    relance: boolean
+    refus: boolean
+  }
+  reminders: {
+    enabled: boolean
+    delayDays: number
+  }
+}
+
+export const DEFAULT_PREFERENCES: UserPreferences = {
+  notifications: { confirmation: true, relance: true, refus: true },
+  reminders: { enabled: true, delayDays: 30 },
+}
+
+// Patch partiel — on n'envoie que ce qui change (un toggle ou le délai).
+export interface PreferencesPatch {
+  notifications?: Partial<UserPreferences['notifications']>
+  reminders?: Partial<UserPreferences['reminders']>
+}
+
+export async function getPreferences(): Promise<UserPreferences> {
+  return request<UserPreferences>('/users/me/preferences', {}, DEFAULT_PREFERENCES)
+}
+
+export async function updatePreferences(patch: PreferencesPatch): Promise<UserPreferences | null> {
+  return request<UserPreferences | null>(
+    '/users/me/preferences',
+    { method: 'PATCH', body: JSON.stringify(patch) },
+    null,
+  )
 }
 
 // ─── Sessions ─────────────────────────────────────────────────────────────────

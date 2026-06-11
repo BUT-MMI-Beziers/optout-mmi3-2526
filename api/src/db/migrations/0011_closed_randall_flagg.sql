@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "preferences" jsonb DEFAULT '{"notifications":{"confirmation":true,"relance":true,"refus":true},"reminders":{"enabled":true,"delayDays":30}}'::jsonb NOT NULL;
