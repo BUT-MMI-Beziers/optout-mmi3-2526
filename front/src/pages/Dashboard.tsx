@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
   Plus, Send, CheckCircle2, AlertCircle, Clock,
-  XCircle, FileText, Flag, Archive, Hourglass,
+  XCircle, FileText, Flag, Archive, Hourglass, CalendarClock,
 } from 'lucide-react'
 import { getStats, getRequests, getMe, getNotifications, type DashboardStats, type AppNotification } from '@/lib/api'
 import { statusConfig, type RemovalRequest, type RequestStatus } from '@/lib/mock-data'
@@ -39,6 +39,7 @@ export default function Dashboard() {
   const [recentRequests, setRecentRequests] = useState<RemovalRequest[]>([])
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [reminders, setReminders] = useState<RemovalRequest[]>([])
+  const [scheduledCount, setScheduledCount] = useState(0)
   const [userName, setUserName] = useState('...')
   const [loading, setLoading] = useState(true)
 
@@ -49,7 +50,8 @@ export default function Dashboard() {
       getMe(),
       getNotifications(),
       getRequests({ page: 1, perPage: 50 }),
-    ]).then(([s, u, notifs, all]) => {
+      getRequests({ page: 1, perPage: 100, status: 'PENDING' }),
+    ]).then(([s, u, notifs, all, pendingRes]) => {
       setStats(s)
       setUserName(u?.firstName ?? '')
       setNotifications(notifs.slice(0, 3))
@@ -82,19 +84,21 @@ export default function Dashboard() {
           })
           .slice(0, 3)
       )
+
+      setScheduledCount(pendingRes.data.filter((req) => req.parentRequestId).length)
       setLoading(false)
     })
   }, [])
 
-  useEffect(() => { load(false) }, [load])
-  useAutoRefresh(() => load(true))
+  const sentTotal = stats?.sentTotal ?? 0
+  const share = (n: number) => (sentTotal > 0 ? `${n} sur ${sentTotal} envoyées` : '—')
 
   const statCards = stats
     ? [
-      { label: 'Total envoyées', value: stats.total, icon: Send, isAlert: false },
-      { label: 'En attente', value: stats.acknowledged, icon: Clock, isAlert: false },
-      { label: 'Confirmées', value: stats.completed, icon: CheckCircle2, isAlert: false },
-      { label: 'À relancer', value: stats.noResponse, icon: AlertCircle, isAlert: true },
+      { label: 'Envoyées', value: stats.sentTotal, sub: 'demandes parties', icon: Send, isAlert: false },
+      { label: 'En attente de réponse', value: stats.awaiting, sub: share(stats.awaiting), icon: Clock, isAlert: false },
+      { label: 'Confirmées', value: stats.confirmed, sub: share(stats.confirmed), icon: CheckCircle2, isAlert: false },
+      { label: 'Relances programmées', value: scheduledCount, sub: 'à venir', icon: CalendarClock, isAlert: false },
     ]
     : []
 
@@ -149,9 +153,10 @@ export default function Dashboard() {
                   >
                     <s.icon className="w-6 h-6" style={{ color: BLUE }} />
                   </div>
-                  <div>
-                    <p className="text-3xl font-bold text-foreground">{s.value}</p>
-                    <p className="text-sm text-muted-foreground mt-0.5">{s.label}</p>
+                  <div className="min-w-0">
+                    <p className="text-3xl font-bold text-foreground leading-none">{s.value}</p>
+                    <p className="text-sm font-medium text-foreground mt-1">{s.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{s.sub}</p>
                   </div>
                 </CardContent>
               </Card>

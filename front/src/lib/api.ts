@@ -273,11 +273,10 @@ export async function cancelRequest(id: string): Promise<boolean> {
 
 export interface DashboardStats {
   total: number
-  pending: number
-  sent: number
-  acknowledged: number
-  completed: number
-  noResponse: number
+  sentTotal: number
+  awaiting: number
+  confirmed: number
+  toFollowUp: number
   refused: number
   responseRate: number
 }
@@ -304,16 +303,19 @@ export async function getStats(): Promise<DashboardStats> {
   const raw = await request<{ data: RawStats }>('/stats', {}, { data: fallback })
   const d = raw.data ?? fallback
   const b = d.byStatus
-  const responded = b.COMPLETED + b.REFUSED
+  const sentTotal = b.SENT + b.ACKNOWLEDGED + b.COMPLETED + b.REFUSED + b.NO_RESPONSE + b.COMPLAINT + b.SUPPRESSED
+  const awaiting = b.SENT + b.ACKNOWLEDGED
+  const confirmed = b.COMPLETED + b.SUPPRESSED
+  const refused = b.REFUSED + b.COMPLAINT
+  const responded = confirmed + refused
   return {
     total: d.total,
-    pending: b.PENDING ?? 0,
-    sent: b.SENT,
-    acknowledged: b.ACKNOWLEDGED,
-    completed: b.COMPLETED,
-    noResponse: b.NO_RESPONSE,
-    refused: b.REFUSED,
-    responseRate: d.total > 0 ? Math.round((responded / d.total) * 100) : 0,
+    sentTotal,
+    awaiting,
+    confirmed,
+    toFollowUp: b.NO_RESPONSE,
+    refused,
+    responseRate: sentTotal > 0 ? Math.round((responded / sentTotal) * 100) : 0,
   }
 }
 
