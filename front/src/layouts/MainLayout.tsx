@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
-import { useEffect, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
 import {
   LayoutDashboard,
   FileText,
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { getMe, getNotifications } from "@/lib/api"
+import { useAutoRefresh } from "@/hooks/useAutoRefresh"
 import type { User as UserType } from "@/lib/mock-data"
 import GlobalSearch from "@/components/GlobalSearch"
 
@@ -50,10 +51,15 @@ export default function MainLayout() {
   const [user, setUser] = useState<UserType | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
 
-  useEffect(() => {
-    getMe().then(setUser)
+  const loadNotifications = useCallback(() => {
     getNotifications().then((n) => setUnreadCount(n.filter((x) => !x.isRead).length))
   }, [])
+
+  useEffect(() => {
+    getMe().then(setUser)
+    loadNotifications()
+  }, [loadNotifications])
+  useAutoRefresh(loadNotifications)
 
   const initials = user
     ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()

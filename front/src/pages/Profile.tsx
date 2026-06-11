@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { QRCodeSVG } from 'qrcode.react'
 import { startRegistration } from '@simplewebauthn/browser'
 import { apiFetch, getSessions, revokeSession, revokeOtherSessions, type ActiveSession } from '@/lib/api'
+import ExportModal from '@/components/ExportModal'
 
 const API = '/api/v1'
 
@@ -240,6 +241,7 @@ export default function Profile() {
   const [pwdLoading, setPwdLoading] = useState(false)
 
   const [sessions, setSessions] = useState<ActiveSession[]>([])
+  const [exportOpen, setExportOpen] = useState(false)
 
   async function startTotpSetup() {
     setTotpError(''); setTotpLoading(true)
@@ -361,18 +363,6 @@ export default function Profile() {
     if (res.ok) setProfil((p) => (p ? { ...p, contacts: p.contacts.filter((c) => c.id !== id) } : p))
   }
 
-  async function exportData() {
-    const res = await apiFetch(`${API}/users/me/export`)
-    if (!res.ok) return
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `float-export-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   async function deleteAccount() {
     if (!window.confirm('Supprimer définitivement votre compte ? Cette action est irréversible.')) return
     setDeleting(true)
@@ -399,6 +389,7 @@ export default function Profile() {
   const initials  = `${profil.firstName[0] ?? ''}${profil.lastName[0] ?? ''}`.toUpperCase()
 
   return (
+    <>
     <div className="p-4 md:p-8 space-y-6">
 
       {/* Breadcrumb */}
@@ -420,10 +411,6 @@ export default function Profile() {
 
       {/* Bannière */}
       <div className="relative rounded-2xl bg-[#253550] overflow-hidden" style={{ height: '160px' }}>
-        <Button onClick={exportData} variant="ghost" size="sm" className="absolute top-4 right-4 h-9 gap-2 text-white/80 hover:text-white hover:bg-white/10 border border-white/20 text-sm font-medium">
-          <Download className="w-4 h-4" />
-          Exporter mes données
-        </Button>
 
 
         <div className="absolute bottom-5 left-6 flex items-center gap-4">
@@ -455,7 +442,7 @@ export default function Profile() {
               </span>
             </div>
             <div className="pt-5">
-              <Button onClick={exportData} variant="outline" size="sm" className="gap-2 text-sm font-medium">
+              <Button onClick={() => setExportOpen(true)} variant="outline" size="sm" className="gap-2 text-sm font-medium">
                 <Download className="w-4 h-4" />
                 Exporter mes données
               </Button>
@@ -703,5 +690,8 @@ export default function Profile() {
       </div>
 
     </div>
+
+    <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} />
+    </>
   )
 }
