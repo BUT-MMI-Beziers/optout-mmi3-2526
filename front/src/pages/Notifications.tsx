@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import { Card } from "@/components/ui/card"
@@ -13,6 +13,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { getNotifications, markNotificationRead, type AppNotification } from "@/lib/api"
+import { useAutoRefresh } from "@/hooks/useAutoRefresh"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -67,18 +68,16 @@ export default function Notifications() {
   const [loading, setLoading]             = useState(true)
   const [readFilter, setReadFilter]       = useState<ReadFilter>("all")
 
-  // Fetch on mount
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
+  const load = useCallback((silent: boolean) => {
+    if (!silent) setLoading(true)
     getNotifications().then((data) => {
-      if (!cancelled) {
-        setNotifications(data)
-        setLoading(false)
-      }
+      setNotifications(data)
+      setLoading(false)
     })
-    return () => { cancelled = true }
   }, [])
+
+  useEffect(() => { load(false) }, [load])
+  useAutoRefresh(() => load(true))
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.isRead).length,
