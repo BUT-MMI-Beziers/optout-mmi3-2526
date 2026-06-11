@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, type Variants } from 'framer-motion'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } }
 const fadeUp: Variants = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.28 } } }
@@ -41,7 +42,8 @@ export default function Dashboard() {
   const [userName, setUserName] = useState('...')
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const load = useCallback((silent: boolean) => {
+    if (!silent) setLoading(true)
     Promise.all([
       getStats(),
       getMe(),
@@ -83,6 +85,9 @@ export default function Dashboard() {
       setLoading(false)
     })
   }, [])
+
+  useEffect(() => { load(false) }, [load])
+  useAutoRefresh(() => load(true))
 
   const statCards = stats
     ? [
