@@ -83,6 +83,13 @@ export default function NewRequestReview() {
     setSending(true)
     const result = await sendBatch({ brokerIds: selectedBrokers.map((b) => b.id), templateId: selectedTemplateId })
     setSending(false)
+
+    // Une seule demande envoyée sans échec → on ouvre directement la demande.
+    // Sinon (plusieurs demandes, ou brokers ignorés) on garde l'écran de récap.
+    if (result.createdIds.length === 1 && result.failed === 0) {
+      navigate(`/requests/${result.createdIds[0]}`)
+      return
+    }
     setQueued({ created: result.created, failed: result.failed })
   }
 
