@@ -90,6 +90,10 @@ export default function Dashboard() {
     })
   }, [])
 
+  // Chargement initial + rafraîchissement auto (focus / polling).
+  useEffect(() => { load(false) }, [load])
+  useAutoRefresh(() => load(true))
+
   const sentTotal = stats?.sentTotal ?? 0
   const share = (n: number) => (sentTotal > 0 ? `${n} sur ${sentTotal} envoyées` : '—')
 
