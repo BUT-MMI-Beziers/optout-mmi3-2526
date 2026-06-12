@@ -1,912 +1,624 @@
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence, type Variants } from 'framer-motion'
+import {
+  ShieldCheck, Search, Pencil, Trash2, CheckCircle2, AlertTriangle,
+  ChevronLeft, ChevronRight, Loader2, X, Upload, Database, Hourglass,
+  ArrowUp, ArrowDown, BookMarked, UserPlus,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  getMe, getBrokers, updateBroker, deleteBroker, verifyBroker, importBrokers,
+  type CreateBrokerInput,
+} from '@/lib/api'
+import {
+  categoryLabels, regionLabels, difficultyLabels,
+  type Broker, type User,
+} from '@/lib/mock-data'
+
+const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } }
+const rowVariant: Variants = { hidden: { opacity: 0, x: -12 }, show: { opacity: 1, x: 0, transition: { duration: 0.2 } } }
+
+type Tab = 'all' | 'pending' | 'verified'
+
+const TABS: { key: Tab; label: string; icon: typeof Database }[] = [
+  { key: 'all',      label: 'Tous',       icon: Database },
+  { key: 'pending',  label: 'En attente', icon: Hourglass },
+  { key: 'verified', label: 'Vérifiés',   icon: CheckCircle2 },
+]
+
+const PER_PAGE = 10
+
+function formatDate(iso: string | null | undefined) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+interface Feedback { type: 'success' | 'error'; text: string }
 
 export default function AdminBrokers() {
-  // --- Bulk Import State ---
-  const [file, setFile] = useState<File | null>(null)
-  const [importLoading, setImportLoading] = useState(false)
-  const [importResult, setImportResult] = useState<string | null>(null)
-  const [importError, setImportError] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const [me, setMe] = useState<User | null>(null)
 
-  // --- Single Broker Creation State ---
-  const [formData, setFormData] = useState({
-    name: "",
-    emailContact: "",
-    website: "",
-    optOutUrl: "",
-    category: "people-search",
-    region: "eu",
-    country: "",
-    optOutMethod: "email",
-    difficulty: "easy",
-    legalBasis: "gdpr_art17",
-    notes: ""
-  })
-  const [createLoading, setCreateLoading] = useState(false)
-  const [createResult, setCreateResult] = useState<any | null>(null)
-  const [createError, setCreateError] = useState<string | null>(null)
+  const [tab, setTab] = useState<Tab>('pending')
+  const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
-  // --- Test / Playground State ---
-  const [testSlug, setTestSlug] = useState("")
-  const [testLoading, setTestLoading] = useState(false)
-  const [testResult, setTestResult] = useState<any | null>(null)
-  const [testError, setTestError] = useState<string | null>(null)
-  const [testFormData, setTestFormData] = useState<any | null>(null)
+  const [brokersList, setBrokersList] = useState<Broker[]>([])
+  const [total, setTotal] = useState(0)
+  const [lastPage, setLastPage] = useState(1)
+  const [loading, setLoading] = useState(true)
 
-  const handleTestInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setTestFormData((prev: any) => ({
-      ...prev,
-      [name]: value
-    }))
+  const [counts, setCounts] = useState<{ pending: number; verified: number } | null>(null)
+
+  const [editing, setEditing] = useState<Broker | null>(null)
+  const [busySlug, setBusySlug] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<Feedback | null>(null)
+
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // ─── Garde admin : redirige les non-admins vers le dashboard ────────────────
+  useEffect(() => {
+    getMe().then((u) => {
+      if (!u || u.role !== 'admin') { navigate('/dashboard', { replace: true }); return }
+      setMe(u)
+    })
+  }, [navigate])
+
+  // ─── Recherche débouncée ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 350)
+    return () => clearTimeout(t)
+  }, [search])
+
+  useEffect(() => { setPage(1) }, [tab, debouncedSearch])
+
+  // ─── Chargement liste + compteurs ────────────────────────────────────────────
+  const loadCounts = useCallback(() => {
+    Promise.all([
+      getBrokers({ page: 1, perPage: 1, isVerified: false }),
+      getBrokers({ page: 1, perPage: 1, isVerified: true }),
+    ]).then(([p, v]) => setCounts({ pending: p.total, verified: v.total }))
+  }, [])
+
+  const loadList = useCallback(() => {
+    setLoading(true)
+    getBrokers({
+      page,
+      perPage: PER_PAGE,
+      search: debouncedSearch || undefined,
+      isVerified: tab === 'all' ? undefined : tab === 'verified',
+      sort: 'createdAt',
+      order: sortOrder,
+    }).then((res) => {
+      setBrokersList(res.data)
+      setTotal(res.total)
+      setLastPage(res.lastPage)
+      setLoading(false)
+    })
+  }, [page, debouncedSearch, tab, sortOrder])
+
+  useEffect(() => { if (me) loadList() }, [me, loadList])
+  useEffect(() => { if (me) loadCounts() }, [me, loadCounts])
+
+  const refresh = () => { loadList(); loadCounts() }
+
+  const flash = (f: Feedback) => {
+    setFeedback(f)
+    setTimeout(() => setFeedback(null), 4000)
   }
 
-  const handleLoadBroker = async () => {
-    if (!testSlug.trim()) {
-      setTestError("Veuillez saisir un slug")
-      return
-    }
-    setTestLoading(true)
-    setTestResult(null)
-    setTestError(null)
-    setTestFormData(null)
-
-    try {
-      const response = await fetch(`/api/v1/brokers/${testSlug.trim()}`)
-      if (!response.ok) {
-        let errMessage = "Broker introuvable"
-        try {
-          const data = await response.json()
-          errMessage = data.error || errMessage
-        } catch {}
-        throw new Error(errMessage)
-      }
-      const data = await response.json()
-      setTestFormData({
-        name: data.name || "",
-        emailContact: data.emailContact || "",
-        website: data.website || "",
-        optOutUrl: data.optOutUrl || "",
-        category: data.category || "people-search",
-        region: data.region || "eu",
-        country: data.country || "",
-        optOutMethod: data.optOutMethod || "email",
-        difficulty: data.difficulty || "easy",
-        legalBasis: data.legalBasis || "gdpr_art17",
-        notes: data.notes || ""
-      })
-      setTestResult(data)
-    } catch (err: any) {
-      setTestError(err.message || "Une erreur est survenue.")
-    } finally {
-      setTestLoading(false)
-    }
+  // ─── Actions ─────────────────────────────────────────────────────────────────
+  const handleVerify = async (broker: Broker) => {
+    setBusySlug(broker.slug)
+    const { error } = await verifyBroker(broker.slug)
+    setBusySlug(null)
+    if (error) return flash({ type: 'error', text: error })
+    flash({ type: 'success', text: `${broker.name} marqué comme vérifié.` })
+    refresh()
   }
 
-  const handlePatchVerify = async () => {
-    if (!testSlug.trim()) return
-    setTestLoading(true)
-    setTestResult(null)
-    setTestError(null)
-
-    try {
-      const response = await fetch(`/api/v1/brokers/${testSlug.trim()}/verify`, {
-        method: 'PATCH'
-      })
-      if (!response.ok) {
-        let errMessage = "Erreur lors de la vérification (PATCH)"
-        try {
-          const data = await response.json()
-          errMessage = data.error || errMessage
-        } catch {}
-        throw new Error(errMessage)
-      }
-      const data = await response.json()
-      setTestResult(data)
-    } catch (err: any) {
-      setTestError(err.message || "Une erreur est survenue.")
-    } finally {
-      setTestLoading(false)
-    }
+  const handleDelete = async (broker: Broker) => {
+    if (!window.confirm(`Supprimer définitivement le broker « ${broker.name} » ?`)) return
+    setBusySlug(broker.slug)
+    const { ok, error } = await deleteBroker(broker.slug)
+    setBusySlug(null)
+    if (!ok) return flash({ type: 'error', text: error ?? 'Suppression impossible.' })
+    flash({ type: 'success', text: `${broker.name} supprimé.` })
+    refresh()
   }
 
-  const handlePutUpdate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!testSlug.trim() || !testFormData) return
-    setTestLoading(true)
-    setTestResult(null)
-    setTestError(null)
-
-    const payload = {
-      ...testFormData,
-      website: testFormData.website?.trim() || null,
-      optOutUrl: testFormData.optOutUrl?.trim() || null,
-      country: testFormData.country?.trim() || null,
-      notes: testFormData.notes?.trim() || null,
-    }
-
-    try {
-      const response = await fetch(`/api/v1/brokers/${testSlug.trim()}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      })
-
-      if (!response.ok) {
-        let errMessage = "Erreur lors de la modification (PUT)"
-        try {
-          const data = await response.json()
-          errMessage = data.error || errMessage
-        } catch {}
-        throw new Error(errMessage)
-      }
-
-      const data = await response.json()
-      setTestResult(data)
-      if (data.slug) {
-        setTestSlug(data.slug)
-      }
-    } catch (err: any) {
-      setTestError(err.message || "Une erreur est survenue.")
-    } finally {
-      setTestLoading(false)
-    }
+  const handleImportFile = async (file: File) => {
+    setImporting(true)
+    const { imported, skipped, error } = await importBrokers(file)
+    setImporting(false)
+    if (error) return flash({ type: 'error', text: error })
+    flash({ type: 'success', text: `Import terminé : ${imported} ajoutés, ${skipped} ignorés.` })
+    refresh()
   }
 
-  const handleDeleteBroker = async () => {
-    if (!testSlug.trim()) return
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer le broker "${testSlug}" ?`)) return
-
-    setTestLoading(true)
-    setTestResult(null)
-    setTestError(null)
-
-    try {
-      const response = await fetch(`/api/v1/brokers/${testSlug.trim()}`, {
-        method: 'DELETE'
-      })
-
-      if (!response.ok) {
-        let errMessage = "Erreur lors de la suppression (DELETE)"
-        try {
-          const data = await response.json()
-          errMessage = data.error || errMessage
-        } catch {}
-        throw new Error(errMessage)
-      }
-
-      const data = await response.json()
-      setTestResult(data)
-      setTestFormData(null)
-    } catch (err: any) {
-      setTestError(err.message || "Une erreur est survenue.")
-    } finally {
-      setTestLoading(false)
-    }
-  }
-
-  // --- Bulk Import Handlers ---
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0])
-      setImportResult(null)
-      setImportError(null)
-    }
-  }
-
-  const handleImport = async () => {
-    if (!file) return
-
-    setImportLoading(true)
-    setImportResult(null)
-    setImportError(null)
-
-    try {
-      const text = await file.text()
-      const isYaml = file.name.endsWith('.yaml') || file.name.endsWith('.yml')
-      const contentType = isYaml ? 'application/yaml' : 'application/json'
-
-      const response = await fetch('/api/v1/brokers/import', {
-        method: 'POST',
-        headers: {
-          'Content-Type': contentType,
-        },
-        body: text,
-      })
-
-      if (!response.ok) {
-        let errorMessage = 'Erreur lors de l\'import'
-        try {
-          const data = await response.json()
-          errorMessage = data.error || errorMessage
-        } catch {
-          errorMessage = `Erreur ${response.status}: ${response.statusText || 'Le serveur a renvoyé une réponse invalide'}`
-        }
-        throw new Error(errorMessage)
-      }
-
-      const data = await response.json()
-      setImportResult(
-        `Import réussi ! ${data.imported} brokers importés, ${data.skipped} ignorés.`
-      )
-    } catch (err: any) {
-      setImportError(err.message || 'Une erreur est survenue.')
-    } finally {
-      setImportLoading(false)
-    }
-  }
-
-  // --- Single Broker Handlers ---
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
-  }
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setCreateLoading(true)
-    setCreateResult(null)
-    setCreateError(null)
-
-    // Clean optional fields (empty string -> null)
-    const payload = {
-      ...formData,
-      website: formData.website.trim() || null,
-      optOutUrl: formData.optOutUrl.trim() || null,
-      country: formData.country.trim() || null,
-      notes: formData.notes.trim() || null,
-    }
-
-    try {
-      const response = await fetch('/api/v1/brokers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        let errorMessage = 'Erreur lors de la création du broker'
-        try {
-          const data = await response.json()
-          errorMessage = data.error || errorMessage
-        } catch {
-          errorMessage = `Erreur ${response.status}: ${response.statusText || 'Le serveur a renvoyé une réponse invalide'}`
-        }
-        throw new Error(errorMessage)
-      }
-
-      const data = await response.json()
-      setCreateResult(data)
-      
-      // Reset main inputs but keep defaults
-      setFormData({
-        name: "",
-        emailContact: "",
-        website: "",
-        optOutUrl: "",
-        category: "people-search",
-        region: "eu",
-        country: "",
-        optOutMethod: "email",
-        difficulty: "easy",
-        legalBasis: "gdpr_art17",
-        notes: ""
-      })
-    } catch (err: any) {
-      setCreateError(err.message || 'Une erreur est survenue.')
-    } finally {
-      setCreateLoading(false)
-    }
+  if (!me) {
+    return (
+      <div className="p-4 md:p-8 space-y-6">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-10 w-72" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    )
   }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-zinc-50">
-          Admin - Data Brokers
-        </h1>
-        <p className="mt-2 text-sm text-gray-500 dark:text-zinc-400">
-          Interface d'administration pour importer des bases de données de brokers ou créer des entrées à l'unité pour test.
-        </p>
-      </div>
+    <div className="p-4 md:p-8 space-y-5 md:space-y-6">
+      {/* Breadcrumb */}
+      <nav className="text-sm text-muted-foreground flex items-center gap-1">
+        <Link to="/dashboard" className="hover:text-foreground">FLOAT</Link>
+        <span>›</span>
+        <span className="text-foreground">Administration</span>
+      </nav>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        
-        {/* ================= COLUMN 1: BULK IMPORT ================= */}
-        <div className="border border-gray-200 dark:border-zinc-800 p-6 rounded-xl space-y-6 bg-white dark:bg-zinc-900/50 shadow-sm backdrop-blur-sm">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900 dark:text-zinc-100 flex items-center gap-2">
-              <span className="flex h-2 w-2 rounded-full bg-blue-600"></span>
-              Importation de graine (Bulk Seed)
-            </h2>
-            <p className="text-xs text-gray-500 dark:text-zinc-400 mt-1">
-              Permet de charger un fichier JSON ou YAML contenant plusieurs brokers.
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 dark:text-zinc-400 uppercase tracking-wider mb-2">
-                Sélectionner un fichier (.json, .yaml, .yml)
-              </label>
-              <input
-                type="file"
-                accept=".json,.yaml,.yml"
-                onChange={handleFileChange}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-zinc-800 dark:file:text-zinc-300 dark:hover:file:bg-zinc-700 transition-colors cursor-pointer"
-              />
-            </div>
-
-            {file && (
-              <button
-                onClick={handleImport}
-                disabled={importLoading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg disabled:bg-gray-400 dark:disabled:bg-zinc-800 cursor-pointer shadow-sm transition-all"
-              >
-                {importLoading ? 'Importation en cours...' : 'Lancer l\'importation'}
-              </button>
-            )}
-          </div>
-
-          {importResult && (
-            <div className="p-4 bg-green-50 text-green-800 rounded-lg border border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-900/60 text-sm">
-              {importResult}
-            </div>
-          )}
-
-          {importError && (
-            <div className="p-4 bg-red-50 text-red-800 rounded-lg border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/60 text-sm">
-              {importError}
-            </div>
-          )}
-        </div>
-
-        {/* ================= COLUMN 2: SINGLE CREATION (POST) ================= */}
-        <div className="border border-gray-200 dark:border-zinc-800 p-6 rounded-xl space-y-6 bg-white dark:bg-zinc-900/50 shadow-sm backdrop-blur-sm">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900 dark:text-zinc-100 flex items-center gap-2">
-              <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
-              Création unitaire (POST /api/brokers)
-            </h2>
-            <p className="text-xs text-gray-500 dark:text-zinc-400 mt-1">
-              Mini test brut pour soumettre un formulaire de nouveau broker.
-            </p>
-          </div>
-
-          <form onSubmit={handleCreate} className="space-y-4">
-            
-            {/* Required Fields Group */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                  Nom *
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="Ex: Acme Corp"
-                  className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                  Email de contact *
-                </label>
-                <input
-                  type="email"
-                  name="emailContact"
-                  value={formData.emailContact}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="Ex: privacy@acme.com"
-                  className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                />
-              </div>
-            </div>
-
-            {/* Optional Web Info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                  Site Web
-                </label>
-                <input
-                  type="url"
-                  name="website"
-                  value={formData.website}
-                  onChange={handleInputChange}
-                  placeholder="https://acme.com"
-                  className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                  Lien Opt-Out
-                </label>
-                <input
-                  type="url"
-                  name="optOutUrl"
-                  value={formData.optOutUrl}
-                  onChange={handleInputChange}
-                  placeholder="https://acme.com/optout"
-                  className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                />
-              </div>
-            </div>
-
-            {/* Classifications */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                  Catégorie *
-                </label>
-                <select
-                  name="category"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                >
-                  <option value="people-search">People Search</option>
-                  <option value="marketing">Marketing</option>
-                  <option value="risk-mitigation">Risk Mitigation</option>
-                  <option value="recruitment">Recruitment</option>
-                  <option value="other">Other / Autre</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                  Région *
-                </label>
-                <select
-                  name="region"
-                  value={formData.region}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                >
-                  <option value="eu">Europe (EU)</option>
-                  <option value="us">États-Unis (US)</option>
-                  <option value="global">Global</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                  Code Pays (2 car.)
-                </label>
-                <input
-                  type="text"
-                  name="country"
-                  value={formData.country}
-                  onChange={handleInputChange}
-                  maxLength={2}
-                  placeholder="Ex: FR, US"
-                  className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                />
-              </div>
-            </div>
-
-            {/* Methods and Difficulty */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                  Méthode Opt-Out *
-                </label>
-                <select
-                  name="optOutMethod"
-                  value={formData.optOutMethod}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                >
-                  <option value="email">Email</option>
-                  <option value="form">Formulaire</option>
-                  <option value="postal">Postal</option>
-                  <option value="mixed">Mixte</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                  Difficulté *
-                </label>
-                <select
-                  name="difficulty"
-                  value={formData.difficulty}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                >
-                  <option value="easy">Facile (Easy)</option>
-                  <option value="medium">Moyen (Medium)</option>
-                  <option value="hard">Difficile (Hard)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                  Base Légale *
-                </label>
-                <select
-                  name="legalBasis"
-                  value={formData.legalBasis}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                >
-                  <option value="gdpr_art17">RGPD Art. 17</option>
-                  <option value="gdpr_art15">RGPD Art. 15</option>
-                  <option value="ccpa">CCPA</option>
-                  <option value="pipeda">PIPEDA</option>
-                  <option value="other">Autre</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                Notes
-              </label>
-              <textarea
-                name="notes"
-                value={formData.notes}
-                onChange={handleInputChange}
-                rows={3}
-                placeholder="Notes additionnelles ou observations..."
-                className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all resize-y"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={createLoading}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 px-4 rounded-lg disabled:bg-gray-400 dark:disabled:bg-zinc-800 cursor-pointer shadow-sm transition-all"
-            >
-              {createLoading ? 'Création en cours...' : 'Créer le Broker'}
-            </button>
-          </form>
-
-          {/* Creation Error */}
-          {createError && (
-            <div className="p-4 bg-red-50 text-red-800 rounded-lg border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/60 text-sm">
-              <strong className="font-semibold">Erreur de soumission :</strong>
-              <div className="mt-1">{createError}</div>
-            </div>
-          )}
-
-          {/* Creation Success / Raw Response Visualizer */}
-          {createResult && (
-            <div className="p-4 bg-green-50 text-green-800 rounded-lg border border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-900/60 text-sm space-y-2">
-              <div className="font-semibold text-green-900 dark:text-green-200">
-                Broker créé avec succès !
-              </div>
-              <div className="text-xs font-mono bg-white/70 dark:bg-zinc-950/60 p-2.5 rounded border border-green-200/50 dark:border-green-900/40 overflow-x-auto">
-                <pre>{JSON.stringify(createResult, null, 2)}</pre>
-              </div>
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* ================= SECTION 3: PLAYGROUND DE TEST (GET, PUT, PATCH, DELETE) ================= */}
-      <div className="border border-gray-200 dark:border-zinc-800 p-6 rounded-xl space-y-6 bg-white dark:bg-zinc-900/50 shadow-sm backdrop-blur-sm">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-zinc-100 flex items-center gap-2">
-            <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 font-mono text-[10px] font-bold">🛠️</span>
-            Playground de Test des Routes (GET / PUT / PATCH / DELETE)
-          </h2>
-          <p className="text-xs text-gray-500 dark:text-zinc-400 mt-1">
-            Recherchez un broker par son <strong>slug</strong> pour le visualiser, le modifier (PUT), le vérifier (PATCH) ou le supprimer (DELETE).
+          <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3" style={{ fontFamily: "'Squada One', sans-serif" }}>
+            <ShieldCheck className="w-8 h-8 text-[#FC7E34]" />
+            GESTION DES BROKERS
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Vérifiez les brokers proposés par les utilisateurs, modifiez ou supprimez les entrées du registre.
           </p>
         </div>
 
-        {/* Search bar */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1">
-            <input
-              type="text"
-              value={testSlug}
-              onChange={(e) => setTestSlug(e.target.value)}
-              placeholder="Saisir le slug (ex: acme-corp)"
-              className="w-full p-2.5 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
-            />
-          </div>
-          <button
-            onClick={handleLoadBroker}
-            disabled={testLoading}
-            className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2.5 px-6 rounded-lg disabled:bg-gray-400 dark:disabled:bg-zinc-800 cursor-pointer shadow-sm transition-all text-sm flex items-center justify-center gap-2"
+        <div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,.yaml,.yml"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) handleImportFile(f)
+              e.target.value = ''
+            }}
+          />
+          <Button
+            variant="outline"
+            className="gap-2"
+            disabled={importing}
+            onClick={() => fileInputRef.current?.click()}
           >
-            {testLoading ? 'Chargement...' : 'Charger le Broker (GET)'}
+            {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            Importer (.json / .yaml)
+          </Button>
+        </div>
+      </div>
+
+      {/* Feedback */}
+      <AnimatePresence>
+        {feedback && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+            className={`px-4 py-3 rounded-lg border text-sm ${
+              feedback.type === 'success'
+                ? 'bg-green-50 border-green-200 text-green-700'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}
+          >
+            {feedback.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:max-w-xl">
+        <div className="rounded-xl border border-border bg-white p-4 flex flex-col gap-1">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#FC7E34]">En attente</span>
+          <span className="text-3xl font-black text-[#253550]">{counts ? counts.pending : '—'}</span>
+          <span className="text-xs text-muted-foreground">à vérifier</span>
+        </div>
+        <div className="rounded-xl border border-border bg-white p-4 flex flex-col gap-1">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-green-600">Vérifiés</span>
+          <span className="text-3xl font-black text-[#253550]">{counts ? counts.verified : '—'}</span>
+          <span className="text-xs text-muted-foreground">dans le registre</span>
+        </div>
+        <div className="rounded-xl border border-border bg-white p-4 flex flex-col gap-1">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#253550]">Total</span>
+          <span className="text-3xl font-black text-[#253550]">{counts ? counts.pending + counts.verified : '—'}</span>
+          <span className="text-xs text-muted-foreground">brokers référencés</span>
+        </div>
+      </div>
+
+      {/* Tabs + recherche */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {TABS.map((t) => {
+          const active = tab === t.key
+          const Icon = t.icon
+          const count = t.key === 'all'
+            ? (counts ? counts.pending + counts.verified : null)
+            : t.key === 'pending' ? counts?.pending ?? null : counts?.verified ?? null
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border"
+              style={
+                active
+                  ? { backgroundColor: '#253550', color: '#F9F7F6', borderColor: '#253550' }
+                  : { backgroundColor: 'white', color: '#000401', borderColor: '#e5e3e1' }
+              }
+            >
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              {t.label}
+              {active && count !== null && (
+                <span className="text-xs px-1.5 py-0.5 rounded font-bold" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}>
+                  {count}
+                </span>
+              )}
+            </button>
+          )
+        })}
+
+        <div className="relative ml-auto w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher un broker…"
+            className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 focus:border-[#FC7E34] transition-colors"
+          />
+        </div>
+      </div>
+
+      {/* Table desktop */}
+      <div className="bg-card rounded-lg border border-border overflow-hidden">
+        <div className="hidden md:grid grid-cols-[2fr_1fr_1.2fr_1fr_1fr_auto] px-5 py-2.5 border-b border-border bg-muted/30 gap-3">
+          {['BROKER', 'CATÉGORIE', 'PROPOSÉ PAR'].map((h) => (
+            <span key={h} className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">{h}</span>
+          ))}
+          <button
+            onClick={() => setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+            className="flex items-center gap-1 text-xs font-semibold text-muted-foreground tracking-wide uppercase hover:text-foreground transition-colors w-fit"
+          >
+            AJOUTÉ LE
+            {sortOrder === 'desc' ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />}
           </button>
+          {['STATUT', 'ACTIONS'].map((h) => (
+            <span key={h} className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">{h}</span>
+          ))}
         </div>
 
-        {/* Form & Actions Panel */}
-        {testFormData && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-4 border-t border-gray-100 dark:border-zinc-800">
-            {/* Left: PUT Edit Form */}
-            <form onSubmit={handlePutUpdate} className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-zinc-300 border-b border-gray-100 dark:border-zinc-800 pb-2 flex items-center gap-1.5">
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">PUT</span>
-                Modifier les détails du Broker
-              </h3>
+        {loading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="px-5 py-4 border-b border-border last:border-0 flex items-center gap-3">
+              <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
+              <div className="space-y-1.5 flex-1"><Skeleton className="h-3.5 w-40" /><Skeleton className="h-3 w-24" /></div>
+              <Skeleton className="h-8 w-32 rounded-lg" />
+            </div>
+          ))
+        ) : brokersList.length === 0 ? (
+          <div className="px-5 py-16 text-center text-muted-foreground flex flex-col items-center gap-3">
+            <Database className="w-10 h-10 opacity-30" />
+            <p className="text-sm">Aucun broker dans cette catégorie.</p>
+          </div>
+        ) : (
+          <motion.div key={`${tab}-${page}-${debouncedSearch}`} variants={stagger} initial="hidden" animate="show">
+            {brokersList.map((broker) => {
+              const busy = busySlug === broker.slug
+              return (
+                <motion.div
+                  key={broker.id}
+                  variants={rowVariant}
+                  className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1.2fr_1fr_1fr_auto] px-5 py-4 border-b border-border last:border-0 items-center gap-3 hover:bg-accent/40 transition-colors"
+                >
+                  {/* Broker */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <img
+                      src={`https://www.google.com/s2/favicons?domain=${broker.website}&sz=32`}
+                      alt={broker.name}
+                      className="w-9 h-9 rounded-lg object-contain bg-muted p-1 shrink-0"
+                      onError={(e) => { (e.target as HTMLImageElement).src = '/icon.png' }}
+                    />
+                    <div className="min-w-0">
+                      <Link to={`/brokers/${broker.slug}`} className="text-base font-medium truncate block hover:underline">
+                        {broker.name}
+                      </Link>
+                      <p className="text-sm text-muted-foreground truncate">{broker.website ?? broker.emailContact}</p>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Catégorie */}
+                  <span className="hidden md:block text-sm text-muted-foreground">{categoryLabels[broker.category]}</span>
+
+                  {/* Proposé par */}
+                  <div className="hidden md:flex items-center gap-1.5 min-w-0">
+                    {broker.createdBy ? (
+                      <>
+                        <UserPlus className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+                        <span className="text-sm truncate" title={broker.createdByEmail ?? undefined}>
+                          {broker.createdByEmail ?? 'Utilisateur supprimé'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <BookMarked className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span className="text-sm text-muted-foreground">Registre par défaut</span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Ajouté le */}
+                  <span className="hidden md:block text-sm text-muted-foreground">{formatDate(broker.createdAt)}</span>
+
+                  {/* Statut */}
+                  <span className={`inline-flex w-fit items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap ${
+                    broker.isVerified
+                      ? 'bg-green-50 text-green-700 border-green-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}>
+                    {broker.isVerified
+                      ? <><CheckCircle2 className="w-3 h-3" /> Vérifié</>
+                      : <><AlertTriangle className="w-3 h-3" /> En attente</>}
+                  </span>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1.5 justify-end">
+                    {!broker.isVerified && (
+                      <Button
+                        size="sm"
+                        className="h-8 gap-1.5 text-xs bg-green-600 hover:bg-green-700 text-white"
+                        disabled={busy}
+                        onClick={() => handleVerify(broker)}
+                      >
+                        {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                        Vérifier
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline" size="icon" className="w-8 h-8"
+                      title="Modifier"
+                      disabled={busy}
+                      onClick={() => setEditing(broker)}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant="outline" size="icon"
+                      className="w-8 h-8 border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600"
+                      title="Supprimer"
+                      disabled={busy}
+                      onClick={() => handleDelete(broker)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </motion.div>
+              )
+            })}
+          </motion.div>
+        )}
+      </div>
+
+      {/* Pagination */}
+      {lastPage > 1 && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-xs text-muted-foreground">{total} broker{total > 1 ? 's' : ''} · page {page} sur {lastPage}</span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="icon" className="w-8 h-8" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Button variant="outline" size="icon" className="w-8 h-8" disabled={page === lastPage} onClick={() => setPage((p) => p + 1)}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal édition */}
+      <EditBrokerModal
+        broker={editing}
+        onClose={() => setEditing(null)}
+        onSaved={(name) => {
+          setEditing(null)
+          flash({ type: 'success', text: `${name} mis à jour.` })
+          refresh()
+        }}
+      />
+    </div>
+  )
+}
+
+// ─── Modal d'édition (PUT) ──────────────────────────────────────────────────────
+
+const CATEGORY_OPTIONS = Object.entries(categoryLabels)
+const REGION_OPTIONS = Object.entries(regionLabels)
+const DIFFICULTY_OPTIONS = Object.entries(difficultyLabels)
+const METHOD_OPTIONS: [string, string][] = [
+  ['email', 'Email'], ['form', 'Formulaire'], ['postal', 'Postal'], ['mixed', 'Mixte'],
+]
+const LEGAL_OPTIONS: [string, string][] = [
+  ['gdpr_art17', 'RGPD Art. 17'], ['gdpr_art15', 'RGPD Art. 15'],
+  ['ccpa', 'CCPA'], ['pipeda', 'PIPEDA'], ['other', 'Autre'],
+]
+
+function EditBrokerModal({ broker, onClose, onSaved }: {
+  broker: Broker | null
+  onClose: () => void
+  onSaved: (name: string) => void
+}) {
+  const [form, setForm] = useState<Partial<CreateBrokerInput>>({})
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!broker) return
+    setError('')
+    setForm({
+      name: broker.name,
+      emailContact: broker.emailContact,
+      website: broker.website ?? '',
+      optOutUrl: broker.optOutUrl ?? '',
+      category: broker.category,
+      region: broker.region,
+      country: broker.country ?? '',
+      optOutMethod: broker.optOutMethod as CreateBrokerInput['optOutMethod'],
+      difficulty: broker.difficulty,
+      legalBasis: broker.legalBasis,
+      notes: broker.notes ?? '',
+    })
+  }, [broker])
+
+  const set = (key: keyof CreateBrokerInput) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [key]: e.target.value }))
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!broker) return
+    setSaving(true)
+    setError('')
+    const payload = {
+      ...form,
+      website: form.website?.trim() || undefined,
+      optOutUrl: form.optOutUrl?.trim() || undefined,
+      country: form.country?.trim() || undefined,
+      notes: form.notes?.trim() || undefined,
+    }
+    const { broker: updated, error: err } = await updateBroker(broker.slug, payload)
+    setSaving(false)
+    if (err || !updated) { setError(err ?? 'Modification impossible.'); return }
+    onSaved(updated.name)
+  }
+
+  const inputCls = 'w-full h-9 px-3 rounded-lg border border-border bg-muted/40 text-sm focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 focus:border-[#FC7E34] transition-colors'
+  const labelCls = 'block text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5'
+
+  return (
+    <AnimatePresence>
+      {broker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => !saving && onClose()}
+          />
+          <motion.div
+            className="relative bg-background rounded-2xl border border-border shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            initial={{ opacity: 0, scale: 0.96, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 8 }}
+            transition={{ duration: 0.18 }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-border sticky top-0 bg-background">
+              <div>
+                <h2 className="text-lg font-semibold">Modifier le broker</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">{broker.name}</p>
+              </div>
+              <Button variant="ghost" size="icon" className="w-8 h-8 shrink-0" onClick={onClose} disabled={saving}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSave} className="px-6 py-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                    Nom
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={testFormData.name}
-                    onChange={handleTestInputChange}
-                    required
-                    className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                  />
+                  <label className={labelCls}>Nom *</label>
+                  <input type="text" required value={form.name ?? ''} onChange={set('name')} className={inputCls} />
                 </div>
-
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                    Email de contact
-                  </label>
-                  <input
-                    type="email"
-                    name="emailContact"
-                    value={testFormData.emailContact}
-                    onChange={handleTestInputChange}
-                    required
-                    className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                  />
+                  <label className={labelCls}>Email de contact *</label>
+                  <input type="email" required value={form.emailContact ?? ''} onChange={set('emailContact')} className={inputCls} />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                    Site Web
-                  </label>
-                  <input
-                    type="url"
-                    name="website"
-                    value={testFormData.website}
-                    onChange={handleTestInputChange}
-                    className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                  />
+                  <label className={labelCls}>Site web</label>
+                  <input type="text" value={form.website ?? ''} onChange={set('website')} placeholder="acme.com" className={inputCls} />
                 </div>
-
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                    Lien Opt-Out
-                  </label>
-                  <input
-                    type="url"
-                    name="optOutUrl"
-                    value={testFormData.optOutUrl}
-                    onChange={handleTestInputChange}
-                    className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                  />
+                  <label className={labelCls}>Lien opt-out</label>
+                  <input type="text" value={form.optOutUrl ?? ''} onChange={set('optOutUrl')} placeholder="https://acme.com/optout" className={inputCls} />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                    Catégorie
-                  </label>
-                  <select
-                    name="category"
-                    value={testFormData.category}
-                    onChange={handleTestInputChange}
-                    className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                  >
-                    <option value="people-search">People Search</option>
-                    <option value="marketing">Marketing</option>
-                    <option value="risk-mitigation">Risk Mitigation</option>
-                    <option value="recruitment">Recruitment</option>
-                    <option value="other">Other / Autre</option>
+                  <label className={labelCls}>Catégorie</label>
+                  <select value={form.category ?? ''} onChange={set('category')} className={inputCls}>
+                    {CATEGORY_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                    Région
-                  </label>
-                  <select
-                    name="region"
-                    value={testFormData.region}
-                    onChange={handleTestInputChange}
-                    className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                  >
-                    <option value="eu">Europe (EU)</option>
-                    <option value="us">États-Unis (US)</option>
-                    <option value="global">Global</option>
+                  <label className={labelCls}>Région</label>
+                  <select value={form.region ?? ''} onChange={set('region')} className={inputCls}>
+                    {REGION_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                    Pays (2 car.)
-                  </label>
-                  <input
-                    type="text"
-                    name="country"
-                    value={testFormData.country}
-                    onChange={handleTestInputChange}
-                    maxLength={2}
-                    className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                  />
+                  <label className={labelCls}>Pays (2 car.)</label>
+                  <input type="text" maxLength={2} value={form.country ?? ''} onChange={set('country')} placeholder="FR" className={inputCls} />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                    Méthode Opt-Out
-                  </label>
-                  <select
-                    name="optOutMethod"
-                    value={testFormData.optOutMethod}
-                    onChange={handleTestInputChange}
-                    className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                  >
-                    <option value="email">Email</option>
-                    <option value="form">Formulaire</option>
-                    <option value="postal">Postal</option>
-                    <option value="mixed">Mixte</option>
+                  <label className={labelCls}>Méthode opt-out</label>
+                  <select value={form.optOutMethod ?? ''} onChange={set('optOutMethod')} className={inputCls}>
+                    {METHOD_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                    Difficulté
-                  </label>
-                  <select
-                    name="difficulty"
-                    value={testFormData.difficulty}
-                    onChange={handleTestInputChange}
-                    className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                  >
-                    <option value="easy">Facile (Easy)</option>
-                    <option value="medium">Moyen (Medium)</option>
-                    <option value="hard">Difficile (Hard)</option>
+                  <label className={labelCls}>Difficulté</label>
+                  <select value={form.difficulty ?? ''} onChange={set('difficulty')} className={inputCls}>
+                    {DIFFICULTY_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                    Base Légale
-                  </label>
-                  <select
-                    name="legalBasis"
-                    value={testFormData.legalBasis}
-                    onChange={handleTestInputChange}
-                    className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                  >
-                    <option value="gdpr_art17">RGPD Art. 17</option>
-                    <option value="gdpr_art15">RGPD Art. 15</option>
-                    <option value="ccpa">CCPA</option>
-                    <option value="pipeda">PIPEDA</option>
-                    <option value="other">Autre</option>
+                  <label className={labelCls}>Base légale</label>
+                  <select value={form.legalBasis ?? ''} onChange={set('legalBasis')} className={inputCls}>
+                    {LEGAL_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                  Notes
-                </label>
+                <label className={labelCls}>Notes</label>
                 <textarea
-                  name="notes"
-                  value={testFormData.notes}
-                  onChange={handleTestInputChange}
-                  rows={2}
-                  className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all resize-y"
+                  rows={3}
+                  value={form.notes ?? ''}
+                  onChange={set('notes')}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-muted/40 text-sm focus:outline-none focus:ring-2 focus:ring-[#FC7E34]/30 focus:border-[#FC7E34] transition-colors resize-y"
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={testLoading}
-                className="w-full bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-4 rounded-lg disabled:bg-gray-400 dark:disabled:bg-zinc-800 cursor-pointer shadow-sm transition-all text-sm"
-              >
-                {testLoading ? 'Mise à jour...' : 'Mettre à jour le Broker (PUT)'}
-              </button>
+              {error && (
+                <div className="px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>Annuler</Button>
+                <Button
+                  type="submit" size="sm"
+                  className="gap-2 bg-[#FC7E34] hover:bg-[#e06e28] text-white"
+                  disabled={saving}
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+                  Enregistrer
+                </Button>
+              </div>
             </form>
-
-            {/* Right: Quick Actions & State Visualizer */}
-            <div className="space-y-6">
-              {/* Quick Actions (PATCH & DELETE) */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-zinc-300 border-b border-gray-100 dark:border-zinc-800 pb-2">
-                  Actions rapides
-                </h3>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button
-                    onClick={handlePatchVerify}
-                    disabled={testLoading}
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-lg disabled:bg-gray-400 dark:disabled:bg-zinc-800 cursor-pointer shadow-sm transition-all text-xs flex items-center justify-center gap-1.5"
-                  >
-                    <span className="px-1.5 py-0.5 rounded font-mono font-bold uppercase bg-indigo-800 text-indigo-100">PATCH</span>
-                    Vérifier le Broker (/verify)
-                  </button>
-
-                  <button
-                    onClick={handleDeleteBroker}
-                    disabled={testLoading}
-                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-medium py-2.5 px-4 rounded-lg disabled:bg-gray-400 dark:disabled:bg-zinc-800 cursor-pointer shadow-sm transition-all text-xs flex items-center justify-center gap-1.5"
-                  >
-                    <span className="px-1.5 py-0.5 rounded font-mono font-bold uppercase bg-rose-800 text-rose-100">DELETE</span>
-                    Supprimer le Broker
-                  </button>
-                </div>
-              </div>
-
-              {/* Status and Verification Badge info */}
-              <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-gray-100 dark:border-zinc-800 text-xs space-y-2">
-                <div className="font-semibold text-gray-700 dark:text-zinc-300">
-                  Détails d'état de l'entité chargée :
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-gray-600 dark:text-zinc-400 font-mono">
-                  <div>Statut vérifié :</div>
-                  <div className="font-semibold">
-                    {testResult?.isVerified ? (
-                      <span className="text-green-600 dark:text-green-400 flex items-center gap-1">✓ Vérifié</span>
-                    ) : (
-                      <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">⚠ Non vérifié</span>
-                    )}
-                  </div>
-                  <div>Créé le :</div>
-                  <div>{testResult?.createdAt ? new Date(testResult.createdAt).toLocaleString() : 'N/A'}</div>
-                  <div>Mis à jour le :</div>
-                  <div>{testResult?.updatedAt ? new Date(testResult.updatedAt).toLocaleString() : 'N/A'}</div>
-                  {testResult?.lastVerifiedAt && (
-                    <>
-                      <div>Vérifié le :</div>
-                      <div>{new Date(testResult.lastVerifiedAt).toLocaleString()}</div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Global Test Feedback / Results */}
-        {testError && (
-          <div className="p-4 bg-red-50 text-red-800 rounded-lg border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/60 text-sm">
-            <strong className="font-semibold">Erreur de test :</strong>
-            <div className="mt-1">{testError}</div>
-          </div>
-        )}
-
-        {testResult && (
-          <div className="p-4 bg-purple-50 text-purple-800 rounded-lg border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900/60 text-sm space-y-2">
-            <div className="font-semibold text-purple-900 dark:text-purple-200 flex items-center justify-between">
-              <span>Dernier retour de l'API (Response JSON) :</span>
-              <button
-                onClick={() => setTestResult(null)}
-                className="text-xs text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200 underline cursor-pointer"
-              >
-                Masquer
-              </button>
-            </div>
-            <div className="text-xs font-mono bg-white/70 dark:bg-zinc-950/60 p-2.5 rounded border border-purple-200/50 dark:border-purple-900/40 overflow-x-auto">
-              <pre>{JSON.stringify(testResult, null, 2)}</pre>
-            </div>
-          </div>
-        )}
-      </div>
-
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   )
 }

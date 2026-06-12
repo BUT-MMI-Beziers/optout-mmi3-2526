@@ -85,7 +85,7 @@ export async function listPasskeys(c: Context) {
 
 export async function deletePasskey(c: Context) {
   const userId: string = c.get('userId')
-  const passkeyId = c.req.param('id')
+  const passkeyId = c.req.param('id') as string
   const ok = await passkeyService.deletePasskey(passkeyId, userId)
   if (!ok) return c.json({ error: 'Introuvable ou non autorisé' }, 404)
   return c.json({ ok: true })

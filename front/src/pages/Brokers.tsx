@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   Scale,
   Plus,
+  UserPlus,
 } from "lucide-react"
 import { useBrokers } from "@/hooks/useBrokers"
 import { getBrokers } from "@/lib/api"
@@ -355,8 +356,8 @@ export default function Brokers() {
                   </Badge>
                 </div>
 
-                {/* Badge vérifié / non-vérifié */}
-                <div className="flex items-center gap-2 mt-2">
+                {/* Badges vérifié / non-vérifié + provenance */}
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
                   {broker.isVerified ? (
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={{ backgroundColor: "#dcfce7", color: "#15803d" }}>
                       <CheckCircle2 className="w-3 h-3" strokeWidth={2.5} />
@@ -366,6 +367,12 @@ export default function Brokers() {
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={{ backgroundColor: "#fef3c7", color: "#92400e" }}>
                       <AlertTriangle className="w-3 h-3" strokeWidth={2.5} />
                       À vérifier
+                    </span>
+                  )}
+                  {broker.createdBy && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={{ backgroundColor: "#ede9fe", color: "#6d28d9" }}>
+                      <UserPlus className="w-3 h-3" strokeWidth={2.5} />
+                      Ajouté
                     </span>
                   )}
                 </div>

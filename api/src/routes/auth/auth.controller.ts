@@ -188,9 +188,9 @@ export async function getSessions(c: Context) {
 // ── DELETE /api/auth/sessions/:id ──────────────────────────────────────────
 
 export async function revokeSessionById(c: Context) {
-  const userId = c.get('userId')
+  const userId = c.get('userId') as string
   const sessionId = c.get('sessionId')
-  const id = c.req.param('id')
+  const id = c.req.param('id') as string
   if (id === sessionId) return c.json({ error: 'Impossible de révoquer la session courante' }, 400)
   const ok = await authService.revokeSession(id, userId)
   if (!ok) return c.json({ error: 'Session introuvable' }, 404)
