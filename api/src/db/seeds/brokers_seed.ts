@@ -27,7 +27,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Accenture plc is an Irish multinational company that provides consulting and processing services.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Accuity",
@@ -42,7 +42,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Accuity – A LexisNexis® Risk Solutions Company",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "adsquare GmbH",
@@ -57,7 +57,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Adsquare is a location intelligence platform for marketers that helps brands connect people and places in a privacy-first world. They offer award-winning advertising solutions powered by location inte",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Altisource",
@@ -72,7 +72,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Servicer, Origination, Real Estate Investor, and Consumer Real Estate Solutions for mortgage and real estate professionals",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Audiencerate",
@@ -87,7 +87,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": null,
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Azerion US Inc.",
@@ -102,7 +102,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Azerion is a high-growth digital entertainment and media platform that connects advertisers, publishers, and game creators globally through technology solutions for digital advertising automation, rea",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Blis Global Ltd",
@@ -117,7 +117,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Blis is an integrated planning and buying platform that delivers scaled, relevant, and high-performing audiences, helping the world’s largest brands and media agencies achieve their goals. Blis adhere",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "BoardEx LLC",
@@ -132,7 +132,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "BoardEx provides actionable people intelligence for organizations by mapping relationship paths to 1.7 million executives worldwide. As part of AltrataOfficial, BoardEx helps clients identify trusted ",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Brandwatch",
@@ -147,7 +147,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Brandwatch is a digital consumer intelligence company headquartered in Brighton, England.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Cognism",
@@ -162,7 +162,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Cognism is GDPR-compliant B2B sales and marketing lead generation platform, providing B2B revenue teams with a blend of real-time company, people and event data to streamline prospecting, find and del",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Criteo",
@@ -177,7 +177,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Criteo is an advertising company that provides online display advertisements.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Databroker",
@@ -192,7 +192,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Databroker is an impartial UK list broker providing quality B2B marketing lists including Mailing lists, Email & Telemarketing Data. Request a FREE sample.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Emailmovers Ltd",
@@ -207,7 +207,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Emailmovers is a leading global email marketing consultancy providing comprehensive email solutions for over 18 years, including data, design, and delivery services.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "eSite Analytics, Inc.",
@@ -222,7 +222,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Kalibrate is a global company that provides data, consulting, and retail analytics platforms to businesses worldwide. With over 20 years of experience, Kalibrate has advised over 300 fuel and convenie",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Everyclick",
@@ -237,7 +237,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Make Everyclick your new search engine and you can help your favourite charity when you search the web.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Evorra",
@@ -252,7 +252,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Evorra is a SaaS marketplace for brands and agencies to simply build and scale the most valuable audiences in the world while respecting privacy and providing data source transparency.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Excite Education",
@@ -267,7 +267,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Your link to #onlineeducation education programs, news, study resources, #studentproblems and much more!",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Fifty",
@@ -282,7 +282,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": null,
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Findmypast",
@@ -297,7 +297,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Findmypast is a UK-based online genealogy service owned, since 2007, by British company DC Thomson.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Halfspace",
@@ -312,7 +312,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Halfspace Group is a company that specializes in data management, processing, and utilization. They believe that effective data management can unlock commercial growth for their clients. Their goal is",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Hybrid Theory",
@@ -327,7 +327,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "We are Hybrid Theory, a new breed of digital services partner. We make the complex simple.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "ID5 Technology",
@@ -342,7 +342,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "ID5 is a leading identity provider in digital advertising, offering addressability and data protection technologies to enhance engagement and compliance globally.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "IHS Markit",
@@ -357,7 +357,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "IHS Markit Ltd is an American-British information provider based in London.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Informa Plc",
@@ -372,7 +372,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Informa PLC is a British multinational publishing, business intelligence, and exhibitions group.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Ipsos",
@@ -387,7 +387,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Ipsos is a global market research company specialized in advertising, loyalty, marketing, media, and public affairs market research. They provide accurate and relevant information to help clients make",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "L.S. Mobile Apps Holding Ltd",
@@ -402,7 +402,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "LSM Apps is a company that provides a contacts management app called Easy Contacts. This app allows users to easily manage their contacts by providing features such as backup, cleanup, and caller ID. ",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Locate Family",
@@ -417,7 +417,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "LocateFamily.com is a leading online platform that provides a range of services to help individuals locate and connect with their family members. Our user-friendly website allows users to search for a",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "loopme.com",
@@ -432,7 +432,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "LoopMe is a technology company that uses artificial intelligence (AI) to improve brand advertising performance and outcomes. LoopMe's core business helps brands and agencies achieve better advertising",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Matchbook Data LLC",
@@ -447,7 +447,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Matchbook is an identity resolution solution that helps clients connect the dots between customers and prospects in a fragmented data and marketing landscape. It allows clients to find the right audie",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Mimecast",
@@ -462,7 +462,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Mimecast provides cutting-edge email protection, archiving, and continuity services for over 42,000 organizations globally, ensuring secure business communications and data management.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Monevo Inc.",
@@ -477,7 +477,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Monevo is a leading B2B personal credit platform and API that connects consumers with lenders globally, aiming to be the central infrastructure for personal credit distribution worldwide.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "OnAudience Ltd",
@@ -492,7 +492,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "OnAudience is a global data provider that fuels digital campaigns and business solutions through high-quality data with global reach. They offer privacy-safe and GDPR-compliant data in over 200 market",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Outlogic",
@@ -507,7 +507,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Outlogic is a provider of location data for the retail, real estate, and financial markets. Outlogic has exemplified high standards and best practices for the collection and use of location data while",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Pathway Ventures LLC",
@@ -522,7 +522,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": null,
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Permutive",
@@ -537,7 +537,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "The only publisher data platform built on edge computing. Get a demo today to find out how to grow data-driven ad revenue and succesfully diversify revenue.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "PwC",
@@ -552,7 +552,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "PwC is a global network of firms delivering world-class assurance, tax, and consulting services for your business.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Quotient",
@@ -567,7 +567,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Quotient's brand marketing tools help you target, optimize, and measure campaigns to drive engagement, valuable outcomes and maximize ROI. Learn more.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "RE-HOLD",
@@ -582,7 +582,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Address and Property Directory | Rehold Complete US Address Directory. Search Address. Input your search on the residential or business property in the required field. Search can include house number,",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Rhetorik",
@@ -597,7 +597,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "The leading database of UK, EMEA and AsiaPac enterprise technology buyers. The leading data cleaning tools. Accelerate sales, drive growth.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "SciLeads",
@@ -612,7 +612,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": null,
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "SearchQuarry.com",
@@ -627,7 +627,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Search by name, phone number, license plate number, or VIN. View background records, civil records, liens, contact info, & more.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Semasio",
@@ -642,7 +642,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "The days of “black box” targeting platforms are ending – gain complete control, transparency and ownership of your custom audience creation with Semasio.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Sirdata",
@@ -657,7 +657,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Sirdata offers a suite of multi-lever data solutions combining operational, technological and consulting expertise",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "VEROMI",
@@ -672,7 +672,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "VEROMI is a technology company that specializes in providing identity verification solutions. Our advanced platform utilizes cutting-edge technology to verify the identity of individuals in real-time.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "yasni",
@@ -687,7 +687,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "Search phone, email, address for any name. News, pictures & links for any person. Find anyone on the internet with the world's largest free people search.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Zeotap",
@@ -702,7 +702,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "gdpr_art17",
     "notes": "We are an award-winning agile technology company that empowers the safe use of telecom data globally across different industries starting with mobile advertising. As a team, we are driven entrepreneur",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Acxiom",
@@ -717,7 +717,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Acxiom is a Conway, Arkansas-based database marketing company.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "BeenVerified.com",
@@ -732,7 +732,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Search public records & VIN numbers online. Uncover names, phone numbers, addresses & emails. Check vehicle history for all car make & models. Start your search today!",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Clearbit",
@@ -747,7 +747,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "The marketing data engine to deeply understand your customers, identify future prospects, & personalize every single marketing & sales interaction.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Epsilon",
@@ -762,7 +762,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Epsilon® is an all-encompassing global marketing innovator. We provide unrivaled data intelligence and customer insights, world-class technology including loyalty, email and CRM platforms and data-dri",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Equifax",
@@ -777,7 +777,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Get your credit report and Equifax credit score plus identity protection tools with daily monitoring and alerts today!",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Experian",
@@ -792,7 +792,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Experian is committed to helping you protect, understand, and improve your credit. Start with your free Experian credit report and FICO® score.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Experian's Clarity Services",
@@ -807,7 +807,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Experian's Clarity Services is a credit bureau that provides reporting on near-prime, non-prime and subprime consumers.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "FullContact",
@@ -822,7 +822,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "FullContact Inc. is a privately held technology company that provides a suite of cloud-based software products for businesses, developers, and brands.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Instant Checkmate",
@@ -837,7 +837,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Instant Checkmate is an online service that provides people finder, public record and criminal record information to individuals on a subscription basis. Instant Checkmate aggregates data from federal",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "instantpeoplefinder.com",
@@ -852,7 +852,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": null,
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Intelius",
@@ -867,7 +867,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Intelius, Inc. is a public records business headquartered in Seattle, Washington, United States.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "LexisNexis",
@@ -882,7 +882,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "LexisNexis is a leading global provider of legal, regulatory & business info & analytics. Get 24/7 help at https://t.co/CMPkdNEm6A or 800-543-6862",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Lusha",
@@ -897,7 +897,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Lusha provides high quality, unique premium data where you need it most: On social networks & the web, in Salesforce or directly to your product.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Lusha Systems Inc.",
@@ -912,7 +912,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Lusha provides high quality, unique premium data where you need it most: On social networks, the web, Salesforce or directly on your product. B2B engagement is based on trust. Lusha helps you build th",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "MyLife.com",
@@ -927,7 +927,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Background Report, Get contact info & detailed background reports on anyone today at MyLife; Search others now or check & edit your own background report",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Nielsen",
@@ -942,7 +942,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Nielsen Holdings PLC is an American, UK-domiciled, information, data and market measurement firm.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "peoplefinder.com",
@@ -957,7 +957,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Find people instantly. Search for someone by  their name, phone number or address. Inteilus provides phone numbers, previous addresses and background checks.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "peoplefinderonline.net",
@@ -972,7 +972,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": null,
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "PeopleFinders",
@@ -987,7 +987,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "484889 peoplefinders.com is a public records business located in Sacramento, California.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "peoplefindersdaas.com",
@@ -1002,7 +1002,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": null,
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "PeopleLooker",
@@ -1017,7 +1017,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Find social media accounts with ease. Lookup Twitter & LinkedIn profiles. Run a background check to uncover public records, email addresses, phone numbers and much more.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "PeopleSmart",
@@ -1032,7 +1032,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "PeopleSmart helps you find business contact info for millions of professionals. Search for prospects by          company, job title, industry, or social profile.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Pipl",
@@ -1047,7 +1047,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Pipl is a people data company that makes it easy for anyone to get contact, social, demographic and professional information about people.    At Pipl’s core is its proprietary identity resolution engi",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Radaris",
@@ -1062,7 +1062,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Radaris is a public records search engine. With Radaris you can find anyone in the United States and get their contact information or learn about their professional history. At Radaris each person has",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "RocketReach",
@@ -1077,7 +1077,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "RocketReach is the most accurate and intuitive contact discovery tool, trusted by FORTUNE 500 companies including Google, Apple, Bank of America, Morgan Stanley, just to name a few.    RocketReach all",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Spokeo",
@@ -1092,7 +1092,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "People search engine and free white pages finds phone, address, email, and photos. Find people by name, email, address, and phone for free.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "TransUnion",
@@ -1107,7 +1107,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "TransUnion is an American consumer credit reporting agency.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "TruthFinder",
@@ -1122,7 +1122,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "TruthFinder is one of America’s most trusted background checking services. We provide an easy way to look up criminal records online.  Try a search today!",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "Whitepages",
@@ -1137,7 +1137,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "Free White Pages to find people by name, phone number, email address, street address and much more.",
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "whitepages.plus",
@@ -1152,7 +1152,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": null,
-    "isVerified": false
+    "isVerified": true
   },
   {
     "name": "ZoomInfo",
@@ -1167,7 +1167,7 @@ export async function seedBrokers(database: any = db) {
     "difficulty": "medium",
     "legalBasis": "ccpa",
     "notes": "ZoomInfo Technologies Inc. is an American subscription-based software as a service company based in Vancouver, Washington that sells access to its database of information about business people and com",
-    "isVerified": false
+    "isVerified": true
   }
 ])
 

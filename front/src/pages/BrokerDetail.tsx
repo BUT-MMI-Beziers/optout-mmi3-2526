@@ -20,6 +20,8 @@ import {
   AlertTriangle,
   Scale,
   Globe,
+  BookMarked,
+  UserPlus,
 } from "lucide-react"
 import {
   categoryLabels,
@@ -154,6 +156,17 @@ export default function BrokerDetail() {
                 À vérifier
               </span>
             )}
+            {broker.createdBy ? (
+              <span className="text-sm font-semibold px-3 py-1 rounded-full inline-flex items-center gap-1.5" style={{ backgroundColor: "#ede9fe", color: "#6d28d9" }}>
+                <UserPlus className="w-4 h-4" strokeWidth={2.5} />
+                Ajouté par la communauté
+              </span>
+            ) : (
+              <span className="text-sm font-semibold px-3 py-1 rounded-full inline-flex items-center gap-1.5" style={{ backgroundColor: "#e6eaf0", color: "#253550" }}>
+                <BookMarked className="w-4 h-4" strokeWidth={2.5} />
+                Registre par défaut
+              </span>
+            )}
           </div>
 
           <a href={websiteUrl} target="_blank" rel="noopener noreferrer" className="text-base text-muted-foreground hover:underline inline-flex items-center gap-1.5">
@@ -232,12 +245,26 @@ export default function BrokerDetail() {
                   {legalLabel[broker.legalBasis]}
                 </span>
               </div>
-              {broker.lastVerifiedAt ? (
+              <div className="flex items-start gap-3">
+                <span className="text-muted-foreground shrink-0 w-32">Source :</span>
+                <span className="font-medium inline-flex items-center gap-1.5">
+                  {broker.createdBy
+                    ? <><UserPlus className="w-4 h-4 text-violet-600" /> Ajouté par la communauté le {formatDate(broker.createdAt)}</>
+                    : <><BookMarked className="w-4 h-4" /> Registre par défaut</>}
+                </span>
+              </div>
+              {broker.isVerified && (
                 <div className="flex items-start gap-3">
-                  <span className="text-muted-foreground shrink-0 w-32">Vérifié le :</span>
-                  <span className="font-medium">{formatDate(broker.lastVerifiedAt)}</span>
+                  <span className="text-muted-foreground shrink-0 w-32">Vérifié :</span>
+                  <span className="font-medium inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                    {broker.lastVerifiedAt ? `le ${formatDate(broker.lastVerifiedAt)}` : "—"}
+                    {broker.verifiedByEmail
+                      ? ` · par ${broker.verifiedByEmail}`
+                      : !broker.createdBy ? " · registre officiel" : ""}
+                  </span>
                 </div>
-              ) : null}
+              )}
             </CardContent>
           </Card>
 

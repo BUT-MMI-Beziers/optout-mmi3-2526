@@ -9,6 +9,7 @@ import {
   Clock,
   User,
   Settings,
+  ShieldCheck,
   ChevronDown,
 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -85,6 +86,21 @@ export default function MainLayout() {
           {navItems.map((item) => (
             <NavItem key={item.to} {...item} active={isActive(item.to)} />
           ))}
+
+          {/* Section admin — visible uniquement pour les administrateurs */}
+          {user?.role === 'admin' && (
+            <>
+              <p className="px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Administration
+              </p>
+              <NavItem
+                label="Gestion brokers"
+                icon={ShieldCheck}
+                to="/admin/brokers"
+                active={isActive('/admin/brokers')}
+              />
+            </>
+          )}
         </nav>
 
         {/* Nav bas */}

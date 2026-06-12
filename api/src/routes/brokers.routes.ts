@@ -1,9 +1,11 @@
 import { Hono } from 'hono'
 import { db } from '../db/index.js'
-import { brokers } from '../db/schema.js'
-import { and, eq, ilike } from 'drizzle-orm'
+import { brokers, users } from '../db/schema.js'
+import { and, asc, desc, eq, getTableColumns, ilike } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import * as yaml from 'js-yaml'
-import { authMiddleware, adminGuard } from './auth/auth.middleware.js'
+import { authMiddleware, adminGuard, isAdminRequest } from './auth/auth.middleware.js'
+import { notifyUser } from '../services/notification.service.js'
 
 const brokersRoute = new Hono()
 
@@ -62,16 +64,29 @@ brokersRoute.get('/', async (c) => {
       : await countQuery
     const total = allMatching.length
 
-    // 2. Récupérer les éléments paginés
-    const dataQuery = db.select().from(brokers)
+    // Tri : ?sort=createdAt|name (défaut name) et ?order=asc|desc (défaut asc)
+    const sortParam = c.req.query('sort')
+    const orderFn = c.req.query('order') === 'desc' ? desc : asc
+    const sortCol = sortParam === 'createdAt' ? brokers.createdAt : brokers.name
+
+    // 2. Récupérer les éléments paginés (+ email du proposeur pour le panel admin)
+    const dataQuery = db
+      .select({ ...getTableColumns(brokers), createdByEmail: users.email })
+      .from(brokers)
+      .leftJoin(users, eq(brokers.createdBy, users.id))
     const results = conditions.length > 0
-      ? await dataQuery.where(and(...conditions)).limit(perPage).offset(offset)
-      : await dataQuery.limit(perPage).offset(offset)
+      ? await dataQuery.where(and(...conditions)).orderBy(orderFn(sortCol)).limit(perPage).offset(offset)
+      : await dataQuery.orderBy(orderFn(sortCol)).limit(perPage).offset(offset)
+
+    // L'email du proposeur n'est visible que par les admins. Les utilisateurs
+    // normaux voient seulement si le broker est par défaut (createdBy null) et sa date.
+    const admin = await isAdminRequest(c.req.header('Cookie'))
+    const data = admin ? results : results.map(({ createdByEmail, ...rest }) => rest)
 
     const lastPage = Math.ceil(total / perPage) || 1
 
     return c.json({
-      data: results,
+      data,
       total,
       currentPage: page,
       lastPage
@@ -88,6 +103,7 @@ brokersRoute.get('/', async (c) => {
 // et la suppression restent réservées aux admins (voir routes plus bas).
 brokersRoute.post('/', authMiddleware, async (c) => {
   const body = await c.req.json()
+  const userId = c.get('userId') as string
 
   const required = ['name', 'emailContact', 'category',
     'region', 'optOutMethod', 'difficulty', 'legalBasis']
@@ -121,6 +137,7 @@ brokersRoute.post('/', authMiddleware, async (c) => {
         legalBasis:   body.legalBasis,
         notes:        body.notes        ?? null,
         isVerified:   false,
+        createdBy:    userId,
       })
       .returning()
 
@@ -164,7 +181,8 @@ brokersRoute.get('/export', async (c) => {
 })
 
 // ─── POST /brokers/import ────────────────────────────────
-brokersRoute.post('/import', async (c) => {
+// Import en masse réservé aux admins (insère des brokers potentiellement vérifiés).
+brokersRoute.post('/import', authMiddleware, adminGuard, async (c) => {
 
   const contentType = c.req.header('Content-Type') ?? ''
   let list: any[]
@@ -224,14 +242,32 @@ brokersRoute.post('/import', async (c) => {
 brokersRoute.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
 
+  // Deux alias sur users : le proposeur (created_by) et l'admin vérificateur (verified_by)
+  const creator = alias(users, 'creator')
+  const verifier = alias(users, 'verifier')
+
   const [broker] = await db
-    .select()
+    .select({
+      ...getTableColumns(brokers),
+      createdByEmail: creator.email,
+      verifiedByEmail: verifier.email,
+    })
     .from(brokers)
+    .leftJoin(creator, eq(brokers.createdBy, creator.id))
+    .leftJoin(verifier, eq(brokers.verifiedBy, verifier.id))
     .where(eq(brokers.slug, slug))
     .limit(1)
 
   if (!broker) {
     return c.json({ error: 'Broker introuvable' }, 404)
+  }
+
+  // Email du proposeur réservé aux admins ; verifiedByEmail reste public
+  // (affiché sur la fiche : « vérifié par X le … »).
+  const admin = await isAdminRequest(c.req.header('Cookie'))
+  if (!admin) {
+    const { createdByEmail, ...rest } = broker
+    return c.json(rest)
   }
 
   return c.json(broker)
@@ -296,12 +332,14 @@ brokersRoute.delete('/:slug', authMiddleware, adminGuard, async (c) => {
 // ─── PATCH /brokers/:slug/verify ─────────────────────────
 brokersRoute.patch('/:slug/verify', authMiddleware, adminGuard, async (c) => {
   const slug = c.req.param('slug')
+  const userId = c.get('userId') as string
 
   const [verifiedBroker] = await db
     .update(brokers)
     .set({
       isVerified: true,
       lastVerifiedAt: new Date(),
+      verifiedBy: userId,
       updatedAt: new Date(),
     })
     .where(eq(brokers.slug, slug))
@@ -309,6 +347,13 @@ brokersRoute.patch('/:slug/verify', authMiddleware, adminGuard, async (c) => {
 
   if (!verifiedBroker) {
     return c.json({ error: 'Broker introuvable' }, 404)
+  }
+
+  // Prévenir l'utilisateur qui a proposé ce broker que sa proposition est validée.
+  if (verifiedBroker.createdBy) {
+    await notifyUser(verifiedBroker.createdBy, 'confirmation', {
+      message: `Votre proposition de broker « ${verifiedBroker.name} » a été vérifiée et ajoutée au registre. Merci pour votre contribution !`,
+    }).catch((e) => console.error('[PATCH /brokers/:slug/verify] notif échouée :', e))
   }
 
   return c.json(verifiedBroker)
