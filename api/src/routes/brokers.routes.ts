@@ -83,7 +83,10 @@ brokersRoute.get('/', async (c) => {
 })
 
 // ─── POST /brokers ───────────────────────────────────────
-brokersRoute.post('/', async (c) => {
+// Tout utilisateur authentifié peut proposer un broker. Il est créé en attente
+// de vérification (isVerified: false, forcé ici). La vérification, la modification
+// et la suppression restent réservées aux admins (voir routes plus bas).
+brokersRoute.post('/', authMiddleware, async (c) => {
   const body = await c.req.json()
 
   const required = ['name', 'emailContact', 'category',
