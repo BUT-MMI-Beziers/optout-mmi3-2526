@@ -1,6 +1,5 @@
 # Documentation des routes développées par l'équipe violet :
 # - Gestion des demandes de suppression RGPD (requests)
-# - Notifications utilisateur
 # - Statistiques globales
 
 openapi: 3.0.3
@@ -169,8 +168,6 @@ tags:
     description: Templates d'emails RGPD
   - name: Requests
     description: Gestion des demandes de suppression RGPD
-  - name: Users
-    description: Notifications utilisateur
   - name: Stats
     description: Statistiques globales de l'utilisateur connecté
 
@@ -1237,139 +1234,6 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: Erreur serveur
-                code: INTERNAL_SERVER_ERROR
-
-  # ─────────────────────────────────────────────────────────────
-  # USERS — NOTIFICATIONS
-  # ─────────────────────────────────────────────────────────────
-
-  /users/me/notifications:
-    get:
-      tags: [Users]
-      summary: Lister les notifications de l'utilisateur
-      description: |
-        Retourne toutes les notifications de l'utilisateur, triées de la
-        plus récente à la plus ancienne. Le tableau peut être vide.
-
-        **Note** : l'`userId` est passé en query param en attendant
-        l'intégration complète du middleware JWT.
-      parameters:
-        - name: user_id
-          in: query
-          required: true
-          description: UUID de l'utilisateur
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Liste des notifications (tableau vide si aucune)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Notification'
-              example:
-                data:
-                  - id: "uuid-notif"
-                    userId: "uuid-user"
-                    requestId: "uuid-request"
-                    message: "Le broker Accenture n'a pas répondu depuis 30 jours."
-                    isRead: false
-                    createdAt: "2026-06-10T09:00:00.000Z"
-        '400':
-          description: user_id absent ou UUID invalide
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: user_id est requis et doit être un UUID valide.
-                code: BAD_REQUEST
-        '404':
-          description: Utilisateur introuvable
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: Utilisateur introuvable.
-                code: NOT_FOUND
-        '500':
-          description: Erreur interne
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: Erreur interne lors de la récupération des notifications.
-                code: INTERNAL_SERVER_ERROR
-
-  /users/me/notifications/{id}:
-    patch:
-      tags: [Users]
-      summary: Marquer une notification comme lue
-      description: |
-        Met à jour le champ `isRead` à `true` pour la notification ciblée.
-
-        **Idempotent** : appeler la route sur une notification déjà lue
-        ne produit pas d'erreur — la notification est simplement retournée.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: UUID de la notification à marquer comme lue
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Notification mise à jour
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    $ref: '#/components/schemas/Notification'
-              example:
-                data:
-                  id: "uuid-notif"
-                  userId: "uuid-user"
-                  requestId: "uuid-request"
-                  message: "Le broker Accenture n'a pas répondu depuis 30 jours."
-                  isRead: true
-                  createdAt: "2026-06-10T09:00:00.000Z"
-        '400':
-          description: UUID invalide
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: "Format d'identifiant invalide. Un UUID est attendu."
-                code: BAD_REQUEST
-        '404':
-          description: Notification introuvable
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: Notification introuvable.
-                code: NOT_FOUND
-        '500':
-          description: Erreur interne
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: Erreur interne lors de la mise à jour de la notification.
                 code: INTERNAL_SERVER_ERROR
 
   # ─────────────────────────────────────────────────────────────
