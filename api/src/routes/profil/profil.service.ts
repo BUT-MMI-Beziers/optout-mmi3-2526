@@ -109,6 +109,12 @@ export async function updatePreferences(
   const current = await getPreferences(userId)
   if (!current) return null
 
+  // Langue : on n'accepte que 'fr' ou 'en', sinon on garde l'existant (défaut 'fr').
+  const emailLanguage: 'fr' | 'en' =
+    patch.emailLanguage === 'fr' || patch.emailLanguage === 'en'
+      ? patch.emailLanguage
+      : (current.emailLanguage ?? 'fr')
+
   const merged: UserPreferences = {
     notifications: {
       confirmation: patch.notifications?.confirmation ?? current.notifications.confirmation,
@@ -119,6 +125,7 @@ export async function updatePreferences(
       enabled: patch.reminders?.enabled ?? current.reminders.enabled,
       delayDays: patch.reminders?.delayDays ?? current.reminders.delayDays,
     },
+    emailLanguage,
   }
 
   // Coercition booléenne + clamp du délai

@@ -83,6 +83,9 @@ brokersRoute.get('/', authMiddleware, async (c) => {
 })
 
 // ─── POST /brokers ───────────────────────────────────────
+// Tout utilisateur authentifié peut proposer un broker. Il est créé en attente
+// de vérification (isVerified: false, forcé ici). La vérification, la modification
+// et la suppression restent réservées aux admins (voir routes plus bas).
 brokersRoute.post('/', authMiddleware, async (c) => {
   const body = await c.req.json()
 
@@ -93,6 +96,12 @@ brokersRoute.post('/', authMiddleware, async (c) => {
     if (!body[field]) {
       return c.json({ error: `Champ manquant : ${field}` }, 400)
     }
+  }
+
+  // L'email de contact doit avoir un format valide (pas seulement être présent).
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(body.emailContact)) {
+    return c.json({ error: "Format d'email invalide pour l'email de contact" }, 400)
   }
 
   try {

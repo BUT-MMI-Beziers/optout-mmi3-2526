@@ -1,0 +1,1 @@
+ALTER TABLE "users" ALTER COLUMN "preferences" SET DEFAULT '{"notifications":{"confirmation":true,"relance":true,"refus":true},"reminders":{"enabled":true,"delayDays":30},"emailLanguage":"fr"}'::jsonb;

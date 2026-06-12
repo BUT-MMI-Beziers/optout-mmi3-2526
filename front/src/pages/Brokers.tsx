@@ -5,6 +5,7 @@ const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0
 const cardVar: Variants = { hidden: { opacity: 0, x: -12 }, show: { opacity: 1, x: 0, transition: { duration: 0.22 } } }
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -25,6 +26,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Scale,
+  Plus,
 } from "lucide-react"
 import { useBrokers } from "@/hooks/useBrokers"
 import { getBrokers } from "@/lib/api"
@@ -156,7 +158,7 @@ export default function Brokers() {
       </nav>
 
       {/* ─── Header ─────────────────────────────────────────── */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-4xl font-bold uppercase tracking-wide" style={{ fontFamily: "'Squada One', sans-serif", color: "#000401" }}>
             Registre des brokers
@@ -165,6 +167,13 @@ export default function Brokers() {
             Tous les data brokers connus, leurs catégories et l'état de vos demandes de suppression.
           </p>
         </div>
+        <Button
+          onClick={() => navigate("/brokers/new")}
+          className="bg-[#FC7E34] hover:bg-[#e06e28] text-white gap-2 h-10 px-5 shrink-0"
+        >
+          <Plus className="w-4 h-4" />
+          Proposer un broker
+        </Button>
       </div>
 
       {/* ─── Barre de recherche ─────────────────────────────── */}
