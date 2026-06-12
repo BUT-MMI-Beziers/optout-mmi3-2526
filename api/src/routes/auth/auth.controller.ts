@@ -73,6 +73,8 @@ export async function register(c: Context) {
     firstName,
     lastName,
   })
+  // Pré-remplit le profil avec l'email du compte.
+  await authService.ensureEmailContact(user.id, user.email)
   const session = await authService.createSession(user.id, getClientIp(c), c.req.header('user-agent'))
   const tokens = await authService.generateTokens(user.id, user.role, session.id)
 
@@ -108,6 +110,9 @@ export async function login(c: Context) {
   if (!valid) {
     return c.json({ error: 'Identifiants invalides' }, 401)
   }
+
+  // Backfill : garantit que l'email du compte est dans le profil (anciens comptes).
+  await authService.ensureEmailContact(user.id, user.email)
 
   // Si 2FA activée → émettre un temp token, pas de cookies
   if (user.totpEnabled) {

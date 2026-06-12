@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Bell, RefreshCw, Loader2 } from 'lucide-react'
+import { Bell, RefreshCw, Loader2, Languages } from 'lucide-react'
 import {
   getPreferences,
   updatePreferences,
@@ -106,8 +106,15 @@ export default function Settings() {
     }, 500)
   }
 
+  // Langue des templates d'email — mise à jour optimiste + PATCH.
+  const changeLanguage = (emailLanguage: 'fr' | 'en') => {
+    setPrefs((prev) => ({ ...prev, emailLanguage }))
+    updatePreferences({ emailLanguage })
+  }
+
   const activeCount = Object.values(prefs.notifications).filter(Boolean).length
   const { enabled, delayDays } = prefs.reminders
+  const emailLanguage = prefs.emailLanguage ?? 'fr'
 
   return (
     <div className="p-4 md:p-8 space-y-5">
@@ -206,6 +213,37 @@ export default function Settings() {
                       <span className="text-xs text-muted-foreground">{row.label}</span>
                     </div>
                   ))}
+                </div>
+              </div>
+            </motion.div>
+
+            {/* ── Section 03 : Langue des emails ── */}
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }} className="rounded-2xl border border-border bg-white overflow-hidden mb-5">
+              <SectionHeader icon={Languages} label="Langue des emails" />
+              <div className="px-8 py-7">
+                <h2 className="text-xl font-semibold tracking-tight text-[#253550] mb-2">La langue de vos demandes</h2>
+                <p className="text-sm text-muted-foreground mb-6 max-w-2xl">
+                  Choisissez la langue des emails envoyés aux brokers. Le template par défaut sera pré-sélectionné dans cette langue.
+                </p>
+                <div className="inline-flex rounded-xl border border-border overflow-hidden">
+                  {([
+                    { value: 'fr' as const, label: 'Français', flag: '🇫🇷' },
+                    { value: 'en' as const, label: 'English', flag: '🇬🇧' },
+                  ]).map((opt) => {
+                    const active = emailLanguage === opt.value
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => changeLanguage(opt.value)}
+                        className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium transition-colors ${
+                          active ? 'bg-[#FC7E34] text-white' : 'bg-white text-[#253550] hover:bg-gray-50'
+                        }`}
+                      >
+                        <span>{opt.flag}</span>
+                        {opt.label}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </motion.div>

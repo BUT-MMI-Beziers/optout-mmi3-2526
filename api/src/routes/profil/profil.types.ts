@@ -50,10 +50,11 @@ export interface UpdateProfilBody {
   lastName?: string
 }
 
-// PATCH /users/me/preferences — patch partiel des préférences (notifs et/ou relances)
+// PATCH /users/me/preferences — patch partiel des préférences (notifs, relances, langue)
 export interface UpdatePreferencesBody {
   notifications?: Partial<{ confirmation: boolean; relance: boolean; refus: boolean }>
   reminders?: Partial<{ enabled: boolean; delayDays: number }>
+  emailLanguage?: 'fr' | 'en'
 }
 
 // Bornes du délai de relance configurable (jours)

@@ -7,7 +7,7 @@ import { randomBytes } from 'node:crypto'
 import { sign } from 'hono/jwt'
 import { eq, and, ne } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { users, userSessions } from '../../db/schema.js'
+import { users, userSessions, userContacts } from '../../db/schema.js'
 import { encrypt } from '../../utils/crypto.util.js'
 
 // 12 rounds bcrypt = bon équilibre sécurité / performance (~300ms par hash)
@@ -49,7 +49,39 @@ export async function createUser(data: {
       email: users.email,
       role:  users.role,
     })
+
+  // Email de contact par défaut : l'adresse ayant servi à créer le compte.
+  // Garantit qu'au moins un email est renseigné (requis pour générer une demande RGPD).
+  await db.insert(userContacts).values({
+    userId:    user.id,
+    type:      'email',
+    value:     encrypt(data.email),
+    isPrimary: true,
+    label:     'Compte',
+  })
+
   return user
+}
+
+// Garantit que l'utilisateur a au moins une adresse email dans son profil :
+// pré-remplit avec l'email du compte (chiffré, primary) s'il n'en a aucune.
+// Idempotent — appelé à l'inscription ET à la connexion (backfill des anciens comptes).
+export async function ensureEmailContact(userId: string, email: string): Promise<void> {
+  const existing = await db
+    .select({ id: userContacts.id })
+    .from(userContacts)
+    .where(and(eq(userContacts.userId, userId), eq(userContacts.type, 'email')))
+    .limit(1)
+
+  if (existing.length) return
+
+  await db.insert(userContacts).values({
+    userId,
+    type: 'email',
+    value: encrypt(email),
+    isPrimary: true,
+    label: 'Compte',
+  })
 }
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
