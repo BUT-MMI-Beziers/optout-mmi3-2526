@@ -64,15 +64,12 @@ export default function GlobalSearch() {
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10 pointer-events-none" />
       <Input
         placeholder="Rechercher un broker, une demande…"
-        className="pl-9 bg-background h-9 text-sm pr-10"
+        className="pl-9 bg-background h-9 text-sm pr-3"
         value={query}
         onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
         onFocus={() => setOpen(true)}
         onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
       />
-      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-mono bg-muted px-1 rounded pointer-events-none">
-        ⌘F
-      </span>
 
       <AnimatePresence>
         {showDropdown && (

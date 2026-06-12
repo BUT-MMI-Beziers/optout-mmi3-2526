@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { getMe, getContacts, getTemplates, sendBatch } from '@/lib/api'
+import { getMe, getContacts, getTemplates, getPreferences, sendBatch } from '@/lib/api'
 import {
   type Broker, type User as UserType, type UserContact, type EmailTemplate,
   categoryLabels, difficultyLabels,
@@ -39,11 +39,17 @@ export default function NewRequestReview() {
 
   useEffect(() => {
     if (selectedBrokers.length === 0) { navigate('/requests/new'); return }
-    Promise.all([getMe(), getContacts(), getTemplates()]).then(([u, c, t]) => {
+    Promise.all([getMe(), getContacts(), getTemplates(), getPreferences()]).then(([u, c, t, prefs]) => {
       setUser(u)
       setContacts(c)
       setTemplates(t)
-      const defaultTpl = t.find((tpl) => tpl.isDefault && tpl.language === 'fr') ?? t[0]
+      // Template par défaut dans la langue choisie dans les paramètres (fallback gracieux).
+      const lang = prefs.emailLanguage ?? 'fr'
+      const defaultTpl =
+        t.find((tpl) => tpl.isDefault && tpl.language === lang) ??
+        t.find((tpl) => tpl.language === lang) ??
+        t.find((tpl) => tpl.isDefault) ??
+        t[0]
       if (defaultTpl) setSelectedTemplateId(defaultTpl.id)
       setSelectedEmailIds(new Set(c.filter((x) => x.type === 'email').map((x) => x.id)))
       setSelectedAddressIds(new Set(c.filter((x) => x.type === 'address').map((x) => x.id)))
@@ -79,7 +85,8 @@ export default function NewRequestReview() {
   const previewBody = selectedTemplate ? interpolate(selectedTemplate.body, interpolationVars) : ''
 
   const handleSend = async () => {
-    if (!selectedTemplateId || selectedBrokers.length === 0) return
+    // Une adresse email est obligatoire pour envoyer une demande.
+    if (!selectedTemplateId || selectedBrokers.length === 0 || selectedEmailIds.size === 0) return
     setSending(true)
     const result = await sendBatch({ brokerIds: selectedBrokers.map((b) => b.id), templateId: selectedTemplateId })
     setSending(false)
@@ -311,8 +318,12 @@ export default function NewRequestReview() {
       {/* Barre d'action sticky */}
       {!loading && (
         <div className="fixed bottom-16 lg:bottom-0 left-0 lg:left-[210px] right-0 z-40 bg-card border-t border-border px-6 py-3 flex items-center justify-between">
-          <p className="text-xs text-muted-foreground hidden sm:block">
-            Mode dry-run — les emails sont capturés par Mailpit, aucun email réel ne sera envoyé.
+          <p className="text-xs hidden sm:block">
+            {selectedEmailIds.size === 0 ? (
+              <span className="text-amber-600 font-medium">Sélectionnez au moins une adresse email pour envoyer.</span>
+            ) : (
+              <span className="text-muted-foreground">Mode dry-run — les emails sont capturés par Mailpit, aucun email réel ne sera envoyé.</span>
+            )}
           </p>
           <div className="flex gap-2 ml-auto">
             <Button variant="outline" onClick={() => navigate(-1)} disabled={sending}>
@@ -321,7 +332,7 @@ export default function NewRequestReview() {
             <Button
               className="bg-[#FC7E34] hover:bg-[#e06e28] text-white gap-2"
               onClick={handleSend}
-              disabled={sending || !selectedTemplateId}
+              disabled={sending || !selectedTemplateId || selectedEmailIds.size === 0}
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               {sending ? 'Envoi…' : `Envoyer ${selectedBrokers.length} demande${selectedBrokers.length > 1 ? 's' : ''}`}
