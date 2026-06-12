@@ -1,6 +1,7 @@
 services:
   api:
     build: ./api
+    image: optout-api:latest
     ports:
       - "${API_PORT:-3000}:3000"
     volumes:
@@ -16,7 +17,7 @@ services:
       - mailpit
 
   worker:
-    build: ./api
+    image: optout-api:latest
     command: npm run worker
     volumes:
       - ./api:/app
@@ -26,12 +27,13 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-float}:${POSTGRES_PASSWORD:-float}@db:5432/${POSTGRES_DB:-float}
     depends_on:
+      - api
       - db
       - redis
       - mailpit
 
   scheduler:
-    build: ./api
+    image: optout-api:latest
     command: npm run scheduler
     volumes:
       - ./api:/app
@@ -39,6 +41,7 @@ services:
     env_file:
       - .env
     depends_on:
+      - api
       - db
       - redis
 
