@@ -18,7 +18,7 @@ function toSlug(name: string): string {
 }
 
 // ─── GET / ────────────────────────────────────────────────
-brokersRoute.get('/', async (c) => {
+brokersRoute.get('/', authMiddleware, async (c) => {
   try {
     const category = c.req.query('category')
     const region = c.req.query('region')
@@ -83,7 +83,7 @@ brokersRoute.get('/', async (c) => {
 })
 
 // ─── POST /brokers ───────────────────────────────────────
-brokersRoute.post('/', async (c) => {
+brokersRoute.post('/', authMiddleware, async (c) => {
   const body = await c.req.json()
 
   const required = ['name', 'emailContact', 'category',
@@ -127,7 +127,7 @@ brokersRoute.post('/', async (c) => {
 })
 
 // ─── GET /brokers/export ─────────────────────────────────
-brokersRoute.get('/export', async (c) => {
+brokersRoute.get('/export', authMiddleware, async (c) => {
 
   const allBrokers = await db
     .select()
@@ -155,7 +155,7 @@ brokersRoute.get('/export', async (c) => {
 })
 
 // ─── POST /brokers/import ────────────────────────────────
-brokersRoute.post('/import', async (c) => {
+brokersRoute.post('/import', authMiddleware, async (c) => {
 
   const contentType = c.req.header('Content-Type') ?? ''
   let list: any[]
@@ -212,7 +212,7 @@ brokersRoute.post('/import', async (c) => {
 })
 
 // ─── GET /brokers/:slug ────────────────────────────────
-brokersRoute.get('/:slug', async (c) => {
+brokersRoute.get('/:slug', authMiddleware, async (c) => {
   const slug = c.req.param('slug')
 
   const [broker] = await db
