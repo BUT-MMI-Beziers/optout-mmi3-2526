@@ -6,10 +6,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { createBroker, type Broker } from '@/lib/api'
+import { createBroker } from '@/lib/api'
 import {
   categoryLabels, regionLabels, methodLabels, difficultyLabels,
-  type BrokerCategory, type BrokerRegion, type Difficulty, type LegalBasis,
+  type Broker, type BrokerCategory, type BrokerRegion, type Difficulty, type LegalBasis,
 } from '@/lib/mock-data'
 
 // L'API n'accepte que ces 3 méthodes (l'enum backend exclut "postal").
@@ -60,8 +60,13 @@ export default function ProposeBroker() {
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const emailValid = emailRegex.test(form.emailContact.trim())
+  // Erreur affichée seulement si l'utilisateur a déjà saisi quelque chose d'invalide.
+  const emailError = form.emailContact.trim().length > 0 && !emailValid
+
   const requiredFilled =
-    form.name.trim() && form.emailContact.trim() && form.category &&
+    form.name.trim() && emailValid && form.category &&
     form.region && form.optOutMethod && form.difficulty && form.legalBasis
 
   const handleSubmit = async () => {
@@ -154,7 +159,15 @@ export default function ProposeBroker() {
             </div>
             <div>
               <Label required>Email de contact (DPO)</Label>
-              <Input type="email" value={form.emailContact} onChange={(e) => set('emailContact', e.target.value)} placeholder="privacy@acme.com" />
+              <Input
+                type="email"
+                value={form.emailContact}
+                onChange={(e) => set('emailContact', e.target.value)}
+                placeholder="privacy@acme.com"
+                aria-invalid={emailError}
+                className={emailError ? 'border-red-400 focus-visible:ring-red-400/40' : ''}
+              />
+              {emailError && <p className="text-xs text-red-600 mt-1">Format d'email invalide.</p>}
             </div>
             <div>
               <Label>Site web</Label>

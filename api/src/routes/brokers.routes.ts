@@ -98,6 +98,12 @@ brokersRoute.post('/', authMiddleware, async (c) => {
     }
   }
 
+  // L'email de contact doit avoir un format valide (pas seulement être présent).
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(body.emailContact)) {
+    return c.json({ error: "Format d'email invalide pour l'email de contact" }, 400)
+  }
+
   try {
     const [newBroker] = await db
       .insert(brokers)
