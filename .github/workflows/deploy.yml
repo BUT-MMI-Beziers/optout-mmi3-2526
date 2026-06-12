@@ -45,6 +45,8 @@ jobs:
     name: Deploy via SSH
     runs-on: ubuntu-latest
     needs: build-and-push
+    permissions:
+      packages: read
 
     steps:
       - name: Setup SSH key
@@ -58,7 +60,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=no \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            'echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin && cd /opt/optout && git pull origin develop && docker compose pull && docker compose up -d'
+            'echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin && cd /opt/optout && git pull origin develop && docker compose pull && docker compose up -d'
 
       - name: Verify deployment
         run: |
