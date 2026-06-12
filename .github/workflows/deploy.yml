@@ -6,14 +6,44 @@ on:
       - develop
 
 jobs:
-  deploy:
-    name: Deploy via SSH
+  build-and-push:
+    name: Build & Push Docker Images
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api
+          push: true
+          tags: ghcr.io/${{ github.repository }}/api:develop
+
+      - name: Build and push Front image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./front
+          push: true
+          tags: ghcr.io/${{ github.repository }}/front:develop
+
+  deploy:
+    name: Deploy via SSH
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
@@ -25,7 +55,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=no \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            'cd /opt/optout && git pull origin develop && docker compose up --build -d'
+            'cd /opt/optout && git pull origin develop && docker compose pull && docker compose up -d'
 
       - name: Verify deployment
         run: |

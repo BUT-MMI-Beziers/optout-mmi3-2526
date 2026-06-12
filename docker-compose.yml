@@ -1,12 +1,8 @@
 services:
   api:
-    build: ./api
-    image: optout-api:latest
+    image: ghcr.io/${REPO}/api:develop
     ports:
       - "${API_PORT:-3000}:3000"
-    volumes:
-      - ./api:/app
-      - /app/node_modules
     env_file:
       - .env
     environment:
@@ -17,11 +13,8 @@ services:
       - mailpit
 
   worker:
-    image: optout-api:latest
+    image: ghcr.io/${REPO}/api:develop
     command: npm run worker
-    volumes:
-      - ./api:/app
-      - /app/node_modules
     env_file:
       - .env
     environment:
@@ -33,11 +26,8 @@ services:
       - mailpit
 
   scheduler:
-    image: optout-api:latest
+    image: ghcr.io/${REPO}/api:develop
     command: npm run scheduler
-    volumes:
-      - ./api:/app
-      - /app/node_modules
     env_file:
       - .env
     depends_on:
@@ -46,12 +36,9 @@ services:
       - redis
 
   front:
-    build: ./front
+    image: ghcr.io/${REPO}/front:develop
     ports:
       - "${FRONT_PORT:-5173}:5173"
-    volumes:
-      - ./front:/app
-      - /app/node_modules
     environment:
       - VITE_API_URL=http://localhost:3000
 
