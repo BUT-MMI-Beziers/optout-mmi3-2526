@@ -31,46 +31,6 @@ L'Équipe Rouge est responsable du module **Brokers** côté Base de données et
 
 ---
 
-## Configuration du Projet (Local Setup)
-
-Avant de commencer à développer, assurez-vous d'avoir configuré le projet localement.
-
-### 1. Variables d'environnement
-
-Copiez le fichier d'exemple à la racine :
-
-```bash
-cp .env.example .env
-```
-
-Générez les clés de chiffrement et de JWT secrètes recommandées dans le fichier `.env`.
-
-### 2. Démarrage des Services
-
-Le projet utilise Docker pour orchestrer l'API, le Frontend, PostgreSQL, Redis, Mailpit et Caddy.
-Lancez le script d'initialisation (si présent) ou démarrez les conteneurs manuellement :
-
-```bash
-docker compose up -d
-```
-
-### 3. Base de données & Migrations
-
-Pour appliquer les migrations Drizzle ORM et insérer les données de test :
-
-```bash
-# Générer les migrations à partir du schéma
-docker compose exec api npm run db:generate
-
-# Exécuter les migrations sur la base PostgreSQL locale
-docker compose exec api npm run db:migrate
-
-# Lancer les seeders pour remplir la base de données (templates, brokers, etc.)
-docker compose exec api npm run seed
-```
-
----
-
 ## Stratégie de Branches (Git Workflow)
 
 L'Équipe Rouge travaille sur la branche principale `rouge`. Le flux de travail recommandé est le suivant :
@@ -140,3 +100,4 @@ Pour assurer la cohérence de la base de code, veillez à respecter les règles 
 * **Schémas descriptifs** : Déclarez les champs de table dans [schema.ts](file:///C:/Users/kevin/Desktop/FLOAT/optout-mmi3-2526/api/src/db/schema.ts) avec les contraintes appropriées (ex: `notNull()`, `unique()`, etc.).
 * **Relations et Index** : Indexez correctement les colonnes utilisées pour les recherches fréquentes (comme le `slug` ou le `name`).
 * **Migrations sûres** : Ne modifiez jamais un fichier SQL de migration généré manuellement. Si le schéma change, relancez `npm run db:generate` pour générer une nouvelle migration propre.
+
