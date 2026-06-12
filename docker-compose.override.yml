@@ -1,0 +1,32 @@
+# Ce fichier est chargé automatiquement par Docker Compose en développement local.
+# Il remplace les images GHCR par des builds locaux et réactive le hot-reload.
+# Ne pas commiter de secrets ici.
+
+services:
+  api:
+    build: ./api
+    image: optout-api:local
+    volumes:
+      - ./api:/app
+      - /app/node_modules
+
+  worker:
+    build: ./api
+    image: optout-api:local
+    volumes:
+      - ./api:/app
+      - /app/node_modules
+
+  scheduler:
+    build: ./api
+    image: optout-api:local
+    volumes:
+      - ./api:/app
+      - /app/node_modules
+
+  front:
+    build: ./front
+    image: optout-front:local
+    volumes:
+      - ./front:/app
+      - /app/node_modules
