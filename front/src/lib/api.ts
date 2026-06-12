@@ -13,6 +13,8 @@ import {
   type BrokerCategory,
   type BrokerRegion,
   type Difficulty,
+  type OptOutMethod,
+  type LegalBasis,
 } from '@/lib/mock-data'
 
 const BASE = '/api/v1'
@@ -128,6 +130,36 @@ export async function getBrokers(params: BrokersParams = {}): Promise<Paginated<
 
 export async function getBroker(slug: string): Promise<Broker | null> {
   return request<Broker | null>(`/brokers/${slug}`, {}, null)
+}
+
+// Champs envoyés pour proposer un broker (les enums limités aux valeurs acceptées par l'API).
+export interface CreateBrokerInput {
+  name: string
+  emailContact: string
+  category: BrokerCategory
+  region: BrokerRegion
+  optOutMethod: Extract<OptOutMethod, 'email' | 'form' | 'mixed'>
+  difficulty: Difficulty
+  legalBasis: LegalBasis
+  website?: string
+  optOutUrl?: string
+  country?: string
+  notes?: string
+}
+
+// Crée un broker (réservé aux utilisateurs connectés). Toujours créé en attente de
+// vérification côté serveur. On lit la réponse brute pour remonter le message d'erreur
+// (ex: nom déjà existant → 409) au lieu de retomber sur un fallback muet.
+export async function createBroker(
+  input: CreateBrokerInput,
+): Promise<{ broker?: Broker; error?: string }> {
+  const res = await apiFetch(`${BASE}/brokers`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+  const data = await res.json().catch(() => null)
+  if (!res.ok) return { error: data?.error ?? 'Création impossible.' }
+  return { broker: data as Broker }
 }
 
 // ─── Templates ────────────────────────────────────────────────────────────────
