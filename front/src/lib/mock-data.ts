@@ -65,6 +65,10 @@ export interface Broker {
   notes?: string
   isVerified: boolean
   lastVerifiedAt?: string
+  createdBy?: string | null        // null = broker du registre par défaut (seed)
+  verifiedBy?: string | null       // admin ayant vérifié
+  createdByEmail?: string | null   // email du proposeur (joint côté API)
+  verifiedByEmail?: string | null  // email de l'admin vérificateur (fiche broker)
   createdAt: string
   updatedAt: string
 }

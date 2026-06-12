@@ -5,6 +5,7 @@ import * as dotenv from 'dotenv'
 import { seedTemplates } from './seeds/template_mails_seed.js'
 import { seedBrokers } from './seeds/brokers_seed.js'
 import { seedMockData } from './seeds/mock_seed.js'; // <-- Import de ton script
+import { seedAdmin } from './seeds/admin_seed.js'
 
 // Charge l'environnement depuis le fichier de configuration racine
 dotenv.config({ path: '../../.env' })
@@ -57,6 +58,7 @@ async function main() {
     // Exécute les seeds indispensables
     await seedTemplates(db)
     await seedBrokers(db)
+    await seedAdmin(db)
     
     // Exécute le seed des données de test pour le développement en passant la connexion DB unique
     await seedMockData(db);

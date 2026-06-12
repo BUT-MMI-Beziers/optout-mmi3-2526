@@ -41,6 +41,22 @@ export const adminGuard = createMiddleware(async (c, next) => {
   await next()
 })
 
+// ── isAdminRequest ──────────────────────────────────────────────────────────
+// Vérifie silencieusement si la requête émane d'un admin, sans jamais bloquer.
+// Utilisé par les routes publiques qui n'exposent certains champs qu'aux admins
+// (ex : email du proposeur d'un broker).
+export async function isAdminRequest(cookieHeader: string | undefined): Promise<boolean> {
+  const token = getCookieValue(cookieHeader, 'accessToken')
+  const secret = process.env.JWT_SECRET
+  if (!token || !secret) return false
+  try {
+    const payload = await verify(token, secret, 'HS256') as unknown as JWTPayload
+    return payload.role === 'admin'
+  } catch {
+    return false
+  }
+}
+
 // ── loginRateLimiter ────────────────────────────────────────────────────────
 // Protection anti brute-force sur les endpoints login et register.
 // 5 tentatives max par IP sur une fenêtre glissante de 15 minutes (in-memory).

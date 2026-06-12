@@ -4,8 +4,8 @@ import { eq, and } from 'drizzle-orm'
 // ----------------------------------------------------------------------------
 // IMPORTS 
 // ----------------------------------------------------------------------------
-import { db } from '../db/index' 
-import { emailTemplates } from '../db/schema' 
+import { db } from '../db/index.js'
+import { emailTemplates } from '../db/schema.js'
 
 export const templatesRoutes = new Hono()
 
@@ -33,7 +33,7 @@ templatesRoutes.get('/', async (c) => {
     }
 
     if (legalBasis) {
-      conditions.push(eq(emailTemplates.legalBasis, legalBasis))
+      conditions.push(eq(emailTemplates.legalBasis, legalBasis as typeof emailTemplates.legalBasis.enumValues[number]))
     }
 
     const templates = await db

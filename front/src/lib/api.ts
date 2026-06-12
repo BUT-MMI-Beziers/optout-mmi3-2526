@@ -106,9 +106,12 @@ export interface BrokersParams {
   region?: BrokerRegion | 'all'
   difficulty?: Difficulty | 'all'
   search?: string
+  isVerified?: boolean
+  sort?: 'name' | 'createdAt'
+  order?: 'asc' | 'desc'
 }
 
-function buildQuery(params: Record<string, string | number | undefined>) {
+function buildQuery(params: Record<string, string | number | boolean | undefined>) {
   const q = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== '' && v !== 'all') q.set(k, String(v))
@@ -117,10 +120,10 @@ function buildQuery(params: Record<string, string | number | undefined>) {
 }
 
 export async function getBrokers(params: BrokersParams = {}): Promise<Paginated<Broker>> {
-  const { page = 1, perPage = 12, category, region, difficulty, search } = params
+  const { page = 1, perPage = 12, category, region, difficulty, search, isVerified, sort, order } = params
   const fallback: Paginated<Broker> = { data: [], total: 0, page, lastPage: 1 }
 
-  const q = buildQuery({ page, per_page: perPage, category, region, difficulty, search })
+  const q = buildQuery({ page, per_page: perPage, category, region, difficulty, search, isVerified, sort, order })
   // API réelle retourne { data, total, currentPage, lastPage }
   const raw = await request<{ data: Broker[]; total: number; currentPage: number; lastPage: number }>(
     `/brokers?${q}`, {}, { data: [], total: 0, currentPage: page, lastPage: 1 }
@@ -160,6 +163,50 @@ export async function createBroker(
   const data = await res.json().catch(() => null)
   if (!res.ok) return { error: data?.error ?? 'Création impossible.' }
   return { broker: data as Broker }
+}
+
+// ─── Brokers : actions admin ──────────────────────────────────────────────────
+// Réservées aux administrateurs (adminGuard côté API).
+
+export async function updateBroker(
+  slug: string,
+  input: Partial<CreateBrokerInput>,
+): Promise<{ broker?: Broker; error?: string }> {
+  const res = await apiFetch(`${BASE}/brokers/${slug}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
+  const data = await res.json().catch(() => null)
+  if (!res.ok) return { error: data?.error ?? 'Modification impossible.' }
+  return { broker: data as Broker }
+}
+
+export async function deleteBroker(slug: string): Promise<{ ok: boolean; error?: string }> {
+  const res = await apiFetch(`${BASE}/brokers/${slug}`, { method: 'DELETE' })
+  if (res.ok) return { ok: true }
+  const data = await res.json().catch(() => null)
+  return { ok: false, error: data?.error ?? 'Suppression impossible.' }
+}
+
+export async function verifyBroker(slug: string): Promise<{ broker?: Broker; error?: string }> {
+  const res = await apiFetch(`${BASE}/brokers/${slug}/verify`, { method: 'PATCH' })
+  const data = await res.json().catch(() => null)
+  if (!res.ok) return { error: data?.error ?? 'Vérification impossible.' }
+  return { broker: data as Broker }
+}
+
+export async function importBrokers(
+  file: File,
+): Promise<{ imported?: number; skipped?: number; error?: string }> {
+  const isYaml = file.name.endsWith('.yaml') || file.name.endsWith('.yml')
+  const res = await apiFetch(`${BASE}/brokers/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': isYaml ? 'application/yaml' : 'application/json' },
+    body: await file.text(),
+  })
+  const data = await res.json().catch(() => null)
+  if (!res.ok) return { error: data?.error ?? "Erreur lors de l'import." }
+  return { imported: data.imported, skipped: data.skipped }
 }
 
 // ─── Templates ────────────────────────────────────────────────────────────────

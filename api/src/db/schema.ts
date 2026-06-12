@@ -151,6 +151,8 @@ export const brokers = pgTable('brokers', {
   notes: text('notes'),
   isVerified: boolean('is_verified').notNull().default(false),
   lastVerifiedAt: timestamp('last_verified_at'),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),   // null = broker du registre par défaut (seed)
+  verifiedBy: uuid('verified_by').references(() => users.id, { onDelete: 'set null' }), // admin ayant vérifié le broker
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
