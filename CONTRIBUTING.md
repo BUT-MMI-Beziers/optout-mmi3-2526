@@ -1,18 +1,19 @@
-# Guide de Contribution - Équipe Rouge
+# Guide de Contribution — FLOAT (optout-mmi3-2526)
 
-Ce guide définit les standards, les flux de travail (workflows) et les conventions de nommage pour l'**Équipe Rouge** sur le projet **optout-mmi3-2526 (FLOAT)**.
+Ce guide définit les standards, les flux de travail (workflows) et les conventions de nommage des équipes du projet **optout-mmi3-2526 (FLOAT)**.
 
-L'Équipe Rouge est responsable du périmètre **Brokers** (gestion des courtiers de données), principalement sur la partie base de données et API (backend Hono).
+Chaque équipe travaille sur sa branche de groupe (`rouge`, `vert`, `violet`, `bleu`) avec des branches de feature, puis fusionne régulièrement dans `develop`.
 
 ---
 
 ## Sommaire
 
 1. [Périmètre de l'Équipe Rouge](#-périmètre-de-léquipe-rouge)
-2. [Configuration du Projet (Local Setup)](#-configuration-du-projet-local-setup)
-3. [Stratégie de Branches (Git Workflow)](#-stratégie-de-branches-git-workflow)
-4. [Conventions de Commits](#-conventions-de-commits)
-5. [Normes de Code](#-normes-de-code)
+2. [Périmètre de l'Équipe Verte](#-périmètre-de-léquipe-verte)
+3. [Périmètre de l'Équipe Violette](#-périmètre-de-léquipe-violette)
+4. [Stratégie de Branches (Git Workflow)](#-stratégie-de-branches-git-workflow)
+5. [Conventions de Commits](#-conventions-de-commits)
+6. [Normes de Code](#-normes-de-code)
 
 ---
 
@@ -31,43 +32,53 @@ L'Équipe Rouge est responsable du module **Brokers** côté Base de données et
 
 ---
 
-## Configuration du Projet (Local Setup)
+## Périmètre de l'Équipe Verte
 
-Avant de commencer à développer, assurez-vous d'avoir configuré le projet localement.
+L'Équipe Verte est responsable du **Frontend** complet et des **features transverses** (front + API quand la fonctionnalité traverse la stack) :
 
-### 1. Variables d'environnement
+* **Frontend (React + TypeScript + Vite + shadcn/ui)** :
+  * Design system (tokens, fonts, variables CSS) à partir de la maquette Figma, animations Framer Motion, responsive.
+  * Layout général : sidebar, header (recherche globale, notifications), bottom nav mobile (`front/src/layouts/MainLayout.tsx`).
+  * Pages : Dashboard (stats, graphiques, actions recommandées), Demandes (liste / détail / création / review), Data brokers (liste / fiche / proposition), Relances programmées, Notifications, Profil, Paramètres, Landing, Login / Register.
+  * Couche API front avec fallback mock (`front/src/lib/api.ts`) — le front fonctionnait avant le branchement du backend réel.
+* **Authentification & sécurité (front + back)** :
+  * 2FA TOTP (QR code, anti-replay), passkeys WebAuthn, sessions actives révocables.
+  * Refresh token rotatif en cookie HttpOnly avec verrou singleton côté front (fix race condition de déconnexion).
+* **Flow relance / archivage (front + back)** :
+  * Relance restreinte au statut `NO_RESPONSE`, création d'une demande enfant, archivage automatique du parent (`archivedAt`, route `PATCH /requests/:id/archive`), affichage cohérent sur toutes les pages.
+  * Recherche des demandes (filtre `ilike` côté API).
+* **Panel admin & provenance des brokers (front + back)** :
+  * Panel de modération `/admin/brokers` : file d'attente triable, vérification, édition, suppression, import en masse.
+  * Colonnes `created_by` / `verified_by` (badge « Registre par défaut » vs « Ajouté par la communauté », vérifié par qui et quand), email du proposeur visible uniquement des admins.
+  * Compte admin par défaut seedé depuis le `.env` (`ADMIN_EMAIL` / `ADMIN_PASSWORD`), idempotent, aucun mot de passe en dur.
+* **Export RGPD** : modal d'export des données par catégorie (art. 20).
 
-Copiez le fichier d'exemple à la racine :
+**Workflow Vert** : branches `feature/vert/<nom>` ou `fix/vert/<nom>` → PR vers `vert` → fusion régulière dans `develop`.
+**Commits Vert** : convention *conventional commits* en français — `feat(scope): description`, `fix(scope): description`, corps de commit détaillé.
 
-```bash
-cp .env.example .env
-```
+> ⚠️ Lorsqu'une PR Verte contient une migration ou de nouvelles dépendances API, le corps de la PR l'indique explicitement : les autres équipes doivent alors relancer `docker compose build api && docker compose up -d api`.
 
-Générez les clés de chiffrement et de JWT secrètes recommandées dans le fichier `.env`.
+---
 
-### 2. Démarrage des Services
+## Périmètre de l'Équipe Violette
 
-Le projet utilise Docker pour orchestrer l'API, le Frontend, PostgreSQL, Redis, Mailpit et Caddy.
-Lancez le script d'initialisation (si présent) ou démarrez les conteneurs manuellement :
+L'Équipe Violette est responsable du module **Demandes de suppression & Emails** côté Base de données et API :
 
-```bash
-docker compose up -d
-```
+* **Base de données** :
+  * Tables `email_templates`, `removal_requests` et `request_events` dans le schéma Drizzle.
+  * Seed des 8 templates d'emails RGPD (FR + EN, art. 17 / art. 15) dans `api/src/db/seeds/template_mails_seed.ts`.
+* **Backend (API)** :
+  * Routes `requests` (`api/src/routes/requests.routes.ts`) : création de brouillons (DRAFT), création en lot (batch), envoi (`POST /:id/send`), machine à états des statuts (`PATCH /:id/status` avec transitions validées et journalisation d'événements), historique (`GET /:id/events`), prévisualisation d'email.
+  * Routes `templates` (`api/src/routes/templates.routes.ts`) : listing filtrable par langue / base légale.
+  * Service de rendu de templates (`api/src/services/template.service.ts`) : interpolation des variables `{{user.x}}`, `{{broker.x}}`, `{{request.x}}`.
+  * Notifications in-app sur les statuts terminaux.
+  * Préférence de langue des templates (FR/EN) appliquée à la création des demandes.
+* **Worker d'emails (BullMQ + Redis)** :
+  * Envoi asynchrone des emails (`api/src/workers/email.worker.ts`), mise à jour du statut `SENT`, journalisation `request_events`, throttling par utilisateur.
+* **Documentation** : spécification OpenAPI des routes du module (`api/src/docs/openapi.yaml`, exposée sur `/docs`).
+* **Validation** : validation des données des nouvelles demandes, validation UUID, format d'email exigé pour la proposition de broker.
 
-### 3. Base de données & Migrations
-
-Pour appliquer les migrations Drizzle ORM et insérer les données de test :
-
-```bash
-# Générer les migrations à partir du schéma
-docker compose exec api npm run db:generate
-
-# Exécuter les migrations sur la base PostgreSQL locale
-docker compose exec api npm run db:migrate
-
-# Lancer les seeders pour remplir la base de données (templates, brokers, etc.)
-docker compose exec api npm run seed
-```
+**Workflow Violet** : branches `feature/violet/<nom>` → PR vers `violet` → fusion régulière dans `develop`.
 
 ---
 
@@ -140,3 +151,4 @@ Pour assurer la cohérence de la base de code, veillez à respecter les règles 
 * **Schémas descriptifs** : Déclarez les champs de table dans [schema.ts](file:///C:/Users/kevin/Desktop/FLOAT/optout-mmi3-2526/api/src/db/schema.ts) avec les contraintes appropriées (ex: `notNull()`, `unique()`, etc.).
 * **Relations et Index** : Indexez correctement les colonnes utilisées pour les recherches fréquentes (comme le `slug` ou le `name`).
 * **Migrations sûres** : Ne modifiez jamais un fichier SQL de migration généré manuellement. Si le schéma change, relancez `npm run db:generate` pour générer une nouvelle migration propre.
+

@@ -49,6 +49,17 @@ export async function createUser(data: {
       email: users.email,
       role:  users.role,
     })
+
+  // Email de contact par défaut : l'adresse ayant servi à créer le compte.
+  // Garantit qu'au moins un email est renseigné (requis pour générer une demande RGPD).
+  await db.insert(userContacts).values({
+    userId:    user.id,
+    type:      'email',
+    value:     encrypt(data.email),
+    isPrimary: true,
+    label:     'Compte',
+  })
+
   return user
 }
 

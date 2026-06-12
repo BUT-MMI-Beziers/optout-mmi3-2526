@@ -1,11 +1,8 @@
 services:
   api:
-    build: ./api
+    image: ghcr.io/${REPO}/api:develop
     ports:
       - "${API_PORT:-3000}:3000"
-    volumes:
-      - ./api:/app
-      - /app/node_modules
     env_file:
       - .env
     environment:
@@ -16,39 +13,32 @@ services:
       - mailpit
 
   worker:
-    build: ./api
+    image: ghcr.io/${REPO}/api:develop
     command: npm run worker
-    volumes:
-      - ./api:/app
-      - /app/node_modules
     env_file:
       - .env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-float}:${POSTGRES_PASSWORD:-float}@db:5432/${POSTGRES_DB:-float}
     depends_on:
+      - api
       - db
       - redis
       - mailpit
 
   scheduler:
-    build: ./api
+    image: ghcr.io/${REPO}/api:develop
     command: npm run scheduler
-    volumes:
-      - ./api:/app
-      - /app/node_modules
     env_file:
       - .env
     depends_on:
+      - api
       - db
       - redis
 
   front:
-    build: ./front
+    image: ghcr.io/${REPO}/front:develop
     ports:
       - "${FRONT_PORT:-5173}:5173"
-    volumes:
-      - ./front:/app
-      - /app/node_modules
     environment:
       - VITE_API_URL=http://localhost:3000
 

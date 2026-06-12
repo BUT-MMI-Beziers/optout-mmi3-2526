@@ -866,12 +866,64 @@ paths:
         '401':
           description: Non authentifié
 
+    post:
+      summary: Créer une demande de suppression (DRAFT)
+      tags:
+        - Demandes (Requests)
+      description: >
+        Crée une nouvelle demande en statut DRAFT pour l'utilisateur connecté.
+        Le corps de l'email (emailBody) est généré et persisté à la création en
+        interpolant les variables du template avec les données de l'utilisateur
+        (déchiffrées), du broker et de la demande. Un événement `created` est tracé.
+        La demande peut ensuite être prévisualisée puis envoyée.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - brokerId
+                - templateId
+              properties:
+                brokerId:
+                  type: string
+                  format: uuid
+                templateId:
+                  type: string
+                  format: uuid
+                scheduledAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+      responses:
+        '201':
+          description: Demande créée en statut DRAFT
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RemovalRequest'
+        '400':
+          description: brokerId ou templateId manquant, ou format UUID invalide
+        '401':
+          description: Non authentifié
+        '404':
+          description: Broker, template ou utilisateur introuvable
+
   /requests/batch:
     post:
       summary: Envoyer des demandes en masse (Batch)
       tags:
         - Demandes (Requests)
-      description: Crée et met en file d'envoi automatique une liste de demandes de suppression pour plusieurs brokers.
+      description: >
+        Crée et met en file d'envoi automatique une liste de demandes de suppression
+        pour plusieurs brokers. Le corps de l'email (emailBody) de chaque demande est
+        généré et persisté à la création (données utilisateur déchiffrées + broker).
+        Les échecs individuels (broker introuvable, UUID invalide, demande PENDING déjà
+        existante) sont signalés dans `data.failed` sans bloquer les autres.
       requestBody:
         required: true
         content:
@@ -923,6 +975,8 @@ paths:
           description: Paramètres manquants
         '401':
           description: Non authentifié
+        '404':
+          description: Template ou utilisateur introuvable
 
   /requests/{id}:
     get:
@@ -1048,6 +1102,13 @@ paths:
         * ACKNOWLEDGED -> COMPLETED, REFUSED, SUPPRESSED
         * REFUSED -> COMPLAINT
         * NO_RESPONSE -> SENT, COMPLAINT
+
+
+        Effets de bord :
+        * ACKNOWLEDGED, COMPLETED, REFUSED -> le champ `respondedAt` est renseigné
+        (utilisé par `avgResponseDays` et `responseRate` de `/stats`).
+        * COMPLETED, REFUSED, SUPPRESSED (statuts terminaux) -> une notification
+        in-app est créée pour l'utilisateur (CDC §4.5.4).
       parameters:
         - name: id
           in: path
@@ -1156,7 +1217,9 @@ paths:
       summary: Obtenir les statistiques des demandes de l'utilisateur
       tags:
         - Statistiques
-      description: Calcule le nombre de demandes par statut et le délai moyen de réponse des brokers pour le compte connecté.
+      description: >
+        Calcule pour le compte connecté : le nombre de demandes par statut, le délai
+        moyen de réponse des brokers, le taux de réponse, et les brokers les plus réactifs.
       responses:
         '200':
           description: Statistiques calculées
@@ -1195,6 +1258,26 @@ paths:
                         nullable: true
                         description: Délai de réponse moyen en jours (null si aucune réponse reçue).
                         example: 14
+                      responseRate:
+                        type: integer
+                        nullable: true
+                        description: Pourcentage des demandes envoyées ayant reçu une réponse (null si aucune demande envoyée).
+                        example: 66
+                      mostResponsiveBrokers:
+                        type: array
+                        description: Top 3 des brokers les plus réactifs, triés par délai moyen croissant.
+                        items:
+                          type: object
+                          properties:
+                            brokerId:
+                              type: string
+                              format: uuid
+                            brokerName:
+                              type: string
+                            avgResponseDays:
+                              type: integer
+                            responseCount:
+                              type: integer
 
 components:
   # ---------------------------------------------------------

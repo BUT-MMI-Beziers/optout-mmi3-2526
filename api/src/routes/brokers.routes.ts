@@ -20,7 +20,7 @@ function toSlug(name: string): string {
 }
 
 // ─── GET / ────────────────────────────────────────────────
-brokersRoute.get('/', async (c) => {
+brokersRoute.get('/', authMiddleware, async (c) => {
   try {
     const category = c.req.query('category')
     const region = c.req.query('region')
@@ -153,7 +153,7 @@ brokersRoute.post('/', authMiddleware, async (c) => {
 })
 
 // ─── GET /brokers/export ─────────────────────────────────
-brokersRoute.get('/export', async (c) => {
+brokersRoute.get('/export', authMiddleware, async (c) => {
 
   const allBrokers = await db
     .select()
@@ -239,7 +239,7 @@ brokersRoute.post('/import', authMiddleware, adminGuard, async (c) => {
 })
 
 // ─── GET /brokers/:slug ────────────────────────────────
-brokersRoute.get('/:slug', async (c) => {
+brokersRoute.get('/:slug', authMiddleware, async (c) => {
   const slug = c.req.param('slug')
 
   // Deux alias sur users : le proposeur (created_by) et l'admin vérificateur (verified_by)

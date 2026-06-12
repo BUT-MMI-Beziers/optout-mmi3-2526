@@ -235,12 +235,11 @@ export default function SendRequestModal({ open, onClose, selectedBrokers, onSuc
                   <SelectValue placeholder="Choisir un template" />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map((t) => (
+                  {/* Seuls les templates initiaux (Effacement, Accès) sont sélectionnables.
+                      Relance et mise en demeure sont appliqués automatiquement pour les suivis. */}
+                  {templates.filter((t) => t.isDefault).map((t) => (
                     <SelectItem key={t.id} value={t.id}>
                       {t.name} — {t.language === 'fr' ? '🇫🇷 Français' : '🇬🇧 English'}
-                      {t.isDefault && (
-                        <span className="ml-2 text-xs text-muted-foreground">(par défaut)</span>
-                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -289,7 +288,7 @@ export default function SendRequestModal({ open, onClose, selectedBrokers, onSuc
                 <Button
                   className="bg-[#FC7E34] hover:bg-[#e06e28] text-white gap-2"
                   onClick={handleSend}
-                  disabled={sending || !selectedTemplateId}
+                  disabled={sending || !selectedTemplateId || selectedEmailIds.size === 0}
                 >
                   {sending ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

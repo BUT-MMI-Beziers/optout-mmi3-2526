@@ -43,16 +43,38 @@ export function renderTemplate(text: string, context: RenderContext): string {
   // Date de relance (pour la mise en demeure) ; défaut : l'échéance légale.
   const reminderDate = context.request.reminderDate ?? deadline;
 
+  // Table variable -> valeur ('' si le champ n'est pas renseigné).
+  const values: Record<string, string> = {
+    '{{user.first_name}}': context.user.firstName || '',
+    '{{user.last_name}}': context.user.lastName || '',
+    '{{user.email}}': context.user.email || '',
+    '{{user.address}}': context.userAddress || '',
+    '{{broker.name}}': context.broker.name || '',
+    '{{broker.email_contact}}': context.broker.emailContact || '',
+    '{{request.date}}': formatDate(referenceDate, lang),
+    '{{request.sent_date}}': formatDate(sentDate, lang),
+    '{{request.deadline_date}}': formatDate(deadline, lang),
+    '{{request.reminder_date}}': formatDate(reminderDate, lang),
+    '{{request.id}}': context.request.id,
+  };
+
+  const placeholderRegex = /{{[^}]+}}/g;
+
+  // Traitement ligne par ligne : si une ligne ne contient QUE des variables connues
+  // et toutes vides (ex. "- Adresse : {{user.address}}" sans adresse renseignée),
+  // on retire la ligne entière du corps pour ne pas laisser un libellé orphelin.
   return text
-    .replace(/{{user\.first_name}}/g, context.user.firstName || '')
-    .replace(/{{user\.last_name}}/g, context.user.lastName || '')
-    .replace(/{{user\.email}}/g, context.user.email || '')
-    .replace(/{{user\.address}}/g, context.userAddress)
-    .replace(/{{broker\.name}}/g, context.broker.name || '')
-    .replace(/{{broker\.email_contact}}/g, context.broker.emailContact || '')
-    .replace(/{{request\.date}}/g, formatDate(referenceDate, lang))
-    .replace(/{{request\.sent_date}}/g, formatDate(sentDate, lang))
-    .replace(/{{request\.deadline_date}}/g, formatDate(deadline, lang))
-    .replace(/{{request\.reminder_date}}/g, formatDate(reminderDate, lang))
-    .replace(/{{request\.id}}/g, context.request.id);
+    .split('\n')
+    .filter((line) => {
+      const placeholders = line.match(placeholderRegex);
+      if (!placeholders) return true; // ligne statique : conservée
+      const allKnownAndEmpty = placeholders.every(
+        (p) => p in values && values[p].trim() === ''
+      );
+      return !allKnownAndEmpty;
+    })
+    .map((line) =>
+      line.replace(placeholderRegex, (m) => (m in values ? values[m] : m))
+    )
+    .join('\n');
 }
