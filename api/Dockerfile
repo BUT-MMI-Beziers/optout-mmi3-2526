@@ -6,9 +6,9 @@ COPY package*.json ./
 RUN npm config set fund false && \
     npm config set update-notifier false
 
-RUN npm ci
+RUN NODE_OPTIONS="--max-old-space-size=512" npm ci --prefer-offline
 
 COPY . .
 
 EXPOSE 3000
-CMD sh -c "npm install && npm run dev"
+CMD ["npm", "run", "dev"]
