@@ -55,8 +55,8 @@ export async function updatePreferences(c: Context) {
   const userId = c.get('userId') as string
   const body = await c.req.json<UpdatePreferencesBody>()
 
-  if (!body || (body.notifications === undefined && body.reminders === undefined)) {
-    return c.json({ error: 'Provide notifications and/or reminders' }, 400)
+  if (!body || (body.notifications === undefined && body.reminders === undefined && body.emailLanguage === undefined)) {
+    return c.json({ error: 'Provide notifications, reminders and/or emailLanguage' }, 400)
   }
 
   const updated = await service.updatePreferences(userId, body)

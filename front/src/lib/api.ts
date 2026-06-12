@@ -363,17 +363,20 @@ export interface UserPreferences {
     enabled: boolean
     delayDays: number
   }
+  emailLanguage: 'fr' | 'en'
 }
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
   notifications: { confirmation: true, relance: true, refus: true },
   reminders: { enabled: true, delayDays: 30 },
+  emailLanguage: 'fr',
 }
 
-// Patch partiel — on n'envoie que ce qui change (un toggle ou le délai).
+// Patch partiel — on n'envoie que ce qui change (un toggle, le délai ou la langue).
 export interface PreferencesPatch {
   notifications?: Partial<UserPreferences['notifications']>
   reminders?: Partial<UserPreferences['reminders']>
+  emailLanguage?: 'fr' | 'en'
 }
 
 export async function getPreferences(): Promise<UserPreferences> {

@@ -31,11 +31,14 @@ export interface UserPreferences {
     enabled: boolean
     delayDays: number
   }
+  // Langue des templates d'email utilisés pour les demandes.
+  emailLanguage: 'fr' | 'en'
 }
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
   notifications: { confirmation: true, relance: true, refus: true },
   reminders: { enabled: true, delayDays: 30 },
+  emailLanguage: 'fr',
 }
 
 // ============================================================
