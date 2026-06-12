@@ -106,10 +106,26 @@ requestsRoutes.post('/', authMiddleware, async (c) => {
     if (!template) {
       return c.json({ error: 'Le template spécifié est introuvable.', code: 'NOT_FOUND' }, 404)
     }
+    // Les templates de suivi (relance, mise en demeure) ne sont pas autorisés pour une
+    // nouvelle demande : ils sont appliqués automatiquement après un premier envoi.
+    if (!template.isDefault) {
+      return c.json({ error: 'Ce template (relance ou mise en demeure) ne peut pas être utilisé pour une nouvelle demande.', code: 'BAD_REQUEST' }, 400)
+    }
 
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1)
     if (!user) {
       return c.json({ error: 'Utilisateur introuvable.', code: 'NOT_FOUND' }, 404)
+    }
+
+    // Au moins une adresse email de contact doit être renseignée dans le profil
+    // pour générer une demande RGPD recevable.
+    const emailContacts = await db
+      .select({ id: userContacts.id })
+      .from(userContacts)
+      .where(and(eq(userContacts.userId, userId), eq(userContacts.type, 'email')))
+      .limit(1)
+    if (emailContacts.length === 0) {
+      return c.json({ error: 'Au moins une adresse email doit être renseignée dans votre profil avant de créer une demande.', code: 'BAD_REQUEST' }, 400)
     }
 
     const [addressRow] = await db
@@ -118,7 +134,9 @@ requestsRoutes.post('/', authMiddleware, async (c) => {
       .where(and(eq(userContacts.userId, userId), eq(userContacts.type, 'address'), eq(userContacts.isPrimary, true)))
       .limit(1)
 
-    const userAddress = addressRow?.value ? safeDecrypt(addressRow.value) : '[Adresse non renseignée]'
+    // Adresse postale optionnelle : si absente, la ligne correspondante est masquée
+    // dans le corps de l'email par renderTemplate (champ vide).
+    const userAddress = addressRow?.value ? safeDecrypt(addressRow.value) : ''
 
     // Pré-générer l'ID pour l'injecter dans {{request.id}} dès la création
     const requestId = randomUUID()
@@ -264,7 +282,7 @@ requestsRoutes.get('/:id/preview', authMiddleware, async (c) => {
       .where(and(eq(userContacts.userId, data.user.id), eq(userContacts.type, 'address'), eq(userContacts.isPrimary, true)))
       .limit(1)
 
-    const userAddress = addressData.length > 0 ? safeDecrypt(addressData[0].value) : '[Adresse non renseignée]'
+    const userAddress = addressData.length > 0 ? safeDecrypt(addressData[0].value) : ''
 
     const context = {
       user: { firstName: safeDecrypt(data.user.firstName), lastName: safeDecrypt(data.user.lastName), email: data.user.email },
@@ -372,13 +390,28 @@ requestsRoutes.post('/batch', authMiddleware, async (c) => {
     if (!template) {
       return c.json({ error: 'Le template spécifié est introuvable.', code: 'NOT_FOUND' }, 404)
     }
+    // Les templates de suivi (relance, mise en demeure) ne sont pas autorisés pour une
+    // nouvelle demande : ils sont appliqués automatiquement après un premier envoi.
+    if (!template.isDefault) {
+      return c.json({ error: 'Ce template (relance ou mise en demeure) ne peut pas être utilisé pour une nouvelle demande.', code: 'BAD_REQUEST' }, 400)
+    }
+
+    // Au moins une adresse email de contact doit être renseignée dans le profil.
+    const emailContacts = await db
+      .select({ id: userContacts.id })
+      .from(userContacts)
+      .where(and(eq(userContacts.userId, userId), eq(userContacts.type, 'email')))
+      .limit(1)
+    if (emailContacts.length === 0) {
+      return c.json({ error: 'Au moins une adresse email doit être renseignée dans votre profil avant de créer une demande.', code: 'BAD_REQUEST' }, 400)
+    }
 
     const [addressRow] = await db
       .select()
       .from(userContacts)
       .where(and(eq(userContacts.userId, userId), eq(userContacts.type, 'address'), eq(userContacts.isPrimary, true)))
       .limit(1)
-    const userAddress = addressRow?.value ? safeDecrypt(addressRow.value) : '[Adresse non renseignée]'
+    const userAddress = addressRow?.value ? safeDecrypt(addressRow.value) : ''
 
     const decryptedFirstName = safeDecrypt(user.firstName)
     const decryptedLastName = safeDecrypt(user.lastName)

@@ -155,8 +155,8 @@ export const worker: Worker<SendEmailJobData> = new Worker<SendEmailJobData>(
       .limit(1)
 
     // firstName / lastName et l'adresse sont chiffrés en base → déchiffrer pour l'email.
-    // (users.email n'est pas chiffré.)
-    const userAddress = addressRows[0]?.value ? safeDecrypt(addressRows[0].value) : '[Adresse non renseignée]'
+    // (users.email n'est pas chiffré.) Adresse absente → '' : renderTemplate masque la ligne.
+    const userAddress = addressRows[0]?.value ? safeDecrypt(addressRows[0].value) : ''
 
     const context = {
       user: {
