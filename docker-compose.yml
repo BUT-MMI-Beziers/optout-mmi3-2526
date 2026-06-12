@@ -1,6 +1,6 @@
 services:
   api:
-    image: ghcr.io/${REPO}/api:develop
+    image: ghcr.io/${REPO}/api:latest
     ports:
       - "${API_PORT:-3000}:3000"
     env_file:
@@ -13,7 +13,7 @@ services:
       - mailpit
 
   worker:
-    image: ghcr.io/${REPO}/api:develop
+    image: ghcr.io/${REPO}/api:latest
     command: npm run worker
     env_file:
       - .env
@@ -26,7 +26,7 @@ services:
       - mailpit
 
   scheduler:
-    image: ghcr.io/${REPO}/api:develop
+    image: ghcr.io/${REPO}/api:latest
     command: npm run scheduler
     env_file:
       - .env
@@ -36,7 +36,7 @@ services:
       - redis
 
   front:
-    image: ghcr.io/${REPO}/front:develop
+    image: ghcr.io/${REPO}/front:latest
     ports:
       - "${FRONT_PORT:-5173}:5173"
     environment:

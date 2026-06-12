@@ -1,9 +1,9 @@
-name: Deploy to Staging (develop)
+name: Deploy to Production (main)
 
 on:
   push:
     branches:
-      - develop
+      - main
 
 jobs:
   build-and-push:
@@ -32,14 +32,14 @@ jobs:
         with:
           context: ./api
           push: true
-          tags: ghcr.io/${{ env.REPO_LOWER }}/api:develop
+          tags: ghcr.io/${{ env.REPO_LOWER }}/api:latest
 
       - name: Build and push Front image
         uses: docker/build-push-action@v5
         with:
           context: ./front
           push: true
-          tags: ghcr.io/${{ env.REPO_LOWER }}/front:develop
+          tags: ghcr.io/${{ env.REPO_LOWER }}/front:latest
 
   deploy:
     name: Deploy via SSH
@@ -60,7 +60,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=no \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            'echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin && cd /opt/optout && git pull origin develop && docker compose -f /opt/optout/docker-compose.yml pull && docker compose -f /opt/optout/docker-compose.yml up -d'
+            'echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin && cd /opt/optout && git pull origin main && docker compose -f /opt/optout/docker-compose.yml pull && docker compose -f /opt/optout/docker-compose.yml up -d'
 
       - name: Verify deployment
         run: |
