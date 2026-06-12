@@ -7,7 +7,7 @@
 // appelle le service et renvoie la réponse. Ne touche pas la base directement.
 import type { Context } from 'hono'
 import * as service from './profil.service.js'
-import type { UpdateProfilBody, CreateContactBody } from './profil.types.js'
+import type { UpdateProfilBody, UpdatePreferencesBody, CreateContactBody } from './profil.types.js'
 
 // ── Profil ────────────────────────────────────────────────────
 
@@ -38,6 +38,30 @@ export async function deleteMe(c: Context) {
   const userId = c.get('userId') as string
   await service.deleteProfil(userId)
   return c.body(null, 204)
+}
+
+// ── Préférences ───────────────────────────────────────────────
+
+// GET /api/users/me/preferences — retourne les préférences notifs et relances
+export async function getPreferences(c: Context) {
+  const userId = c.get('userId') as string
+  const prefs = await service.getPreferences(userId)
+  if (!prefs) return c.json({ error: 'User not found' }, 404)
+  return c.json(prefs)
+}
+
+// PATCH /api/users/me/preferences — patch partiel (un toggle ou un délai à la fois)
+export async function updatePreferences(c: Context) {
+  const userId = c.get('userId') as string
+  const body = await c.req.json<UpdatePreferencesBody>()
+
+  if (!body || (body.notifications === undefined && body.reminders === undefined)) {
+    return c.json({ error: 'Provide notifications and/or reminders' }, 400)
+  }
+
+  const updated = await service.updatePreferences(userId, body)
+  if (!updated) return c.json({ error: 'User not found' }, 404)
+  return c.json(updated)
 }
 
 // ── Contacts ──────────────────────────────────────────────────
@@ -92,7 +116,7 @@ export async function exportData(c: Context) {
 
   c.header('Content-Disposition', `attachment; filename="export-${userId}.json"`)
   c.header('Content-Type', 'application/json')
-  return c.json(data)
+  return c.body(JSON.stringify(data, null, 2))
 }
 
 // ── Notifications ─────────────────────────────────────────────

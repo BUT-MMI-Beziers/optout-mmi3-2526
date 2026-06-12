@@ -1,4 +1,5 @@
-import { Worker, Job } from 'bullmq'
+import { Worker, Job, DelayedError } from 'bullmq'
+import { Redis } from 'ioredis'
 import nodemailer from 'nodemailer'
 import { eq, and, ilike } from 'drizzle-orm'
 import { db } from '../db/index.js'
@@ -19,6 +20,27 @@ const connection = {
   port: parseInt(redisUrl.port) || 6379,
 }
 
+// Client Redis dédié au throttle PAR UTILISATEUR (indépendant de BullMQ).
+const redis = new Redis({
+  host: connection.host,
+  port: connection.port,
+  maxRetriesPerRequest: null,
+})
+
+// Limite d'envoi PAR UTILISATEUR : au plus 1 email toutes les PER_USER_INTERVAL_MS.
+// Deux utilisateurs différents peuvent envoyer en parallèle (jusqu'à `concurrency`).
+const PER_USER_INTERVAL_MS = Number(process.env.EMAIL_PER_USER_INTERVAL_MS) || 30000
+
+// Tente de réserver le créneau d'envoi de l'utilisateur (atomique via SET NX PX).
+// Renvoie 0 si réservé (on peut envoyer), sinon le nombre de ms à attendre.
+async function acquireUserSlot(userId: string): Promise<number> {
+  const key = `email:throttle:${userId}`
+  const ok = await redis.set(key, '1', 'PX', PER_USER_INTERVAL_MS, 'NX')
+  if (ok === 'OK') return 0
+  const ttl = await redis.pttl(key)
+  return ttl > 0 ? ttl : PER_USER_INTERVAL_MS
+}
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'mailpit',
   port: Number(process.env.SMTP_PORT) || 1025,
@@ -34,7 +56,7 @@ interface SendEmailJobData {
 
 export const worker: Worker<SendEmailJobData> = new Worker<SendEmailJobData>(
   'emailQueue',
-  async (job: Job<SendEmailJobData>) => {
+  async (job: Job<SendEmailJobData>, token?: string) => {
     const { requestId, isReminder = false } = job.data
 
     console.log(`[worker] Processing ${requestId} (reminder=${isReminder})`)
@@ -70,6 +92,16 @@ export const worker: Worker<SendEmailJobData> = new Worker<SendEmailJobData>(
     if (!isAutoRelance && data.request.status !== 'PENDING') {
       console.warn(`[worker] Skipping ${requestId} — expected PENDING, got ${data.request.status}`)
       return { requestId, skipped: true }
+    }
+
+    // Throttle PAR UTILISATEUR : si cet utilisateur a déjà envoyé récemment,
+    // on replanifie ce job (sans consommer de tentative) au lieu de bloquer la file.
+    // Les jobs d'autres utilisateurs continuent d'être traités en parallèle.
+    const waitMs = await acquireUserSlot(data.user.id)
+    if (waitMs > 0) {
+      console.log(`[worker] User ${data.user.id} throttlé — report de ${requestId} de ${waitMs}ms`)
+      await job.moveToDelayed(Date.now() + waitMs, token)
+      throw new DelayedError()
     }
 
     const now = new Date()
@@ -201,11 +233,10 @@ export const worker: Worker<SendEmailJobData> = new Worker<SendEmailJobData>(
   },
   {
     connection,
-    concurrency: 1,
-    limiter: {
-      max: 1,
-      duration: 30000,
-    },
+    // Plusieurs utilisateurs traités en parallèle. Le throttle par utilisateur
+    // (acquireUserSlot) garantit ≤ 1 email / PER_USER_INTERVAL_MS et par utilisateur ;
+    // `concurrency` borne le nombre d'utilisateurs envoyant simultanément.
+    concurrency: Number(process.env.EMAIL_WORKER_CONCURRENCY) || 10,
   }
 )
 

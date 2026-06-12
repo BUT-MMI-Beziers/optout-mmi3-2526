@@ -5,19 +5,34 @@ import { motion, type Variants } from 'framer-motion'
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
 const fadeUp: Variants = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } }
 const fadeLeft: Variants = { hidden: { opacity: 0, x: -12 }, show: { opacity: 1, x: 0, transition: { duration: 0.24 } } }
-import { ArrowLeft, Send, RefreshCw, FileText, CheckCircle2, XCircle, AlertTriangle, Loader2, X, Clock, AlertCircle, Flag, Archive, Calendar, Hourglass, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Send, RefreshCw, FileText, CheckCircle2, XCircle, AlertTriangle, Loader2, X, Clock, AlertCircle, Flag, Archive, Calendar, Hourglass, ChevronRight, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useRequestDetail } from '@/hooks/useRequestDetail'
-import { sendReminder, getEmailPreview, cancelRequest } from '@/lib/api'
+import { apiFetch, sendReminder, getEmailPreview, cancelRequest, archiveRequest } from '@/lib/api'
 import {
   statusConfig, categoryLabels, difficultyLabels, methodLabels,
   type RequestStatus,
 } from '@/lib/mock-data'
 
-const STATUS_STEPS: RequestStatus[] = ['DRAFT', 'SENT', 'ACKNOWLEDGED', 'COMPLETED']
+const STATUS_STEPS: RequestStatus[] = ['DRAFT', 'PENDING', 'SENT', 'ACKNOWLEDGED', 'COMPLETED']
+
+const TRANSITIONS: Partial<Record<RequestStatus, RequestStatus[]>> = {
+  SENT:         ['ACKNOWLEDGED', 'NO_RESPONSE'],
+  ACKNOWLEDGED: ['COMPLETED', 'REFUSED', 'SUPPRESSED'],
+  NO_RESPONSE:  ['SENT'],
+}
+
+const NEXT_STATUS_LABELS: Partial<Record<RequestStatus, string>> = {
+  ACKNOWLEDGED: 'Pris en compte par le broker',
+  NO_RESPONSE:  'Sans réponse',
+  COMPLETED:    'Confirmer la suppression',
+  REFUSED:      'Marquer comme refusée',
+  SUPPRESSED:   'Marquer comme supprimée',
+  SENT:         'Marquer comme renvoyée',
+}
 
 const statusIcons: Record<RequestStatus, LucideIcon> = {
   DRAFT:        FileText,
@@ -66,9 +81,10 @@ type ReminderDelay = typeof REMINDER_DELAYS[number]
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { request, events, template, loading, error } = useRequestDetail(id ?? '')
+  const { request, events, template, loading, error, refetch } = useRequestDetail(id ?? '')
 
   const [sendingReminder, setSendingReminder] = useState(false)
+  const [updatingStatus, setUpdatingStatus] = useState<RequestStatus | null>(null)
   const [emailPreview, setEmailPreview] = useState<string | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -76,6 +92,30 @@ export default function RequestDetail() {
 
   const [reminderModalOpen, setReminderModalOpen] = useState(false)
   const [selectedDelay, setSelectedDelay] = useState<ReminderDelay>(7)
+  const [unarchiving, setUnarchiving] = useState(false)
+  const [archiving, setArchiving] = useState(false)
+
+  const handleUnarchive = async () => {
+    if (!id) return
+    setUnarchiving(true)
+    try {
+      const ok = await archiveRequest(id, false)
+      if (ok) refetch()
+    } finally {
+      setUnarchiving(false)
+    }
+  }
+
+  const handleArchive = async () => {
+    if (!id) return
+    setArchiving(true)
+    try {
+      const ok = await archiveRequest(id, true)
+      if (ok) refetch()
+    } finally {
+      setArchiving(false)
+    }
+  }
 
   const broker = request?.broker ?? null
   const cfg = request ? statusConfig[request.status] : null
@@ -102,6 +142,20 @@ export default function RequestDetail() {
     if (relance?.id) navigate(`/requests/${relance.id}`)
   }
 
+  const handleUpdateStatus = async (newStatus: RequestStatus) => {
+    if (!request || !id) return
+    setUpdatingStatus(newStatus)
+    try {
+      const res = await apiFetch(`/api/v1/requests/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (res.ok) refetch()
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
   const handleCancel = async () => {
     if (!request) return
     setCancelling(true)
@@ -121,10 +175,18 @@ export default function RequestDetail() {
     setLoadingPreview(false)
   }
 
-  const isTerminal = request
-    ? ['COMPLETED', 'REFUSED', 'COMPLAINT', 'SUPPRESSED'].includes(request.status)
-    : false
-  const currentStep = request ? STATUS_STEPS.indexOf(request.status as RequestStatus) : -1
+  const TERMINAL_STATUSES: RequestStatus[] = ['COMPLETED', 'REFUSED', 'COMPLAINT', 'SUPPRESSED']
+  const isTerminal = request ? TERMINAL_STATUSES.includes(request.status) : false
+  // Pour les statuts terminaux hors du chemin principal, on pointe sur la dernière étape
+  const currentStep = request
+    ? (TERMINAL_STATUSES.includes(request.status)
+        ? STATUS_STEPS.length - 1
+        : STATUS_STEPS.indexOf(request.status as RequestStatus))
+    : -1
+  // La dernière étape affiche le vrai statut terminal si atteint
+  const lastStepStatus: RequestStatus = (request && TERMINAL_STATUSES.includes(request.status))
+    ? request.status
+    : 'COMPLETED'
 
   const formatDate = (iso: string | null | undefined) => {
     if (!iso) return '—'
@@ -156,6 +218,19 @@ export default function RequestDetail() {
         <span>›</span>
         <span className="text-foreground">{request.brokerName}</span>
       </nav>
+
+      {request.archivedAt && (
+        <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-lg bg-slate-100 border border-slate-200">
+          <div className="flex items-center gap-2 text-sm text-slate-600">
+            <Archive className="w-4 h-4 shrink-0" />
+            <span>Demande archivée — lecture seule. Une relance a été lancée depuis cette demande.</span>
+          </div>
+          <Button variant="outline" size="sm" className="shrink-0 h-8 gap-1.5 text-xs" onClick={handleUnarchive} disabled={unarchiving}>
+            {unarchiving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Archive className="w-3 h-3" />}
+            Désarchiver
+          </Button>
+        </div>
+      )}
 
       <motion.div className="flex items-center gap-4" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
         <Button variant="outline" size="icon" className="w-9 h-9 shrink-0" onClick={() => navigate(-1)}>
@@ -280,15 +355,21 @@ export default function RequestDetail() {
                 )}
                 <div className="relative flex justify-between z-[1]">
                   {STATUS_STEPS.map((step, i) => {
-                    const stepCfg = statusConfig[step]
+                    const isLast = i === STATUS_STEPS.length - 1
+                    const displayStep = isLast ? lastStepStatus : step
+                    const stepCfg = isLast && !isTerminal
+                      ? { ...statusConfig['COMPLETED'], label: 'Clôturée' }
+                      : statusConfig[displayStep]
                     const isPast = i < currentStep
                     const isCurrent = i === currentStep
+                    const isNegativeTerminal = isLast && isCurrent && ['REFUSED', 'COMPLAINT'].includes(lastStepStatus)
                     return (
                       <div key={step} className="flex flex-col items-center gap-1.5">
                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center border-2 ${
-                          isCurrent ? 'bg-[#FC7E34] border-[#FC7E34] text-white'
-                          : isPast   ? 'bg-[#253550] border-[#253550] text-white'
-                          :            'bg-muted border-border text-muted-foreground'
+                          isCurrent && isNegativeTerminal ? 'bg-red-500 border-red-500 text-white'
+                          : isCurrent ? 'bg-[#FC7E34] border-[#FC7E34] text-white'
+                          : isPast    ? 'bg-[#253550] border-[#253550] text-white'
+                          :             'bg-muted border-border text-muted-foreground'
                         }`}>
                           {isPast ? <CheckCircle2 className="w-4 h-4" /> : <span className="text-xs font-bold">{i + 1}</span>}
                         </div>
@@ -301,7 +382,7 @@ export default function RequestDetail() {
                 </div>
               </div>
 
-              {['REFUSED', 'NO_RESPONSE', 'COMPLAINT', 'SUPPRESSED'].includes(request.status) && cfg && (
+              {['REFUSED', 'NO_RESPONSE', 'COMPLAINT', 'SUPPRESSED'].includes(request.status) && cfg && !request.activeRelance && (
                 <div className={`flex items-center gap-2 text-sm p-3 rounded-lg ${cfg.bg}`}>
                   {request.status === 'REFUSED'     && <XCircle className="w-4 h-4 text-red-600" />}
                   {request.status === 'NO_RESPONSE' && <AlertTriangle className="w-4 h-4 text-orange-600" />}
@@ -309,6 +390,30 @@ export default function RequestDetail() {
                   <span className={`font-medium ${cfg.color}`}>Statut actuel : {cfg.label}</span>
                 </div>
               )}
+
+              {request.activeRelance && (() => {
+                const rel = request.activeRelance!
+                const relCfg = statusConfig[rel.status as RequestStatus]
+                const relDate = rel.sentAt
+                  ? `Envoyée le ${formatDate(rel.sentAt)}`
+                  : rel.scheduledAt
+                    ? `Prévue le ${formatDate(rel.scheduledAt)}`
+                    : null
+                return (
+                  <Link to={`/requests/${rel.id}`} className="block">
+                    <div className="flex items-center gap-3 p-3 rounded-lg border border-violet-200 bg-violet-50 hover:bg-violet-100 transition-colors">
+                      <RefreshCw className="w-4 h-4 text-violet-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-violet-700">
+                          Relance · {relCfg?.label ?? rel.status}
+                        </p>
+                        {relDate && <p className="text-xs text-violet-500 mt-0.5">{relDate}</p>}
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-violet-400 shrink-0" />
+                    </div>
+                  </Link>
+                )
+              })()}
 
               <Separator />
 
@@ -351,6 +456,13 @@ export default function RequestDetail() {
               <CardTitle className="text-xl font-medium">Actions</CardTitle>
             </CardHeader>
             <CardContent className="px-6 pb-5 space-y-2">
+              {request.archivedAt ? (
+                <div className="flex flex-col items-center gap-3 py-6 text-center">
+                  <Archive className="w-8 h-8 text-slate-300" />
+                  <p className="text-sm text-muted-foreground">Demande archivée.<br />Désarchivez-la pour effectuer des actions.</p>
+                </div>
+              ) : (<>
+
               {/* Scheduled relance banner — PENDING request already sent once */}
               {isScheduledRelance && (
                 <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 text-xs text-muted-foreground bg-violet-50 border border-violet-200 rounded-md px-3 py-2">
@@ -398,12 +510,26 @@ export default function RequestDetail() {
                 </>
               )}
 
-              {!isTerminal && request.status !== 'DRAFT' && request.status !== 'PENDING' && (
+              {request.status === 'NO_RESPONSE' && (
                 <>
-                  <Button className="w-full gap-2 h-10 text-white bg-[#FC7E34] hover:bg-[#e06e28]" onClick={() => setReminderModalOpen(true)}>
-                    <RefreshCw className="w-4 h-4" />
-                    Programmer une relance
-                  </Button>
+                  {request.activeRelance && ['PENDING', 'SENT'].includes(request.activeRelance.status) ? (
+                    <Link to={`/requests/${request.activeRelance.id}`} className="block">
+                      <Button variant="outline" className="w-full gap-2 h-10 border-violet-200 text-violet-700 hover:bg-violet-50">
+                        <RefreshCw className="w-4 h-4" />
+                        {request.activeRelance.status === 'SENT' ? 'Relance envoyée' : 'Relance programmée'}
+                        {(request.activeRelance.sentAt ?? request.activeRelance.scheduledAt) && (
+                          <span className="ml-auto text-xs font-normal text-violet-400">
+                            {new Date((request.activeRelance.sentAt ?? request.activeRelance.scheduledAt)!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                          </span>
+                        )}
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Button className="w-full gap-2 h-10 text-white bg-[#FC7E34] hover:bg-[#e06e28]" onClick={() => setReminderModalOpen(true)}>
+                      <RefreshCw className="w-4 h-4" />
+                      Programmer une relance
+                    </Button>
+                  )}
 
                   <Button variant="outline" className="w-full gap-2 h-10" onClick={handleViewEmail} disabled={loadingPreview}>
                     {loadingPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
@@ -417,9 +543,43 @@ export default function RequestDetail() {
                   Déposer une plainte CNIL
                 </Button>
               )}
+              {TRANSITIONS[request.status] && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Mettre à jour le statut</p>
+                    {TRANSITIONS[request.status]!
+                      .filter(next => !(next === 'SENT' && request.activeRelance && ['PENDING', 'SENT'].includes(request.activeRelance.status)))
+                      .map((next) => (
+                      <Button
+                        key={next}
+                        variant="outline"
+                        className="w-full gap-2 h-10 text-sm"
+                        onClick={() => handleUpdateStatus(next)}
+                        disabled={!!updatingStatus}
+                      >
+                        {updatingStatus === next
+                          ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : <RefreshCw className="w-4 h-4" />}
+                        {NEXT_STATUS_LABELS[next] ?? next}
+                      </Button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {request.status === 'NO_RESPONSE' && request.activeRelance && ['PENDING', 'SENT'].includes(request.activeRelance.status) && !request.archivedAt && (
+                <Button variant="outline" className="w-full gap-2 h-10 border-slate-200 text-slate-500 hover:bg-slate-50" onClick={handleArchive} disabled={archiving}>
+                  {archiving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+                  Archiver la demande
+                </Button>
+              )}
+
               <Button variant="outline" className="w-full h-10 text-muted-foreground" onClick={() => navigate('/requests')}>
                 Retour aux demandes
               </Button>
+
+              </>)}
 
               <Separator className="mt-4" />
 

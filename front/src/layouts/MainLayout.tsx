@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
-import { useEffect, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
 import {
   LayoutDashboard,
   FileText,
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { getMe, getNotifications } from "@/lib/api"
+import { useAutoRefresh } from "@/hooks/useAutoRefresh"
 import type { User as UserType } from "@/lib/mock-data"
 import GlobalSearch from "@/components/GlobalSearch"
 
@@ -40,7 +41,7 @@ const bottomNavMobile = [
 ]
 
 const bottomNavItems = [
-  { label: "Profil",     icon: User,     to: "/profile" },
+  { label: "Mon compte",  icon: User,     to: "/profile" },
   { label: "Paramètres", icon: Settings, to: "/settings" },
 ]
 
@@ -50,10 +51,15 @@ export default function MainLayout() {
   const [user, setUser] = useState<UserType | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
 
+  const loadNotifications = useCallback(() => {
+    getNotifications().then((n) => setUnreadCount(n.filter((x) => !x.isRead).length))
+  }, [])
+
   useEffect(() => {
     getMe().then(setUser)
-    getNotifications().then((n) => setUnreadCount(n.filter((x) => !x.read).length))
-  }, [])
+    loadNotifications()
+  }, [loadNotifications])
+  useAutoRefresh(loadNotifications)
 
   const initials = user
     ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
@@ -117,7 +123,7 @@ export default function MainLayout() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={() => navigate("/profile")}>Mon profil</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/profile")}>Mon compte</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/settings")}>Paramètres</DropdownMenuItem>
                 <DropdownMenuItem
                   className="text-destructive"

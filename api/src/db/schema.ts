@@ -6,8 +6,37 @@ import {
   text,
   boolean,
   timestamp,
+  integer,
+  bigint,
+  jsonb,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
+
+// ============================================================
+// PRÉFÉRENCES UTILISATEUR (stockées en JSONB sur users)
+// Catégories de notifs alignées sur de vrais évènements backend :
+//  - confirmation : demande complétée / ajout liste suppression
+//  - relance      : relance auto 30j, relance programmée, mise en demeure 60j
+//  - refus        : broker qui refuse la demande
+// reminders.delayDays pilote le scheduler de relance automatique.
+// ============================================================
+
+export interface UserPreferences {
+  notifications: {
+    confirmation: boolean
+    relance: boolean
+    refus: boolean
+  }
+  reminders: {
+    enabled: boolean
+    delayDays: number
+  }
+}
+
+export const DEFAULT_PREFERENCES: UserPreferences = {
+  notifications: { confirmation: true, relance: true, refus: true },
+  reminders: { enabled: true, delayDays: 30 },
+}
 
 // ============================================================
 // ENUMS
@@ -73,6 +102,10 @@ export const users = pgTable('users', {
   lastName: text('last_name').notNull(),
   role: userRoleEnum('role').notNull().default('user'),
   refreshTokenHash: varchar('refresh_token_hash', { length: 255 }),
+  totpSecret: text('totp_secret'),            // chiffré AES-256-GCM
+  totpEnabled: boolean('totp_enabled').notNull().default(false),
+  totpLastCounter: integer('totp_last_counter'), // anti-replay : dernier compteur TOTP utilisé
+  preferences: jsonb('preferences').$type<UserPreferences>().notNull().default(DEFAULT_PREFERENCES),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -120,6 +153,59 @@ export const brokers = pgTable('brokers', {
 })
 
 // ============================================================
+// TABLE : totp_challenges
+// Tokens temporaires (5 min, usage unique) émis lors du login
+// quand la 2FA est active — échangés contre les vrais cookies
+// après vérification du code TOTP.
+// ============================================================
+
+// ============================================================
+// TABLE : passkey_credentials
+// Clés WebAuthn (passkeys) enregistrées par l'utilisateur
+// ============================================================
+
+export const passkeyCredentials = pgTable('passkey_credentials', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  credentialId: text('credential_id').notNull().unique(),  // base64url
+  publicKey: text('public_key').notNull(),                 // base64url
+  counter: bigint('counter', { mode: 'number' }).notNull().default(0),
+  deviceType: varchar('device_type', { length: 32 }),      // 'platform' | 'cross-platform'
+  backedUp: boolean('backed_up').notNull().default(false),
+  transports: text('transports'),                          // JSON array
+  name: varchar('name', { length: 100 }),                  // ex: "MacBook Touch ID"
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  lastUsedAt: timestamp('last_used_at'),
+})
+
+// ============================================================
+// TABLE : totp_challenges
+export const totpChallenges = pgTable('totp_challenges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: varchar('token_hash', { length: 255 }).notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  usedAt: timestamp('used_at'),
+})
+
+// ============================================================
+// TABLE : user_sessions
+// Sessions actives — créées à chaque login/register
+// sessionId embarqué dans le JWT pour identifier la session courante
+// ============================================================
+
+export const userSessions = pgTable('user_sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ip: varchar('ip', { length: 45 }),
+  userAgent: text('user_agent'),
+  device: varchar('device', { length: 255 }),    // ex: "MacBook · Chrome 124"
+  location: varchar('location', { length: 255 }), // placeholder — pas de géoloc en dev
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
+})
+
+// ============================================================
 // TABLE : email_templates
 // Templates RGPD pour les demandes de suppression
 // Requis : gdpr_art17 (FR+EN), gdpr_art15 (FR), relance, mise en demeure
@@ -160,6 +246,7 @@ export const removalRequests = pgTable('removal_requests', {
   respondedAt: timestamp('responded_at'),      // date de réponse du broker
   nextActionAt: timestamp('next_action_at'),   // prochaine relance (utilisé par le scheduler)
   emailBody: text('email_body').notNull(),     // corps généré conservé pour traçabilité
+  archivedAt: timestamp('archived_at'),        // null = active, valeur = archivée (lecture seule)
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -202,6 +289,11 @@ export const usersRelations = relations(users, ({ many }) => ({
   contacts: many(userContacts),
   removalRequests: many(removalRequests),
   notifications: many(notifications),
+  sessions: many(userSessions),
+}))
+
+export const userSessionsRelations = relations(userSessions, ({ one }) => ({
+  user: one(users, { fields: [userSessions.userId], references: [users.id] }),
 }))
 
 export const userContactsRelations = relations(userContacts, ({ one }) => ({

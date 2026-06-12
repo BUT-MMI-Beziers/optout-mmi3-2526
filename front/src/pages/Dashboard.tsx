@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, type Variants } from 'framer-motion'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } }
 const fadeUp: Variants = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.28 } } }
@@ -10,21 +11,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
   Plus, Send, CheckCircle2, AlertCircle, Clock,
-  XCircle, FileText, Flag, Archive, Info,
+  XCircle, FileText, Flag, Archive, Hourglass, CalendarClock,
 } from 'lucide-react'
 import { getStats, getRequests, getMe, getNotifications, type DashboardStats, type AppNotification } from '@/lib/api'
 import { statusConfig, type RemovalRequest, type RequestStatus } from '@/lib/mock-data'
 
-// Icon per notification type
-const notifIcons: Record<AppNotification['type'], React.ComponentType<{ className?: string }>> = {
-  warning: AlertCircle,
-  info: Info,
-  success: CheckCircle2,
-}
 
 // Icon per status — replaces colored dots
 const statusIcons: Record<RequestStatus, React.ComponentType<{ className?: string }>> = {
   DRAFT: FileText,
+  PENDING: Hourglass,
   SENT: Send,
   ACKNOWLEDGED: Clock,
   COMPLETED: CheckCircle2,
@@ -43,37 +39,70 @@ export default function Dashboard() {
   const [recentRequests, setRecentRequests] = useState<RemovalRequest[]>([])
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [reminders, setReminders] = useState<RemovalRequest[]>([])
+  const [scheduledCount, setScheduledCount] = useState(0)
   const [userName, setUserName] = useState('...')
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const load = useCallback((silent: boolean) => {
+    if (!silent) setLoading(true)
     Promise.all([
       getStats(),
-      getRequests({ page: 1, perPage: 5 }),
       getMe(),
       getNotifications(),
       getRequests({ page: 1, perPage: 50 }),
-    ]).then(([s, r, u, notifs, all]) => {
+      getRequests({ page: 1, perPage: 100, status: 'PENDING' }),
+    ]).then(([s, u, notifs, all, pendingRes]) => {
       setStats(s)
-      setRecentRequests(r.data)
       setUserName(u?.firstName ?? '')
       setNotifications(notifs.slice(0, 3))
+
+      const activeRelanceParentIds = new Set(
+        all.data
+          .filter(req => req.parentRequestId && req.status === 'PENDING')
+          .map(req => req.parentRequestId!)
+      )
+
+      // Demandes récentes : masquer les parents NO_RESPONSE qui ont une relance enfant active.
+      // Les relances enfant (PENDING avec parentRequestId) s'affichent normalement.
+      setRecentRequests(
+        [...all.data]
+          .filter(req => !(req.status === 'NO_RESPONSE' && activeRelanceParentIds.has(req.id)))
+          .sort((a, b) => +(new Date(b.createdAt)) - +(new Date(a.createdAt)))
+          .slice(0, 5)
+      )
+
       setReminders(
         all.data
-          .filter((req) => req.nextActionAt)
-          .sort((a, b) => +new Date(a.nextActionAt!) - +new Date(b.nextActionAt!))
+          .filter((req) => {
+            if (req.status === 'NO_RESPONSE' && activeRelanceParentIds.has(req.id)) return false
+            return req.status === 'PENDING' || req.status === 'NO_RESPONSE' || req.nextActionAt
+          })
+          .sort((a, b) => {
+            const da = +(new Date(a.scheduledAt ?? a.nextActionAt ?? a.createdAt))
+            const db = +(new Date(b.scheduledAt ?? b.nextActionAt ?? b.createdAt))
+            return da - db
+          })
           .slice(0, 3)
       )
+
+      setScheduledCount(pendingRes.data.filter((req) => req.parentRequestId).length)
       setLoading(false)
     })
   }, [])
 
+  // Chargement initial + rafraîchissement auto (focus / polling).
+  useEffect(() => { load(false) }, [load])
+  useAutoRefresh(() => load(true))
+
+  const sentTotal = stats?.sentTotal ?? 0
+  const share = (n: number) => (sentTotal > 0 ? `${n} sur ${sentTotal} envoyées` : '—')
+
   const statCards = stats
     ? [
-      { label: 'Total envoyées', value: stats.total, icon: Send, isAlert: false },
-      { label: 'En attente', value: stats.acknowledged, icon: Clock, isAlert: false },
-      { label: 'Confirmées', value: stats.completed, icon: CheckCircle2, isAlert: false },
-      { label: 'À relancer', value: stats.noResponse, icon: AlertCircle, isAlert: true },
+      { label: 'Envoyées', value: stats.sentTotal, sub: 'demandes parties', icon: Send, isAlert: false },
+      { label: 'En attente de réponse', value: stats.awaiting, sub: share(stats.awaiting), icon: Clock, isAlert: false },
+      { label: 'Confirmées', value: stats.confirmed, sub: share(stats.confirmed), icon: CheckCircle2, isAlert: false },
+      { label: 'Relances programmées', value: scheduledCount, sub: 'à venir', icon: CalendarClock, isAlert: false },
     ]
     : []
 
@@ -128,9 +157,10 @@ export default function Dashboard() {
                   >
                     <s.icon className="w-6 h-6" style={{ color: BLUE }} />
                   </div>
-                  <div>
-                    <p className="text-3xl font-bold text-foreground">{s.value}</p>
-                    <p className="text-sm text-muted-foreground mt-0.5">{s.label}</p>
+                  <div className="min-w-0">
+                    <p className="text-3xl font-bold text-foreground leading-none">{s.value}</p>
+                    <p className="text-sm font-medium text-foreground mt-1">{s.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{s.sub}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -157,7 +187,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="px-6 pt-4 pb-2">
               <div className="grid grid-cols-[2fr_1fr] sm:grid-cols-[2fr_1.5fr_1fr] pb-2 border-b border-border">
-                {['Broker', "Date d'envoi", 'Statut'].map((h) => (
+                {['Broker', 'Date', 'Statut'].map((h) => (
                   <span key={h} className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     {h}
                   </span>
@@ -172,7 +202,8 @@ export default function Dashboard() {
                   {recentRequests.map((req) => {
                     const cfg = statusConfig[req.status]
                     const StatusIcon = statusIcons[req.status]
-                    const date = new Date(req.sentAt).toLocaleDateString('fr-FR', {
+                    const dateRef = req.sentAt ?? req.scheduledAt ?? req.createdAt
+                    const date = new Date(dateRef).toLocaleDateString('fr-FR', {
                       day: 'numeric', month: 'short', year: 'numeric',
                     })
                     return (
@@ -222,9 +253,11 @@ export default function Dashboard() {
                   <div className="py-8 text-center text-sm text-muted-foreground">Aucune relance prévue.</div>
                 ) : (
                   reminders.map((r) => {
-                    const date = new Date(r.nextActionAt!).toLocaleDateString('fr-FR', {
-                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                    const actionDate = r.scheduledAt ?? r.nextActionAt ?? r.createdAt
+                    const date = new Date(actionDate).toLocaleDateString('fr-FR', {
+                      day: 'numeric', month: 'short',
                     })
+                    const label = r.status === 'PENDING' ? 'Envoi programmé' : 'Sans réponse'
                     return (
                       <div key={r.id} className="flex items-center justify-between py-3 border-b border-border last:border-0">
                         <div className="flex items-center gap-2.5">
@@ -236,7 +269,7 @@ export default function Dashboard() {
                           />
                           <div>
                             <p className="text-sm font-medium">{r.brokerName}</p>
-                            <p className="text-xs text-muted-foreground">{date}</p>
+                            <p className="text-xs text-muted-foreground">{label} · {date}</p>
                           </div>
                         </div>
                         <Link to={`/requests/${r.id}`}>
@@ -264,12 +297,11 @@ export default function Dashboard() {
                   <div className="py-8 text-center text-sm text-muted-foreground">Aucune action recommandée.</div>
                 ) : (
                   notifications.map((n) => {
-                    const NotifIcon = notifIcons[n.type]
                     return (
                       <div key={n.id} className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
                         <div className="flex items-center gap-2.5">
-                          <NotifIcon className="w-4 h-4 shrink-0 text-muted-foreground" />
-                          <p className="text-sm">{n.title}</p>
+                          <AlertCircle className="w-4 h-4 shrink-0 text-muted-foreground" />
+                          <p className="text-sm">{n.message}</p>
                         </div>
                         {n.requestId && (
                           <Link to={`/requests/${n.requestId}`}>
