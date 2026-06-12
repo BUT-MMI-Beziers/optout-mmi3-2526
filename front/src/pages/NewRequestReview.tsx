@@ -233,10 +233,11 @@ export default function NewRequestReview() {
                       <SelectValue placeholder="Choisir un template" />
                     </SelectTrigger>
                     <SelectContent>
-                      {templates.map((t) => (
+                      {/* Seuls les templates initiaux (Effacement, Accès) sont sélectionnables.
+                          Relance et mise en demeure sont appliqués automatiquement pour les suivis. */}
+                      {templates.filter((t) => t.isDefault).map((t) => (
                         <SelectItem key={t.id} value={t.id}>
                           {t.name} — {t.language === 'fr' ? '🇫🇷 Français' : '🇬🇧 English'}
-                          {t.isDefault && <span className="ml-2 text-xs text-muted-foreground">(défaut)</span>}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -314,6 +315,11 @@ export default function NewRequestReview() {
           <p className="text-xs text-muted-foreground hidden sm:block">
             Mode dry-run — les emails sont capturés par Mailpit, aucun email réel ne sera envoyé.
           </p>
+          {selectedEmailIds.size === 0 && (
+            <p className="text-sm text-destructive ml-auto self-center">
+              Renseignez au moins une adresse email dans votre profil pour envoyer.
+            </p>
+          )}
           <div className="flex gap-2 ml-auto">
             <Button variant="outline" onClick={() => navigate(-1)} disabled={sending}>
               Annuler
@@ -321,7 +327,7 @@ export default function NewRequestReview() {
             <Button
               className="bg-[#FC7E34] hover:bg-[#e06e28] text-white gap-2"
               onClick={handleSend}
-              disabled={sending || !selectedTemplateId}
+              disabled={sending || !selectedTemplateId || selectedEmailIds.size === 0}
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               {sending ? 'Envoi…' : `Envoyer ${selectedBrokers.length} demande${selectedBrokers.length > 1 ? 's' : ''}`}

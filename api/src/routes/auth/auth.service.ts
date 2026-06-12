@@ -7,7 +7,7 @@ import { randomBytes } from 'node:crypto'
 import { sign } from 'hono/jwt'
 import { eq, and, ne } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { users, userSessions } from '../../db/schema.js'
+import { users, userSessions, userContacts } from '../../db/schema.js'
 import { encrypt } from '../../utils/crypto.util.js'
 
 // 12 rounds bcrypt = bon équilibre sécurité / performance (~300ms par hash)
@@ -49,6 +49,17 @@ export async function createUser(data: {
       email: users.email,
       role:  users.role,
     })
+
+  // Email de contact par défaut : l'adresse ayant servi à créer le compte.
+  // Garantit qu'au moins un email est renseigné (requis pour générer une demande RGPD).
+  await db.insert(userContacts).values({
+    userId:    user.id,
+    type:      'email',
+    value:     encrypt(data.email),
+    isPrimary: true,
+    label:     'Compte',
+  })
+
   return user
 }
 
