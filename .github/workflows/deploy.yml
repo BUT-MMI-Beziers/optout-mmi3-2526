@@ -60,10 +60,10 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=no \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            'echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin && cd /opt/optout && git pull origin develop && docker compose -f docker-compose.yml pull && docker compose -f docker-compose.yml up -d'
+            'echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin && cd /opt/optout && git pull origin develop && docker compose -f /opt/optout/docker-compose.yml pull && docker compose -f /opt/optout/docker-compose.yml up -d'
 
       - name: Verify deployment
         run: |
           ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=no \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            'docker compose -f docker-compose.yml ps'
+            'docker compose -f /opt/optout/docker-compose.yml ps'
