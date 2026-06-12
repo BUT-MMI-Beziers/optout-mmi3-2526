@@ -17,6 +17,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set lowercase repo name
+        run: echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -29,14 +32,14 @@ jobs:
         with:
           context: ./api
           push: true
-          tags: ghcr.io/${{ github.repository }}/api:develop
+          tags: ghcr.io/${{ env.REPO_LOWER }}/api:develop
 
       - name: Build and push Front image
         uses: docker/build-push-action@v5
         with:
           context: ./front
           push: true
-          tags: ghcr.io/${{ github.repository }}/front:develop
+          tags: ghcr.io/${{ env.REPO_LOWER }}/front:develop
 
   deploy:
     name: Deploy via SSH
