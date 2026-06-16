@@ -1,0 +1,66 @@
+services:
+  api:
+    image: ghcr.io/${REPO}/api:latest
+    ports:
+      - "${API_PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-float}:${POSTGRES_PASSWORD:-float}@db:5432/${POSTGRES_DB:-float}
+    depends_on:
+      - db
+      - redis
+      - mailpit
+
+  worker:
+    image: ghcr.io/${REPO}/api:latest
+    command: npm run worker
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-float}:${POSTGRES_PASSWORD:-float}@db:5432/${POSTGRES_DB:-float}
+    depends_on:
+      - api
+      - db
+      - redis
+      - mailpit
+
+  scheduler:
+    image: ghcr.io/${REPO}/api:latest
+    command: npm run scheduler
+    env_file:
+      - .env
+    depends_on:
+      - api
+      - db
+      - redis
+
+  front:
+    image: ghcr.io/${REPO}/front:latest
+    ports:
+      - "${FRONT_PORT:-5173}:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3000
+
+  redis:
+    image: redis:7-alpine
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-float}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-float}
+      POSTGRES_DB: ${POSTGRES_DB:-float}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

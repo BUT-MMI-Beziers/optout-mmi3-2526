@@ -1,0 +1,12 @@
+localhost {
+    handle /api/* {
+        reverse_proxy {env.API_HOST}:{env.API_PORT_INTERNAL} {
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    handle {
+        reverse_proxy {env.FRONT_HOST}:{env.FRONT_PORT_INTERNAL}
+    }
+}

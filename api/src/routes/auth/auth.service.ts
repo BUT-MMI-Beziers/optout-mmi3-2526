@@ -1,0 +1,192 @@
+// Rôle : logique métier de l'authentification — seul fichier qui écrit dans la table users.
+// Gère le hashage bcrypt des mots de passe (12 rounds), le chiffrement AES-256-GCM
+// des données personnelles (prénom, nom) avant insertion, et la génération des tokens JWT
+// avec le rôle embarqué dans le payload. Ne traite jamais de requêtes HTTP directement.
+import bcrypt from 'bcryptjs'
+import { randomBytes } from 'node:crypto'
+import { sign } from 'hono/jwt'
+import { eq, and, ne } from 'drizzle-orm'
+import { db } from '../../db/index.js'
+import { users, userSessions, userContacts } from '../../db/schema.js'
+import { encrypt } from '../../utils/crypto.util.js'
+
+// 12 rounds bcrypt = bon équilibre sécurité / performance (~300ms par hash)
+const BCRYPT_ROUNDS = 12
+const ACCESS_TOKEN_EXPIRY_SECONDS = 15 * 60          // 15 minutes
+const REFRESH_TOKEN_EXPIRY_SECONDS = 7 * 24 * 60 * 60 // 7 jours
+
+function jwtSecret(): string {
+  const secret = process.env.JWT_SECRET
+  if (!secret) throw new Error('JWT_SECRET not configured')
+  return secret
+}
+
+export async function findUserByEmail(email: string) {
+  return db.query.users.findFirst({ where: eq(users.email, email) })
+}
+
+export async function findUserById(id: string) {
+  return db.query.users.findFirst({ where: eq(users.id, id) })
+}
+
+export async function createUser(data: {
+  email: string
+  password: string
+  firstName: string
+  lastName: string
+}) {
+  const passwordHash = await bcrypt.hash(data.password, BCRYPT_ROUNDS)
+  const [user] = await db
+    .insert(users)
+    .values({
+      email:        data.email,
+      passwordHash,
+      firstName:    encrypt(data.firstName),
+      lastName:     encrypt(data.lastName),
+    })
+    .returning({
+      id:    users.id,
+      email: users.email,
+      role:  users.role,
+    })
+
+  // Email de contact par défaut : l'adresse ayant servi à créer le compte.
+  // Garantit qu'au moins un email est renseigné (requis pour générer une demande RGPD).
+  await db.insert(userContacts).values({
+    userId:    user.id,
+    type:      'email',
+    value:     encrypt(data.email),
+    isPrimary: true,
+    label:     'Compte',
+  })
+
+  return user
+}
+
+// Garantit que l'utilisateur a au moins une adresse email dans son profil :
+// pré-remplit avec l'email du compte (chiffré, primary) s'il n'en a aucune.
+// Idempotent — appelé à l'inscription ET à la connexion (backfill des anciens comptes).
+export async function ensureEmailContact(userId: string, email: string): Promise<void> {
+  const existing = await db
+    .select({ id: userContacts.id })
+    .from(userContacts)
+    .where(and(eq(userContacts.userId, userId), eq(userContacts.type, 'email')))
+    .limit(1)
+
+  if (existing.length) return
+
+  await db.insert(userContacts).values({
+    userId,
+    type: 'email',
+    value: encrypt(email),
+    isPrimary: true,
+    label: 'Compte',
+  })
+}
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash)
+}
+
+export async function updatePassword(userId: string, newPassword: string): Promise<void> {
+  const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS)
+  await db
+    .update(users)
+    .set({ passwordHash, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+}
+
+// Parse un User-Agent brut en label lisible ex: "MacBook · Chrome 124"
+export function parseUserAgent(ua: string | undefined): string {
+  if (!ua) return 'Appareil inconnu'
+  if (/iphone/i.test(ua)) return 'iPhone · ' + (ua.match(/Version\/([\d.]+)/)?.[1] ? 'Safari' : 'App')
+  if (/ipad/i.test(ua)) return 'iPad · Safari'
+  if (/android/i.test(ua)) return 'Android · ' + (ua.match(/Chrome\/([\d]+)/)?.[1] ? `Chrome ${ua.match(/Chrome\/([\d]+)/)?.[1]}` : 'Navigateur')
+  if (/macintosh/i.test(ua)) {
+    const browser = ua.match(/Chrome\/([\d]+)/)?.[1] ? `Chrome ${ua.match(/Chrome\/([\d]+)/)?.[1]}`
+      : ua.match(/Firefox\/([\d]+)/)?.[1] ? `Firefox ${ua.match(/Firefox\/([\d]+)/)?.[1]}`
+      : 'Safari'
+    return `Mac · ${browser}`
+  }
+  if (/windows/i.test(ua)) {
+    const browser = ua.match(/Chrome\/([\d]+)/)?.[1] ? `Chrome ${ua.match(/Chrome\/([\d]+)/)?.[1]}`
+      : ua.match(/Firefox\/([\d]+)/)?.[1] ? `Firefox ${ua.match(/Firefox\/([\d]+)/)?.[1]}`
+      : 'Edge'
+    return `Windows · ${browser}`
+  }
+  if (/linux/i.test(ua)) return 'Linux · Navigateur'
+  return 'Appareil inconnu'
+}
+
+export async function createSession(userId: string, ip: string | undefined, userAgent: string | undefined) {
+  const [session] = await db
+    .insert(userSessions)
+    .values({ userId, ip: ip ?? null, userAgent: userAgent ?? null, device: parseUserAgent(userAgent), location: null })
+    .returning()
+  return session
+}
+
+export async function getSessionsByUser(userId: string) {
+  return db.select().from(userSessions).where(eq(userSessions.userId, userId))
+}
+
+export async function revokeSession(sessionId: string, userId: string): Promise<boolean> {
+  const result = await db
+    .delete(userSessions)
+    .where(and(eq(userSessions.id, sessionId), eq(userSessions.userId, userId)))
+    .returning()
+  return result.length > 0
+}
+
+export async function revokeOtherSessions(userId: string, currentSessionId: string): Promise<void> {
+  await db
+    .delete(userSessions)
+    .where(and(eq(userSessions.userId, userId), ne(userSessions.id, currentSessionId)))
+}
+
+export async function touchSession(sessionId: string): Promise<void> {
+  await db
+    .update(userSessions)
+    .set({ lastSeenAt: new Date() })
+    .where(eq(userSessions.id, sessionId))
+}
+
+// Génère access token JWT (15 min) + refresh token opaque (7 jours).
+// Le refresh token brut est retourné pour être placé en cookie HttpOnly.
+// Seul son hash bcrypt est stocké en base — jamais la valeur brute.
+export async function generateTokens(userId: string, role: 'user' | 'admin', sessionId: string) {
+  const now = Math.floor(Date.now() / 1000)
+
+  const accessToken = await sign(
+    { sub: userId, role, sid: sessionId, iat: now, exp: now + ACCESS_TOKEN_EXPIRY_SECONDS },
+    jwtSecret()
+  )
+
+  // Format : "<userId>.<random>" — le userId permet de retrouver l'utilisateur sans JWT
+  const refreshToken = `${userId}.${randomBytes(64).toString('hex')}`
+  const refreshTokenHash = await bcrypt.hash(refreshToken, BCRYPT_ROUNDS)
+
+  await db
+    .update(users)
+    .set({ refreshTokenHash, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+
+  return { accessToken, refreshToken, accessExpiresIn: ACCESS_TOKEN_EXPIRY_SECONDS, refreshExpiresIn: REFRESH_TOKEN_EXPIRY_SECONDS }
+}
+
+// Vérifie le refresh token brut contre le hash en base.
+// Retourne l'utilisateur si valide, null sinon.
+export async function verifyRefreshToken(userId: string, token: string) {
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
+  if (!user?.refreshTokenHash) return null
+  const valid = await bcrypt.compare(token, user.refreshTokenHash)
+  return valid ? user : null
+}
+
+// Révoque le refresh token en base (logout réel).
+export async function revokeRefreshToken(userId: string): Promise<void> {
+  await db
+    .update(users)
+    .set({ refreshTokenHash: null, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+}
